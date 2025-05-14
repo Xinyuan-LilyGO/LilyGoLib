@@ -1,0 +1,17 @@
+/*
+ * SPDX-FileCopyrightText: 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#pragma once
+
+#define CONFIG_CODEC_ES8311_SUPPORT
+// #define CONFIG_CODEC_ES7210_SUPPORT
+// #define CONFIG_CODEC_ES7243_SUPPORT
+// #define CONFIG_CODEC_ES7243E_SUPPORT
+// #define CONFIG_CODEC_ES8156_SUPPORT
+// #define CONFIG_CODEC_AW88298_SUPPORT
+// #define CONFIG_CODEC_ES8374_SUPPORT
+// #define CONFIG_CODEC_ES8388_SUPPORT
+// #define CONFIG_CODEC_TAS5805M_SUPPORT
+// #define CONFIG_CODEC_ZL38063_SUPPORT

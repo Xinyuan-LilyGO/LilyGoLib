@@ -1,0 +1,55 @@
+{
+  "name": "LilyGoLib",
+  "version": "0.1.0",
+  "description": "LilyGo Arduino library",
+  "keywords": "lilygo,t-watch,t-lora-pager",
+  "authors": [
+    {
+      "name": "LewisHe",
+      "url": "https://github.com/lewisxhe",
+      "maintainer": true
+    },
+    {
+      "name": "Xinyuan-LilyGO",
+      "url": "https://github.com/Xinyuan-LilyGO"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Xinyuan-LilyGO/LilyGoLib.git"
+  },
+  "homepage": "https://github.com/Xinyuan-LilyGO",
+  "export": {
+    "include": [
+      "LICENSE",
+      "library.json",
+      "library.properties",
+      "README.md",
+      "keywords.txt",
+      "src/*",
+      "examples/*"
+    ]
+  },
+  "dependencies": [
+    {
+      "name": "RadioLib",
+      "version": "7.1.2"
+    },
+    {
+      "name": "lvgl",
+      "version": "9.2.2"
+    },
+    {
+      "name": "XPowersLib",
+      "version": "0.2.9"
+    },
+    {
+      "name": "SensorLib",
+      "version": "0.3.1"
+    }
+  ],
+  "examples": ["examples/*/*.ino"],
+  "frameworks": ["arduino"],
+  "platforms": "esp32",
+  "headers": "LilyGoLib.h"
+}
