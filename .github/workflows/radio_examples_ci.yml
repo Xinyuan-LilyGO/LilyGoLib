@@ -1,0 +1,96 @@
+name: RadioExamples
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    paths:
+      - "examples/**"
+      - "src/**"
+      - ".github/workflows/arduino_ci.yml"
+      - ".github/scripts/check_ci_json.py"
+jobs:
+  Arduino-Build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - tlora_pager
+          - twatch_ultra
+          - twatchs3
+          
+        radio_examples:
+          - radio/LR1121/LR11x0_Receive/LR11x0_Receive.ino
+          - radio/LR1121/LR11x0_Transmit/LR11x0_Transmit.ino
+
+          - radio/nRF2401/nRF24_Receive/nRF24_Receive.ino
+          - radio/nRF2401/nRF24_Transmit/nRF24_Transmit.ino
+
+          - radio/SI4432/Si4432_Receive/Si4432_Receive.ino
+          - radio/SI4432/Si4432_Transmit/Si4432_Transmit.ino
+
+          - radio/SX1262/LoRaWAN/LoRaWAN.ino
+          - radio/SX1262/SX126x_PingPong/SX126x_PingPong.ino
+          - radio/SX1262/SX126x_Receive/SX126x_Receive.ino
+          - radio/SX1262/SX126x_Transmit/SX126x_Transmit.ino
+
+          - radio/SX1280/SX128x_Ranging/SX128x_Ranging.ino
+          - radio/SX1280/SX128x_Receive/SX128x_Receive.ino
+          - radio/SX1280/SX128x_Transmit/SX128x_Transmit.ino
+
+          - sensor/BHI260AP_6DoF/BHI260AP_6DoF.ino
+          - sensor/BHI260AP_Euler/BHI260AP_Euler.ino
+          - sensor/BMA423_Accelerometer/BMA423_Accelerometer.ino
+          - sensor/BMA423_Feature/BMA423_Feature.ino
+          - sensor/BMA423_Temperature/BMA423_Temperature.ino
+
+    env:
+      SKETCH: ${{matrix.radio_examples}}
+      LILYGO_BOARD_TYPE: ${{matrix.board}}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Arduino Ci
+        run: |
+          wget https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz -O arduino-cli.tar.gz
+          sudo tar xf arduino-cli.tar.gz -C /usr/local/bin arduino-cli
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Check ci.json
+        id: check_json
+        run: |
+          python .github/scripts/check_ci_json.py \
+            --dir-path "$PWD/examples/$(dirname "$SKETCH")" \
+            --board "$LILYGO_BOARD_TYPE"
+      
+      - name: Install ThirdParty
+        if: steps.check_json.outputs.should_build == 'true'
+        run: |
+          mkdir -p $HOME/Arduino/libraries ;
+          cd $HOME/Arduino/libraries ;
+          git clone https://github.com/Xinyuan-LilyGO/LilyGoLib-ThirdParty.git $HOME/Arduino/libraries ;
+
+      - name: Build base examples
+        if: steps.check_json.outputs.should_build == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE
+          DIR_PATH=$(dirname "$PWD/examples/$SKETCH")
+          echo "RUN EXAMPLE PATH:"$DIR_PATH
+          echo "ACTIVE RADIO: ${{ steps.check_json.outputs.active_radio }}"
+          echo "SHOULD BUILD: ${{ steps.check_json.outputs.should_build }}"
+          
+          if [[ "${{ steps.check_json.outputs.should_build }}" == "true" ]]; then
+            arduino-cli compile \
+            -besp32:esp32:$LILYGO_BOARD_TYPE:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=cdc,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,PartitionScheme=app3M_fat9M_16MB,DebugLevel=none,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,Revision=${{ steps.check_json.outputs.active_radio }} \
+              --library . \
+              $PWD/examples/$SKETCH
+          else
+            echo "Skip the compilation step according to the ci.json configuration"
+            exit 0
+          fi    
