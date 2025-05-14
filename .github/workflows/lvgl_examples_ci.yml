@@ -6,7 +6,6 @@ on:
     paths:
       - "examples/lvgl/**"
       - "src/**"
-      - ".github/workflows/arduino_ci.yml"
       - ".github/scripts/check_ci_json.py"
 jobs:
   Arduino-Build:
