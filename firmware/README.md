@@ -18,11 +18,11 @@
 
 ## 1️⃣Support Product
 
-| Product(PinMap)    | Firmware                                       |
-| ------------------ | ---------------------------------------------- |
-| [T-LoRa-Pager][1]  | [firmware](./factory.tlora.pager.20250512.bin) |
-| [T-Watch-Ultra][2] | [firmware](./factory.watch.ultra.20250512.bin) |
-| [T-Watch-S3][3]    |                                                |
+| Product                            | Firmware                                       |
+| ---------------------------------- | ---------------------------------------------- |
+| [T-LoRa-Pager][1]                  | [firmware](./factory.tlora.pager.20250512.bin) |
+| [T-Watch-Ultra][2]                 | [firmware](./factory.watch.ultra.20250512.bin) |
+| [T-Watch-S3 or T-Watch-S3-Plus][3] |                                                |
 
 [1]: https://www.lilygo.cc/products
 [2]: https://www.lilygo.cc/products
@@ -34,10 +34,10 @@
 >
 > 🤖 USB ports keep popping in and out?
 >
-> T-Watch-S3 see [here](../docs/lilygo-t-watch-s3.md#t-watch-s3-enter-download-mode)
-> T-Watch-S3-Plus see  [here](../docs/lilygo-t-watch-s3-plus.md#t-watch-s3-plus-enter-download-mode)
-> T-Watch-Ultra see [here](../docs/lilygo-t-watch-ultra.md#t-watch-s3-ultra-enter-download-mode)
-> T-LoRa-Pager see [here](../docs/lilygo-t-lora-pager.md#t-lora-pager-enter-download-mode)
+> * T-Watch-S3 see [here](../docs/lilygo-t-watch-s3.md#t-watch-s3-enter-download-mode)
+> * T-Watch-S3-Plus see  [here](../docs/lilygo-t-watch-s3-plus.md#t-watch-s3-plus-enter-download-mode)
+> * T-Watch-Ultra see [here](../docs/lilygo-t-watch-ultra.md#t-watch-s3-ultra-enter-download-mode)
+> * T-LoRa-Pager see [here](../docs/lilygo-t-lora-pager.md#t-lora-pager-enter-download-mode)
 >
 
 ### Use ESP Download Tool
