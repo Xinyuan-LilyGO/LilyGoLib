@@ -18,11 +18,11 @@
 
 ## 1️⃣Support Product
 
-| Product                            | Firmware                                       |
-| ---------------------------------- | ---------------------------------------------- |
-| [T-LoRa-Pager][1]                  | [firmware](./factory.tlora.pager.20250512.bin) |
-| [T-Watch-Ultra][2]                 | [firmware](./factory.watch.ultra.20250512.bin) |
-| [T-Watch-S3 or T-Watch-S3-Plus][3] |                                                |
+| Product                            | Firmware                                              |
+| ---------------------------------- | ----------------------------------------------------- |
+| [T-LoRa-Pager][1]                  | [firmware](./factory.tlora.pager.sx1262.20250512.bin) |
+| [T-Watch-Ultra][2]                 | [firmware](./factory.watch.ultra.sx1262.20250512.bin) |
+| [T-Watch-S3 or T-Watch-S3-Plus][3] | [firmware](./factory.twatchs3.sx1262.20250516.bin)    |
 
 [1]: https://www.lilygo.cc/products
 [2]: https://www.lilygo.cc/products
