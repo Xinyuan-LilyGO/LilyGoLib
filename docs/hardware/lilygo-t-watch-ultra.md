@@ -183,7 +183,8 @@
 | 🔋Battery Voltage     | 3.7V                        |
 | 🔋Battery capacity    | 1100mA (\(4.07Wh\))         |
 
-* ⚠️ Recommended to use a charging current lower than 500mA. Excessive charging current will cause the PMU temperature to be too high.
+> \[!IMPORTANT]
+> ⚠️ Recommended to use a charging current lower than 500mA. Excessive charging current will cause the PMU temperature to be too high.
 
 ### ⚡ Power consumption reference
 
