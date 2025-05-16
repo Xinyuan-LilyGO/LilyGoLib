@@ -9,7 +9,7 @@
 #include "ui_define.h"
 
 LV_IMG_DECLARE(img_microphone);
-LV_IMG_DECLARE(img_controller);
+LV_IMG_DECLARE(img_ir_remote);
 LV_IMG_DECLARE(img_music);
 LV_IMG_DECLARE(img_wifi);
 LV_IMG_DECLARE(img_configuration);
@@ -469,16 +469,12 @@ void setupGui()
     extern app_t ui_ble_main;
     extern app_t ui_ble_kb_main;
     extern app_t ui_factory_main;
-    // extern app_t ui_camera_remote_main;
-
-    // #ifndef ARDUINO
-    //     extern app_t ui_nfc_main;
-    //     create_app(panel, "NFC", &img_test, &ui_nfc_main);
-    // #endif
 
     /* Add application */
-    // create_app(panel, "Info", &img_controller, &ui_info_main);
-    // create_app(panel, "Calendar", &img_calendar, &ui_calendar_main);
+#if defined(USING_IR_REMOTE)
+    extern app_t ui_ir_remote_main;
+    create_app(panel, "IR Remote", &img_ir_remote, &ui_ir_remote_main);
+#endif
 
 #if defined(USING_EXTERN_NRF2401)
     extern app_t ui_nrf24_main;

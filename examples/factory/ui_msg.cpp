@@ -72,6 +72,7 @@ static void _ui_process_bar_cb(lv_timer_t*t)
 
             wl_status_t status = hw_get_wifi_status();
             switch (status) {
+#ifdef ARDUINO
 #if ESP_IDF_VERSION <ESP_IDF_VERSION_VAL(5,0,0)
             case WL_IDLE_STATUS:
 #else
@@ -79,6 +80,7 @@ static void _ui_process_bar_cb(lv_timer_t*t)
 #endif
                 ui_msg_pop_up("WiFi", "Connection failed, WIFI is not activated.");
                 break;
+#endif
             case WL_NO_SSID_AVAIL:
                 ui_msg_pop_up("WiFi", "Connection failed. The SSID was not found.");
                 break;

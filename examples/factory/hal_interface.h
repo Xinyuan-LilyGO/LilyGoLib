@@ -848,6 +848,10 @@ uint16_t radio_get_freq_length();
 uint16_t radio_get_bandwidth_length();
 uint16_t radio_get_tx_power_length();
 
+#if defined(USING_IR_REMOTE)
+void hw_set_remote_code(uint32_t nec_code);
+#endif
+
 #if defined(ARDUINO_T_LORA_PAGER)
 #define USING_BLE_KEYBOARD
 #define  FLOAT_BUTTON_WIDTH  40

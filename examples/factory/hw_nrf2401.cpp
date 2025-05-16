@@ -11,6 +11,8 @@
 
 #if defined(USING_EXTERN_NRF2401)
 
+#ifdef ARDUINO
+
 #include <LilyGoLib.h>
 
 static EventGroupHandle_t    radioEvent = NULL;
@@ -41,6 +43,7 @@ void hw_nrf24_begin()
     }
     nrf24.setPacketSentAction(hw_nrf24_isr);
 }
+#endif
 
 bool hw_has_nrf24()
 {
@@ -62,6 +65,7 @@ void hw_get_nrf24_params(radio_params_t &params)
 
 int16_t hw_set_nrf24_params(radio_params_t &params)
 {
+#ifdef ARDUINO
     static uint8_t addr[] = {0x01, 0x23, 0x45, 0x67, 0x89};
     int state = RADIOLIB_ERR_NONE;
 
@@ -115,6 +119,9 @@ int16_t hw_set_nrf24_params(radio_params_t &params)
     instance.unlockSPI();
 
     return state;
+#else
+    return 0;
+#endif
 }
 
 void hw_set_nrf24_listening()
@@ -130,6 +137,7 @@ void hw_clear_nrf24_flag()
 
 bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
 {
+#ifdef ARDUINO
     EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdTICKS_TO_MS(2));
     if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
         params.state = -1;
@@ -161,11 +169,13 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
         Serial.print(F("failed, code "));
         Serial.println(params.state);
     }
+#endif
     return true;
 }
 
 void hw_get_nrf24_rx(radio_rx_params_t &params)
 {
+#ifdef ARDUINO
     EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdTICKS_TO_MS(2));
     if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
         params.state = -1;
@@ -202,6 +212,7 @@ void hw_get_nrf24_rx(radio_rx_params_t &params)
         Serial.print("[PAYLOAD]:");
         Serial.println((char *)params.data);
     }
+#endif
 }
 
 #endif

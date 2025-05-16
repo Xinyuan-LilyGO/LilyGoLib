@@ -11,6 +11,7 @@
 
 #ifdef ARDUINO_LILYGO_LORA_SX1262
 
+#ifdef ARDUINO
 #include <LilyGoLib.h>
 
 static EventGroupHandle_t radioEvent = NULL;
@@ -37,6 +38,7 @@ void hw_radio_begin()
     // Radio  register isr event
     radio.setPacketSentAction(hw_radio_isr);
 }
+#endif
 
 int16_t hw_set_radio_params(radio_params_t &params)
 {

@@ -1735,3 +1735,23 @@ void hw_print_mem_info()
     printf("------------------------------------------\n");
 #endif
 }
+
+
+#if defined(USING_IR_REMOTE) && defined(ARDUINO)
+#include <IRsend.h>
+IRsend irsend(IR_SEND); // T-Watch S3 GPIO2 pin to use.
+static bool isBegin = false;
+void hw_set_remote_code(uint32_t nec_code)
+{
+    if (!isBegin) {
+        isBegin = true;
+        irsend.begin();
+    }
+    irsend.sendNEC(nec_code);
+}
+#else
+void hw_set_remote_code(uint32_t nec_code)
+{
+    printf("Send code:0x%X\n", nec_code);
+}
+#endif
