@@ -1298,7 +1298,7 @@ void hw_get_monitor_params(monitor_params_t &params)
     params.sys_voltage = instance.ppm.getSystemVoltage();
 #elif defined(USING_PMU_MANAGE)
     params.type = MONITOR_PMU;
-    params.charge_state = "None";
+    params.charge_state = instance.pmu.isCharging() ? "Charging" : "Not charging";
     params.usb_voltage = instance.pmu.getVbusVoltage();
     params.sys_voltage = instance.pmu.getSystemVoltage();
     params.battery_voltage = instance.pmu.getBattVoltage();
