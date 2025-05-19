@@ -108,6 +108,12 @@ static lv_obj_t *password_text_crate(lv_obj_t *parent)
     lv_textarea_set_password_mode(pwd_ta, true);
     lv_textarea_set_one_line(pwd_ta, true);
     lv_obj_set_scrollbar_mode(pwd_ta, LV_SCROLLBAR_MODE_OFF);
+
+#ifdef WIFI_PASSWORD
+    lv_textarea_set_text(pwd_ta, WIFI_PASSWORD);
+    lv_strncpy(wifi_password, WIFI_PASSWORD, lv_strlen(WIFI_PASSWORD));
+#endif
+
 #ifdef USING_TOUCHPAD
     keyboard = lv_keyboard_create(lv_scr_act());
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
@@ -157,6 +163,10 @@ static lv_obj_t *dropdown_create(lv_obj_t *parent)
     wifi_dd = lv_dropdown_create(parent);
     lv_dropdown_clear_options(wifi_dd);
     lv_obj_add_event_cb(wifi_dd, dropdown_event, LV_EVENT_VALUE_CHANGED, NULL);
+#ifdef WIFI_SSID
+    lv_dropdown_add_option(wifi_dd, WIFI_SSID, 0);
+    lv_strcpy(wifi_ssid, WIFI_SSID);
+#endif
     return wifi_dd;
 }
 
