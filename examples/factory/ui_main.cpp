@@ -249,6 +249,10 @@ lv_obj_t *setupClock()
         h = LV_PCT(48);
     }
 
+    uint32_t phy_ver_res = lv_disp_get_physical_ver_res(NULL);
+    if (phy_ver_res > 222) {
+        h = LV_PCT(45);
+    }
 
     lv_obj_t *hour_cout = lv_obj_create(page);
     lv_obj_set_size(hour_cout, w, h);
@@ -300,7 +304,11 @@ lv_obj_t *setupClock()
 
     lv_obj_t *img = lv_img_create(page);
     lv_img_set_src(img, &img_battery);
-    lv_obj_align_to(img, min_cout, LV_ALIGN_OUT_BOTTOM_RIGHT, -10, 20);
+    if (lv_disp_get_physical_ver_res(NULL) == 240) {
+        lv_obj_align_to(img, min_cout, LV_ALIGN_OUT_BOTTOM_RIGHT, -10, 20);
+    } else {
+        lv_obj_align(img, LV_ALIGN_BOTTOM_RIGHT, -60, offset);
+    }
 
     lv_obj_t *bar = lv_bar_create(img);
     lv_obj_set_size(bar, img_battery.header.w - 8, img_battery.header.h - 12);
