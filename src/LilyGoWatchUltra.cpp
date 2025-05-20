@@ -205,17 +205,8 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
 
     LilyGoDispQSPI::enableTearingEffect(_enableTearingEffect);
 
-    // DISP_RST
-#ifdef DISP_RST
-
-    LilyGoDispQSPI::init(DISP_RST, DISP_CS,
-                         DISP_TE, DISP_SCK,
-                         DISP_D0, DISP_D1,
-                         DISP_D2, DISP_D3, 80);
-
-#else //DISP_RST
-
 #if defined(USING_BHI_EXPANDS)
+
     if (!initSensor()) {
         assert(0);
     }
@@ -228,11 +219,6 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
     delay(300);
     sensor.digitalWrite(EXPANDS_DISP_RST, HIGH);
     delay(200);
-
-    LilyGoDispQSPI::init(PIN_NONE, DISP_CS,
-                         DISP_TE, DISP_SCK,
-                         DISP_D0, DISP_D1,
-                         DISP_D2, DISP_D3, 80);
 
     // Enable touch
     sensor.digitalWrite(EXPANDS_TOUCH_RST, HIGH);
@@ -267,13 +253,17 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
         log_d("Initializing expand Failed!");
     }
 
+#endif
 
-    LilyGoDispQSPI::init(PIN_NONE, DISP_CS, DISP_TE,
-                         DISP_SCK, DISP_D0, DISP_D1,
+#ifndef DISP_RST
+#define DISP_RST -1
+#endif
+
+    LilyGoDispQSPI::init(DISP_RST, DISP_CS,
+                         DISP_TE, DISP_SCK,
+                         DISP_D0, DISP_D1,
                          DISP_D2, DISP_D3, 80);
 
-#endif
-#endif  //DISP_RST
 
     if (_boot_images_addr) {
         uint16_t w = this->width();

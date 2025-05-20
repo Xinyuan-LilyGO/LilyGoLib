@@ -57,7 +57,7 @@ static  void ICACHE_RAM_ATTR disp_te_isr()
     frame_count++;
 }
 
-bool LilyGoDispQSPI::init(int rst, int cs, int te, int sck, int d0, int d1, int d2, int d3,  uint32_t freq_Mhz)
+bool LilyGoDispQSPI:: init(int rst, int cs, int te, int sck, int d0, int d1, int d2, int d3,  uint32_t freq_Mhz)
 {
     assert(_disp_init_cmd);
 
@@ -74,11 +74,11 @@ bool LilyGoDispQSPI::init(int rst, int cs, int te, int sck, int d0, int d1, int 
     if (rst != -1) {
         pinMode(rst, OUTPUT);
         digitalWrite(rst, HIGH);
-        delay(20);
+        delay(200);
         digitalWrite(rst, LOW);
-        delay(60);
+        delay(300);
         digitalWrite(rst, HIGH);
-        delay(20);
+        delay(200);
     }
 
     spi_bus_config_t spi_config = {
@@ -95,7 +95,7 @@ bool LilyGoDispQSPI::init(int rst, int cs, int te, int sck, int d0, int d1, int 
         .flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_GPIO_PINS,
     };
 
-    log_d("D0:%d D1:%u D2:%d D3:%d SCK:%d CS:%d", d0, d1, d2, d3, sck, cs);
+    log_d("RST:%d D0:%d D1:%u D2:%d D3:%d SCK:%d CS:%d",rst, d0, d1, d2, d3, sck, cs);
 
     spi_device_interface_config_t dev_config = {
         .command_bits = 8,
