@@ -1296,6 +1296,12 @@ void hw_get_monitor_params(monitor_params_t &params)
     params.charge_state = instance.ppm.getChargeStatusString();
     params.usb_voltage = instance.ppm.getVbusVoltage();
     params.sys_voltage = instance.ppm.getSystemVoltage();
+    instance.ppm.getFaultStatus();
+    if (instance.ppm.isNTCFault()) {
+        params.ntc_state = instance.ppm.getNTCStatusString();
+    } else {
+        params.ntc_state = "Normal";
+    }
 #elif defined(USING_PMU_MANAGE)
     params.type = MONITOR_PMU;
     params.charge_state = instance.pmu.isCharging() ? "Charging" : "Not charging";
@@ -1304,6 +1310,7 @@ void hw_get_monitor_params(monitor_params_t &params)
     params.battery_voltage = instance.pmu.getBattVoltage();
     params.battery_percent = instance.pmu.getBatteryPercent();
     params.temperature = instance.pmu.getTemperature();
+    params.ntc_state = "Normal"; //TODO:
 #endif
 
 #ifdef USING_BQ_GAUGE
@@ -1343,6 +1350,7 @@ void hw_get_monitor_params(monitor_params_t &params)
     params.battery_voltage = 4178;
     params.charge_state = "Fast charging";
     params.usb_voltage = 4998;
+    params.ntc_state = "Normal";
 #endif
 }
 

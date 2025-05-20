@@ -25,6 +25,7 @@ typedef struct {
     lv_obj_t *timeToEmpty;
     lv_obj_t *timeToFull;
     lv_obj_t *standbyCurrent;
+    lv_obj_t *ntc_state;
 } monitor_label_t;
 
 static monitor_label_t label_monitor;
@@ -71,6 +72,11 @@ void ui_monitor_enter(lv_obj_t *parent)
     label = lv_label_create(btn);
     lv_label_set_text(label, param.charge_state.c_str());
     label_monitor.charge_state = label;
+
+    btn = lv_list_add_btn(list1, LV_SYMBOL_POWER, "NTC State:");
+    label = lv_label_create(btn);
+    lv_label_set_text_fmt(label, "%s", param.ntc_state.c_str());
+    label_monitor.ntc_state = label;
 
     btn = lv_list_add_btn(list1, LV_SYMBOL_POWER, "Power adapter:");
     label = lv_label_create(btn);
@@ -157,6 +163,7 @@ void ui_monitor_enter(lv_obj_t *parent)
         lv_label_set_text_fmt(label_monitor.sys_voltage, "%u mV", param.sys_voltage);
         lv_label_set_text_fmt(label_monitor.battery_percent, "%d %%", param.battery_percent);
         lv_label_set_text_fmt(label_monitor.temperature, "%.02f °C", param.temperature);
+        lv_label_set_text_fmt(label_monitor.ntc_state, "%s", param.ntc_state.c_str());
 
         if (param.type == MONITOR_PPM) {
             lv_label_set_text_fmt(label_monitor.instantaneousCurrent, "%d mA", param.instantaneousCurrent);

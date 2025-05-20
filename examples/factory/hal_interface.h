@@ -196,6 +196,7 @@ typedef struct {
     int16_t  maxLoadCurrent;    //mA
     uint16_t timeToEmpty;       // minute
     uint16_t timeToFull;        // minute
+    string ntc_state;
 } monitor_params_t;
 
 /**
@@ -853,7 +854,7 @@ void hw_set_remote_code(uint32_t nec_code);
 #endif
 
 #if defined(ARDUINO_T_LORA_PAGER)
-#define USING_BLE_KEYBOARD
+// #define USING_BLE_KEYBOARD
 #define  FLOAT_BUTTON_WIDTH  40
 #define  FLOAT_BUTTON_HEIGHT 40
 #ifndef USING_BHI260_SENSOR
