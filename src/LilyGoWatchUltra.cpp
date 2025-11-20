@@ -117,7 +117,7 @@ void LilyGoUltra::clearEventBits(const EventBits_t uxBitsToClear)
 
 void LilyGoUltra::setEventBits(const EventBits_t uxBitsToSet)
 {
-    xEventGroupClearBits(_event, uxBitsToSet);
+    xEventGroupSetBits(_event, uxBitsToSet);
 }
 
 void LilyGoUltra::setRotation(uint8_t rotation)
