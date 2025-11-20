@@ -68,7 +68,7 @@ void LilyGoWatch2022::clearEventBits(const EventBits_t uxBitsToClear)
 
 void LilyGoWatch2022::setEventBits(const EventBits_t uxBitsToSet)
 {
-    xEventGroupClearBits(_event, uxBitsToSet);
+    xEventGroupSetBits(_event, uxBitsToSet);
 }
 
 const char *LilyGoWatch2022::getName()
