@@ -687,6 +687,7 @@ void hw_init()
         user_setting.disp_timeout_second = 30;
         user_setting.charger_current = DEVICE_CHARGE_CURRENT_RECOMMEND;
         user_setting.charger_enable = true;
+        user_setting.gmtOffset_sec = GMT_OFFSET_SECOND;
         prefs.putBytes(NVS_NAME, &user_setting, sizeof(user_setting_params_t));
     }
 
@@ -701,6 +702,9 @@ void hw_init()
             log_d("ON EVENT PMU CLICK");
         }
     }, POWER_EVENT, NULL);
+    
+    prefs.begin("my-config");
+    
 
 
 #else
@@ -725,6 +729,7 @@ void hw_get_user_setting(user_setting_params_t &param)
     printf("Get disp_timeout_second :%u\n", user_setting.disp_timeout_second);
     printf("Get charger_current     :%u\n", user_setting.charger_current);
     printf("Get charger_enable      :%u\n", user_setting.charger_enable);
+    printf("Get gmtOffset_sec       :%d\n", user_setting.gmtOffset_sec);
 }
 
 void hw_set_user_setting(user_setting_params_t &param)
@@ -738,7 +743,30 @@ void hw_set_user_setting(user_setting_params_t &param)
     printf("set disp_timeout_second :%u\n", param.disp_timeout_second);
     printf("set charger_current     :%u\n", param.charger_current);
     printf("set charger_enable      :%u\n", param.charger_enable);
+    printf("set gmtOffset_sec       :%d\n", param.gmtOffset_sec);
 
+}
+
+void hw_save_wifi_creds(const char *ssid, const char *password)
+{
+#ifdef ARDUINO
+    prefs.putString("wifi_ssid", ssid);
+    prefs.putString("wifi_password", password);
+    printf("Saved WiFi creds: ssid=%s\n", ssid);
+#endif
+}
+
+void hw_load_wifi_creds(char *ssid, size_t ssid_len, char *password, size_t password_len)
+{
+#ifdef ARDUINO
+    String s = prefs.getString("wifi_ssid", "");
+    String p = prefs.getString("wifi_password", "");
+    strncpy(ssid, s.c_str(), ssid_len - 1);
+    ssid[ssid_len - 1] = '\0';
+    strncpy(password, p.c_str(), password_len - 1);
+    password[password_len - 1] = '\0';
+    printf("Loaded WiFi creds: ssid=%s\n", ssid);
+#endif
 }
 
 const uint32_t hw_get_disp_timeout_ms()

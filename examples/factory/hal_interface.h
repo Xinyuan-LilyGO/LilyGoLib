@@ -245,6 +245,7 @@ typedef struct {
     uint8_t disp_timeout_second;
     uint16_t charger_current;
     uint8_t charger_enable;
+    int32_t gmtOffset_sec;
 } user_setting_params_t;
 
 /**
@@ -833,6 +834,9 @@ void hw_get_user_setting(user_setting_params_t &param);
  * @param param A reference to a user_setting_params_t structure containing the new settings.
  */
 void hw_set_user_setting(user_setting_params_t &param);
+
+void hw_save_wifi_creds(const char *ssid, const char *password);
+void hw_load_wifi_creds(char *ssid, size_t ssid_len, char *password, size_t password_len);
 
 /**
  * @brief Get the display timeout in milliseconds.

@@ -133,9 +133,13 @@ static lv_obj_t *password_text_crate(lv_obj_t *parent)
     lv_obj_set_scrollbar_mode(pwd_ta, LV_SCROLLBAR_MODE_OFF);
 
 #ifdef WIFI_PASSWORD
-    lv_textarea_set_text(pwd_ta, WIFI_PASSWORD);
-    lv_strncpy(wifi_password, WIFI_PASSWORD, lv_strlen(WIFI_PASSWORD));
+    if (lv_strlen(wifi_password) == 0) {
+        lv_strncpy(wifi_password, WIFI_PASSWORD, sizeof(wifi_password) - 1);
+    }
 #endif
+    if (lv_strlen(wifi_password) > 0) {
+        lv_textarea_set_text(pwd_ta, wifi_password);
+    }
 
 #ifdef USING_TOUCHPAD
     keyboard = lv_keyboard_create(lv_scr_act());
@@ -164,6 +168,7 @@ static void wifi_connect_event(lv_event_t *e)
         params.ssid = wifi_ssid;
         params.password = wifi_password;
         hw_set_wifi_connect(params);
+        hw_save_wifi_creds(wifi_ssid, wifi_password);
         ui_show_wifi_process_bar();
     }
 }
@@ -198,13 +203,30 @@ static lv_obj_t *dropdown_create(lv_obj_t *parent)
     wifi_dd = lv_dropdown_create(parent);
     lv_dropdown_clear_options(wifi_dd);
     lv_obj_add_event_cb(wifi_dd, dropdown_event, LV_EVENT_VALUE_CHANGED, NULL);
+    int opt_idx = 0;
+    int sel_idx = 0;
 #ifdef WIFI_SSID
-    lv_dropdown_add_option(wifi_dd, WIFI_SSID, 0);
-    lv_strcpy(wifi_ssid, WIFI_SSID);
+    lv_dropdown_add_option(wifi_dd, WIFI_SSID, opt_idx);
+    if (lv_strlen(wifi_ssid) == 0) {
+        lv_strcpy(wifi_ssid, WIFI_SSID);
+        sel_idx = opt_idx;
+    } else if (lv_strcmp(wifi_ssid, WIFI_SSID) == 0) {
+        sel_idx = opt_idx;
+    }
+    opt_idx++;
 #endif
 #ifdef WIFI_SSID2
-    lv_dropdown_add_option(wifi_dd, WIFI_SSID2, 1);
+    lv_dropdown_add_option(wifi_dd, WIFI_SSID2, opt_idx);
+    if (lv_strcmp(wifi_ssid, WIFI_SSID2) == 0) {
+        sel_idx = opt_idx;
+    }
+    opt_idx++;
 #endif
+    if (lv_strlen(wifi_ssid) > 0 && sel_idx == 0) {
+        lv_dropdown_add_option(wifi_dd, wifi_ssid, opt_idx);
+        sel_idx = opt_idx;
+    }
+    lv_dropdown_set_selected(wifi_dd, sel_idx);
     return wifi_dd;
 }
 
@@ -268,6 +290,7 @@ static void scan_btn_event(lv_event_t *e)
 
 void ui_wireless_enter(lv_obj_t *parent)
 {
+    hw_load_wifi_creds(wifi_ssid, sizeof(wifi_ssid), wifi_password, sizeof(wifi_password));
     menu = create_menu(parent, back_event_handler);
 
     lv_obj_t *main_page = lv_menu_page_create(menu, NULL);

@@ -19,10 +19,12 @@ extern void setupGui();
 
 static const char *ntpServer1 = "pool.ntp.org";
 static const char *ntpServer2 = "time.nist.gov";
-static const uint64_t  gmtOffset_sec = GMT_OFFSET_SECOND;
 static const int   daylightOffset_sec = 0;
 static SemaphoreHandle_t xSemaphore = NULL;
 
+String ssid;
+String sifipw;
+int8_t timezone;
 
 void instanceLockTake()
 {
@@ -60,7 +62,9 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(IPAddress(info.got_ip.ip_info.ip.addr));
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
+    user_setting_params_t setting;
+    hw_get_user_setting(setting);
+    configTime(setting.gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
 }
 
 void setup()

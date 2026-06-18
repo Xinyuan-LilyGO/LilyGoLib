@@ -239,6 +239,39 @@ static lv_obj_t *create_subpage_otg(lv_obj_t *menu, lv_obj_t *main_page)
     return cont;
 }
 
+static const char *UTC_OFFSETS = "UTC-12\nUTC-11\nUTC-10\nUTC-9\nUTC-8\nUTC-7\nUTC-6\nUTC-5\nUTC-4\nUTC-3\nUTC-2\nUTC-1\nUTC+0\nUTC+1\nUTC+2\nUTC+3\nUTC+4\nUTC+5\nUTC+6\nUTC+7\nUTC+8\nUTC+9\nUTC+10\nUTC+11\nUTC+12\nUTC+13\nUTC+14";
+
+static int32_t utc_offset_to_index(int32_t offset_sec)
+{
+    return (offset_sec / 3600) + 12;
+}
+
+static int32_t utc_index_to_offset(int32_t index)
+{
+    return (index - 12) * 3600;
+}
+
+static void utc_offset_cb(lv_event_t *e)
+{
+    lv_obj_t *dd = (lv_obj_t *)lv_event_get_target(e);
+    uint16_t sel = lv_dropdown_get_selected(dd);
+    local_param.gmtOffset_sec = utc_index_to_offset(sel);
+}
+
+static lv_obj_t *create_subpage_time(lv_obj_t *menu, lv_obj_t *main_page)
+{
+    lv_obj_t *cont = lv_menu_cont_create(main_page);
+    lv_obj_t *label = lv_label_create(cont);
+    lv_label_set_text(label, LV_SYMBOL_SETTINGS" Time Settings");
+    lv_obj_t *sub_page = lv_menu_page_create(menu, NULL);
+
+    int32_t idx = utc_offset_to_index(local_param.gmtOffset_sec);
+    create_dropdown(sub_page, LV_SYMBOL_SETTINGS, "UTC Offset", UTC_OFFSETS, idx, utc_offset_cb);
+
+    lv_menu_set_load_page_event(menu, cont, sub_page);
+    return cont;
+}
+
 static lv_obj_t *create_subpage_info(lv_obj_t *menu, lv_obj_t *main_page)
 {
     lv_obj_t *btn;
@@ -388,6 +421,10 @@ void ui_sys_enter(lv_obj_t *parent)
     lv_obj_t *cont;
     // //! BACKLIGHT SETTING
     cont = create_subpage_backlight(menu, main_page);
+    lv_group_add_obj(menu_g, cont);
+
+    // //! TIME SETTINGS
+    cont = create_subpage_time(menu, main_page);
     lv_group_add_obj(menu_g, cont);
 
     // //! SYSTEM INFO
