@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vibe-keyboard"
+version = "0.1.0"
+description = "Daemon for AI coding session control over HTTP and Bluetooth LE"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Vibe Keyboard contributors" }]
+keywords = ["ai", "keyboard", "controller", "claude-code", "codex"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: MacOS",
+]
+dependencies = []
+
+[project.optional-dependencies]
+ble = ["bleak>=1.0"]
+dev = [
+  "mypy>=1.16",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.0",
+  "pytest-cov>=6.2",
+  "ruff>=0.12",
+]
+
+[project.scripts]
+vk-daemon = "vibe_keyboard.daemon.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vibe_keyboard"]
+
+[tool.hatch.build]
+artifacts = ["src/vibe_keyboard/core/assets/sounds/*"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/vibe_keyboard",
+  "tests",
+  "README.md",
+  "README.zh-CN.md",
+  "LICENSE",
+  "AGENTS.md",
+  "architecture.md",
+  "architecture.zh-CN.md",
+  "docs",
+  "CONTRIBUTING.md",
+  "CHANGELOG.md",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["vibe_keyboard"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 80
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["vibe_keyboard"]
+mypy_path = "src"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+ignore = ["E501"]
