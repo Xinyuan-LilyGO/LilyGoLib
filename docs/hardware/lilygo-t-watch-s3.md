@@ -141,12 +141,12 @@
 
 ### ⚡ Electrical parameters
 
-| Features             | Details                     |
-| -------------------- | --------------------------- |
-| 🔗USB-C Input Voltage | 3.9V-6V                     |
-| ⚡Charge Current      | 0-1024mA (\(Programmable\)) |
-| 🔋Battery Voltage     | 3.7V                        |
-| 🔋Battery capacity    | 1500mA (\(5.55Wh\))         |
+| Features                | Details                     |
+| ----------------------- | --------------------------- |
+| 🔗MicroUSB Input Voltage | 3.9V-6V                     |
+| ⚡Charge Current         | 0-1024mA (\(Programmable\)) |
+| 🔋Battery Voltage        | 3.8V                        |
+| 🔋Battery capacity       | 470mA                       |
 
 > \[!IMPORTANT]
 > ⚠️ It is recommended to use a charging current below 130mA. Excessive charging current can damage the battery.
