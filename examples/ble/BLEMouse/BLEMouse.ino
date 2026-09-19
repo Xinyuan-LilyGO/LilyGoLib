@@ -11,9 +11,9 @@
 #include <LilyGoLib.h>
 #include <LV_Helper.h>
 
-#include <BleMouse.h>
+#include "NimBLEMouse.h"
 
-BleMouse bleMouse;
+NimBLEMouse bleMouse(USB_PRODUCT);
 lv_obj_t *label1 ;
 lv_point_t last_point;
 const uint32_t DOUBLE_CLICK_TIME_THRESHOLD = 500;
@@ -76,17 +76,10 @@ void encoder_simulate_mouse()
 {
 #ifdef ARDUINO_T_LORA_PAGER
     RotaryMsg_t msg =  instance.getRotary();
-    switch (msg.dir) {
-    case ROTARY_DIR_UP:
-        bleMouse.move(0, 0, 1);
-        break;
-    case ROTARY_DIR_DOWN:
-        bleMouse.move(0, 0, -1);
-        break;
-    default:
-        break;
+    if (msg.enc_diff != 0) {
+        bleMouse.move(0, 0, msg.enc_diff);
     }
-    if (msg.centerBtnPressed) {
+    if (msg.centerBtnClicked) {
         bleMouse.click(MOUSE_LEFT);
     }
 #endif
