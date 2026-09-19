@@ -1,5 +1,6 @@
 /**
  * @file      BrightnessController.h
+ * @brief     Defines a CRTP helper for synchronous and timer-based brightness fades.
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
@@ -11,10 +12,20 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 
+/**
+ * @brief CRTP helper that fades display brightness up or down.
+ *
+ * @tparam T Device class implementing getBrightness(), setBrightness(), and
+ *           getInstance() for asynchronous operation.
+ * @tparam MIN_BRIGHTNESS Lowest accepted brightness level.
+ * @tparam MAX_BRIGHTNESS Highest accepted brightness level.
+ * @tparam DEFAULT_DELAY_MS Default delay between fade steps in milliseconds.
+ */
 template<typename T, uint8_t MIN_BRIGHTNESS, uint8_t MAX_BRIGHTNESS, uint32_t DEFAULT_DELAY_MS>
 class BrightnessController
 {
 protected:
+    /** FreeRTOS timer used by asynchronous brightness transitions. */
     TimerHandle_t timerHandler = nullptr;
 
 public:
@@ -59,11 +70,17 @@ public:
 
                     if (brightness <= *target_level_ptr) {
                         BrightnessController* controller = static_cast<BrightnessController *>(inst);
-                        xTimerStop(controller->timerHandler, portMAX_DELAY);
-                        xTimerDelete(controller->timerHandler, portMAX_DELAY);
-                        controller->timerHandler = NULL;
+                        if (controller->timerHandler == xTimer) {
+                            if (xTimerDelete(xTimer, 0) == pdPASS) {
+                                controller->timerHandler = NULL;
+                            }
+                        }
                     }
                 });
+            }
+
+            if (!timerHandler) {
+                return;
             }
 
             uint8_t current_brightness = static_cast<T *>(this)->getBrightness();
@@ -117,11 +134,17 @@ public:
                     }
                     if (brightness >= *target_level_ptr) {
                         BrightnessController* controller = static_cast<BrightnessController *>(inst);
-                        xTimerStop(controller->timerHandler, portMAX_DELAY);
-                        xTimerDelete(controller->timerHandler, portMAX_DELAY);
-                        controller->timerHandler = NULL;
+                        if (controller->timerHandler == xTimer) {
+                            if (xTimerDelete(xTimer, 0) == pdPASS) {
+                                controller->timerHandler = NULL;
+                            }
+                        }
                     }
                 });
+            }
+
+            if (!timerHandler) {
+                return;
             }
 
             uint8_t current_brightness = static_cast<T *>(this)->getBrightness();

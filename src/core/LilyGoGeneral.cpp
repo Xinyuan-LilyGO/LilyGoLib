@@ -6,13 +6,18 @@
  * @date      2024-07-11
  *
  */
+#include "LilyGoLog.h"
 #include <Arduino.h>
+#include "LilyGoGeneral.h"
 #include "soc/rtc.h"
 
+static uint32_t calibrate_one(
 #if (ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(4,0,0))
-#define CALIBRATE_ONE(cali_clk) calibrate_one(cali_clk, #cali_clk)
-
-static uint32_t calibrate_one(rtc_cal_sel_t cal_clk, const char *name)
+    rtc_cal_sel_t
+#else
+    soc_clk_freq_calculation_src_t
+#endif
+    cal_clk)
 {
     const uint32_t cal_count = 1000;
     uint32_t cali_val;
@@ -21,35 +26,30 @@ static uint32_t calibrate_one(rtc_cal_sel_t cal_clk, const char *name)
     }
     return cali_val;
 }
-#endif
 
 
 bool esp_enable_slow_crystal()
 {
-#if (ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(4,0,0))
     rtc_clk_32k_enable(true);
 
-    CALIBRATE_ONE(RTC_CAL_RTC_MUX);
-    uint32_t cal_32k = CALIBRATE_ONE(RTC_CAL_32K_XTAL);
+    calibrate_one(RTC_CAL_RTC_MUX);
+    uint32_t cal_32k = calibrate_one(RTC_CAL_32K_XTAL);
 
     if (cal_32k == 0) {
-        log_e("32K XTAL OSC has not started up");
+        LILYGO_LOG_E("32K XTAL OSC has not started up");
         return false;
     } else {
         rtc_clk_slow_freq_set(RTC_SLOW_FREQ_32K_XTAL);
-        log_d("Switching RTC Source to 32.768Khz succeeded, using 32K XTAL");
-        CALIBRATE_ONE(RTC_CAL_RTC_MUX);
-        CALIBRATE_ONE(RTC_CAL_32K_XTAL);
+        LILYGO_LOG_D("Switching RTC Source to 32.768Khz succeeded, using 32K XTAL");
+        calibrate_one(RTC_CAL_RTC_MUX);
+        calibrate_one(RTC_CAL_32K_XTAL);
     }
-    CALIBRATE_ONE(RTC_CAL_RTC_MUX);
-    CALIBRATE_ONE(RTC_CAL_32K_XTAL);
+    calibrate_one(RTC_CAL_RTC_MUX);
+    calibrate_one(RTC_CAL_32K_XTAL);
     if (rtc_clk_slow_freq_get() != RTC_SLOW_FREQ_32K_XTAL) {
-        log_e("Failed to switch 32K XTAL RTC source to 32.768Khz !!! ");
+        LILYGO_LOG_E("Failed to switch 32K XTAL RTC source to 32.768Khz !!! ");
         return false;
     }
-#else
-    // TODO:
-#endif
     return true;
 }
 

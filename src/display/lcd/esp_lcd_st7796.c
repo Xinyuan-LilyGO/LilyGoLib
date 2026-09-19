@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "LilyGoLog.h"
 #include <stdlib.h>
 #include <sys/cdefs.h>
 #include "freertos/FreeRTOS.h"
@@ -17,8 +18,6 @@
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_arduino_version.h"
-
-static const char *TAG = "st7796";
 
 static esp_err_t panel_st7796_del(esp_lcd_panel_t *panel);
 static esp_err_t panel_st7796_reset(esp_lcd_panel_t *panel);
@@ -46,16 +45,28 @@ esp_err_t esp_lcd_new_panel_st7796(const esp_lcd_panel_io_handle_t io, const esp
 {
     esp_err_t ret = ESP_OK;
     st7796_panel_t *st7796 = NULL;
-    ESP_GOTO_ON_FALSE(io && panel_dev_config && ret_panel, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+    if (!(io && panel_dev_config && ret_panel)) {
+        ret = ESP_ERR_INVALID_ARG;
+        LILYGO_LOG_E("invalid argument");
+        goto err;
+    }
     st7796 = calloc(1, sizeof(st7796_panel_t));
-    ESP_GOTO_ON_FALSE(st7796, ESP_ERR_NO_MEM, err, TAG, "no mem for st7796 panel");
+    if (!st7796) {
+        ret = ESP_ERR_NO_MEM;
+        LILYGO_LOG_E("no mem for st7796 panel");
+        goto err;
+    }
 
     if (panel_dev_config->reset_gpio_num >= 0) {
         gpio_config_t io_conf = {
             .mode = GPIO_MODE_OUTPUT,
             .pin_bit_mask = 1ULL << panel_dev_config->reset_gpio_num,
         };
-        ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
+        ret = gpio_config(&io_conf);
+        if (ret != ESP_OK) {
+            LILYGO_LOG_E("configure GPIO for RST line failed");
+            goto err;
+        }
     }
 
 #if (ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(4,0,0))
@@ -67,8 +78,9 @@ esp_err_t esp_lcd_new_panel_st7796(const esp_lcd_panel_io_handle_t io, const esp
         st7796->madctl_val |= LCD_CMD_BGR_BIT;
         break;
     default:
-        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported color space");
-        break;
+        ret = ESP_ERR_NOT_SUPPORTED;
+        LILYGO_LOG_E("unsupported color space");
+        goto err;
     }
 #endif
 
@@ -84,8 +96,9 @@ esp_err_t esp_lcd_new_panel_st7796(const esp_lcd_panel_io_handle_t io, const esp
         fb_bits_per_pixel = 24;
         break;
     default:
-        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported pixel width");
-        break;
+        ret = ESP_ERR_NOT_SUPPORTED;
+        LILYGO_LOG_E("unsupported pixel width");
+        goto err;
     }
 
     st7796->io = io;
@@ -106,7 +119,7 @@ esp_err_t esp_lcd_new_panel_st7796(const esp_lcd_panel_io_handle_t io, const esp
     st7796->base.disp_on_off = panel_st7796_disp_on_off;
 #endif
     *ret_panel = &(st7796->base);
-    ESP_LOGD(TAG, "new st7796 panel @%p", st7796);
+    LILYGO_LOG_D("new st7796 panel @%p", st7796);
 
     return ESP_OK;
 
@@ -127,7 +140,7 @@ static esp_err_t panel_st7796_del(esp_lcd_panel_t *panel)
     if (st7796->reset_gpio_num >= 0) {
         gpio_reset_pin(st7796->reset_gpio_num);
     }
-    ESP_LOGD(TAG, "del st7796 panel @%p", st7796);
+    LILYGO_LOG_D("del st7796 panel @%p", st7796);
     free(st7796);
     return ESP_OK;
 }

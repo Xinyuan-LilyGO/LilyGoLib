@@ -1,5 +1,6 @@
 /**
  * @file      LilyGoKeyboard.h
+ * @brief     Declares the TCA8418-based LilyGo keyboard driver wrapper.
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
@@ -9,44 +10,50 @@
 
 #pragma once
 #include <Arduino.h>
+#include "LilyGoKeyboardConfig.h"
+#include "KeyComboManager.h"
 
 #ifdef USING_INPUT_DEV_KEYBOARD
 #include <Adafruit_TCA8418.h>
 
+/** No keyboard event or no key available. */
 #define KB_NONE     -1
+/** Key pressed event state. */
 #define KB_PRESSED  1
+/** Key released event state. */
 #define KB_RELEASED 0
 
-typedef struct LilyGoKeyboardConfigure {
-    uint8_t kb_rows;
-    uint8_t kb_cols;
-    const char *current_keymap;
-    const char *current_symbol_map;
-    uint8_t symbol_key_value;
-    uint8_t alt_key_value;
-    uint8_t caps_key_value;
-    uint8_t caps_b_key_value;
-    uint8_t char_b_value;
-    uint8_t backspace_value;
-    // Is there a symbol combination key?
-    bool has_symbol_key;
-} LilyGoKeyboardConfigure_t;;
-
-// This class, LilyGoKeyboard, inherits from Adafruit_TCA8418 and is designed to handle keyboard operations.
+/**
+ * @brief Keyboard driver wrapper for TCA8418 matrix keyboard devices.
+ */
 class LilyGoKeyboard : public Adafruit_TCA8418
 {
 public:
-    // Typedef for a callback function that is invoked when a key is read.
-    // It takes an integer representing the key state and a reference to a character to store the key value.
+    /**
+     * @brief Callback invoked when a translated key event is read.
+     * @param state Key state such as KB_PRESSED or KB_RELEASED.
+     * @param c Translated key character.
+     */
     using KeyboardReadCallback = void (*)(int state, char &c);
 
-    // Typedef for a callback function that is called when defined as a gpio.
+    /**
+     * @brief Callback invoked for matrix pins used as GPIO inputs.
+     * @param pressed true when the GPIO-style key is active.
+     * @param gpio_idx GPIO index reported by the keyboard controller.
+     */
     using GpioEventCallback = void (*)(bool pressed, uint8_t gpio_idx);
 
-    // Typedef for a callback function called when adjusting the keyboard backlight.
+    /**
+     * @brief Callback invoked when the keyboard backlight level changes.
+     * @param level Backlight level.
+     */
     using BacklightCallback = void (*)(uint8_t level);
 
-    // Typedef for a callback function called when keyboard press or release raw code.
+    /**
+     * @brief Callback invoked with raw keyboard controller events.
+     * @param pressed true for press events, false for release events.
+     * @param raw Raw key code from the controller.
+     */
     using KeyboardRawCallback = void (*)(bool pressed, uint8_t raw);
 
     /**
@@ -76,15 +83,16 @@ public:
     // void setMaps(uint8_t maps);
 
     /**
-     * @brief Initializes the keyboard and sets up the I2C communication.
+     * @brief Initializes the keyboard with the new configuration structure.
      *
+     * @param config A reference to a LilyGoKeyboardConfig object containing layout and modifier key configuration.
      * @param w A reference to a TwoWire object for I2C communication.
      * @param irq The interrupt request pin number.
      * @param sda The I2C data line pin number. Defaults to the SDA macro.
      * @param scl The I2C clock line pin number. Defaults to the SCL macro.
      * @return true if the initialization is successful, false otherwise.
      */
-    bool begin(const LilyGoKeyboardConfigure_t &config, TwoWire &w, uint8_t irq, uint8_t sda = SDA, uint8_t scl = SCL);
+    bool begin(const LilyGoKeyboardConfig &config, TwoWire &w, uint8_t irq, uint8_t sda = SDA, uint8_t scl = SCL);
 
     /**
      * @brief Ends the keyboard operation and releases associated resources.
@@ -152,6 +160,44 @@ public:
      */
     void setRepeat(bool enable);
 
+    /**
+     * @brief Sets the key repeat timing configuration.
+     *
+     * @param config The KeyRepeatConfig with initialDelay and repeatInterval values.
+     */
+    void setKeyRepeatConfig(const KeyRepeatConfig &config);
+
+    /**
+     * @brief Gets the current key repeat timing configuration.
+     *
+     * @return The current KeyRepeatConfig.
+     */
+    KeyRepeatConfig getKeyRepeatConfig() const;
+
+    /**
+     * @brief Registers a custom key combination.
+     *
+     * @param modifier The modifier key enum (e.g., ModifierKey::FN, ModifierKey::ALT).
+     * @param key The normal key value (ASCII or raw key code).
+     * @param callback The callback function to invoke when the combo is triggered.
+     * @return true if the combo was registered successfully, false otherwise.
+     */
+    bool registerKeyCombo(ModifierKey modifier, uint8_t key, KeyComboManager::ComboCallback callback);
+
+    /**
+     * @brief Unregisters a custom key combination.
+     *
+     * @param modifier The modifier key enum.
+     * @param key The normal key value.
+     * @return true if the combo was found and removed, false otherwise.
+     */
+    bool unregisterKeyCombo(ModifierKey modifier, uint8_t key);
+
+    /**
+     * @brief Clears all registered key combinations.
+     */
+    void clearKeyCombos();
+
 private:
     /**
      * @brief Updates the keyboard state and retrieves the currently pressed key.
@@ -189,15 +235,6 @@ private:
     char getKeyChar(uint8_t k);
 
     /**
-     * @brief Handles brightness adjustment based on key presses.
-     *
-     * @param k The key code of the key press.
-     * @param pressed true if the key is pressed, false if released.
-     * @return true if the brightness adjustment was handled, false otherwise.
-     */
-    bool handleBrightnessAdjustment(uint8_t k, bool pressed);
-
-    /**
      * @brief Handles special keys and their associated actions.
      *
      * @param k The key code of the special key.
@@ -207,37 +244,80 @@ private:
      */
     int handleSpecialKeys(uint8_t k, bool pressed, char *c);
 
-    // Stores the last key value.
+    /**
+     * @brief Identifies which modifier key a given key code corresponds to.
+     *
+     * @param k The key code to identify.
+     * @return The ModifierKey enum value, or ModifierKey::NONE if not a modifier.
+     */
+    ModifierKey identifyModifierKey(uint8_t k);
+
+    /**
+     * @brief Returns true if the key activates the symbol layer.
+     *
+     * @param k The key code to check.
+     * @return true when k is a dedicated symbol key or the configured Space symbol prefix.
+     */
+    bool isSymbolLayerKey(uint8_t k) const;
+
+    /**
+     * @brief Returns true if the key is Space acting as the temporary symbol prefix.
+     *
+     * @param k The key code to check.
+     * @return true when k is the configured Space symbol prefix key.
+     */
+    bool isSpaceSymbolLayerKey(uint8_t k) const;
+
+    /** Last translated key value. */
     char lastKeyVal = '\n';
-    // The pin number for the backlight.
+    /** Backlight control pin. */
     int _backlight = -1;
-    // The current brightness level of the backlight.
+    /** Current keyboard backlight level. */
     uint8_t _brightness;
-    // The interrupt request pin number.
+    /** Keyboard interrupt pin. */
     uint8_t _irq;
-    // Flag indicating if the symbol key is pressed.
+    /** true while the symbol key is pressed. */
     bool symbol_key_pressed = false;
-    // Flag indicating if the cap key is pressed.
+    /** true while the caps key is pressed. */
     bool cap_key_pressed = false;
-    // Flag indicating if the alt key is pressed.
+    /** true while the alt key is pressed. */
     bool alt_key_pressed = false;
-    // Flag indicating if the key repeat function is enabled.
+    /** true when key repeat is enabled. */
     bool repeat_function = true;
-    // The last state of the key press.
+    /** Previous key state used for edge detection. */
     bool lastState = false;
-    // Pointer to the callback function.
+    /** Translated key callback. */
     KeyboardReadCallback cb = NULL;
-    // Pointer to the gpio change callback function.
+    /** GPIO-style matrix callback. */
     GpioEventCallback gpio_cb = NULL;
-    // Pointer to the backlight change callback function.
+    /** Backlight change callback. */
     BacklightCallback bl_cb = NULL;
-    // Pointer to the keyboard press or release callback function.
+    /** Raw key event callback. */
     KeyboardRawCallback raw_cb = NULL;
-    // The time when the last key was pressed.
+    /** millis() timestamp of the last key press. */
     uint32_t lastPressedTime = 0;
-    // Pointer to the storage keyboard config
-    const LilyGoKeyboardConfigure_t *_config;
+    /** Current keyboard configuration. */
+    LilyGoKeyboardConfig _config = {};
+    /** Manager for user-defined key combinations. */
+    KeyComboManager _comboManager;
+    /** Tracks which modifier keys are currently pressed. */
+    bool _modifierStates[static_cast<int>(ModifierKey::MAX_MODIFIERS)] = {};
+    /** Tracks whether a combo key press is active so its release can be consumed. */
+    bool _comboKeyActive = false;
+    /** Modifier that triggered the active combo. */
+    ModifierKey _comboModifier = ModifierKey::NONE;
+    /** Raw key that triggered the active combo. */
+    uint8_t _comboRawKey = 0xFF;
+    /** Logical key that triggered the active combo. */
+    uint8_t _comboLogicalKey = 0;
+    /** true while Space is pending as a symbol-prefix key. */
+    bool _spaceSymbolPending = false;
+    /** true when the pending Space symbol prefix has been used. */
+    bool _spaceSymbolUsed = false;
+    /** Key repeat timing configuration. */
+    KeyRepeatConfig _repeatConfig = {500, 40};
+    /** true after the initial repeat delay has elapsed. */
+    bool _repeatStarted = false;
 
 };
 #endif
-

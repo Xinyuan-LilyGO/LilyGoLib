@@ -1,10 +1,11 @@
 /**
  * @file      nfc_include.h
+ * @brief     Collects ST25R3916 RFAL and NDEF headers behind one feature guard.
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2024  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2024-12-04
- * 
+ *
  */
 
 #pragma once

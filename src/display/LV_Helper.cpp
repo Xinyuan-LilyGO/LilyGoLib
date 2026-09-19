@@ -2,10 +2,11 @@
  * @file      LV_Helper.cpp
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
- * @copyright Copyright (c) 2023  Shenzhen Xinyuan Electronic Technology Co., Ltd
+ * @copyright Copyright (c) 2023  Shenzhen XinYuan Electronic Technology Co., Ltd
  * @date      2023-04-28
  *
  */
+#include "LilyGoLog.h"
 #include "LV_Helper.h"
 
 #if LVGL_VERSION_MAJOR == 8
@@ -60,29 +61,17 @@ void touchpad_read( lv_indev_drv_t *indev_driver, lv_indev_data_t *data )
 #ifdef USING_INPUT_DEV_ROTARY
 static void lv_encoder_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
-    static uint8_t last_dir = 0;
-    RotaryMsg_t msg = static_cast<LilyGo_Display *>(indev_drv->user_data)->getRotary();
-    switch (msg.dir) {
-    case ROTARY_DIR_UP:
-        data->enc_diff = 1;
-        break;
-    case ROTARY_DIR_DOWN:
-        data->enc_diff = -1;
-        break;
-    default:
-        data->state = LV_INDEV_STATE_RELEASED;
-        break;
-    }
-    if (msg.centerBtnPressed) {
-        data->state = LV_INDEV_STATE_PRESSED;
-    }
-    if (last_dir != msg.dir || msg.centerBtnPressed) {
-        plane->feedback((void*)drv);
+    auto *plane = static_cast<LilyGo_Display *>(indev_drv->user_data);
+    RotaryMsg_t msg = plane->getRotary();
+    data->enc_diff = msg.enc_diff;
+    data->state = msg.centerBtnPressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    if (msg.enc_diff != 0 || msg.centerBtnClicked || msg.centerBtnReleased) {
+        plane->feedback((void *)indev_drv);
     }
 }
 #endif //USING_INPUT_DEV_ROTARY
 
-#ifdef USING_INPUT_DEV_KEYBOARD
+#if defined(USING_INPUT_DEV_KEYBOARD) || defined(USING_TDECK_KEYBOARD)
 static void keypad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
     static uint32_t last_key = 0;
@@ -92,6 +81,7 @@ static void keypad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     if (state == KEYBOARD_PRESSED) {
         // log_d("Keyboard Pressed %c\n", c);
         act_key = c;
+        last_key = act_key;
         data->key = act_key;
         data->state = LV_INDEV_STATE_PR;
         return;
@@ -99,20 +89,23 @@ static void keypad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     data->state = LV_INDEV_STATE_REL;
     data->key = last_key;
 }
-#endif //USING_INPUT_DEV_KEYBOARD
+#endif // USING_INPUT_DEV_KEYBOARD || USING_TDECK_KEYBOARD
 
 #if LV_USE_LOG
+static bool lv_debug_enabled;
 void lv_log_print_g_cb(const char *buf)
 {
-    Serial.println(buf);
-    Serial.flush();
+    (void)buf;
+    if (lv_debug_enabled) {
+        LILYGO_LOG_PRINTF("%s", buf);
+    }
 }
 #endif //LV_USE_LOG
 
 static void keypad_feedback_cb(lv_indev_drv_t *indev_drv, uint8_t code)
 {
     if (indev_drv->type == LV_INDEV_TYPE_KEYPAD) {
-        log_d("Type:%u code:%u\n", indev_drv->type, code);
+        LILYGO_LOG_D("Type:%u code:%u\n", indev_drv->type, code);
         static_cast<LilyGo_Display *>(indev_drv->user_data)->feedback();
     }
 }
@@ -120,16 +113,15 @@ static void keypad_feedback_cb(lv_indev_drv_t *indev_drv, uint8_t code)
 void beginLvglHelper(LilyGo_Display &display, bool debug)
 {
     size_t lv_buffer_size = display.width() * display.height() * sizeof(lv_color_t);
-    log_d("lv buffer size : %lu , width:%u height:%u", lv_buffer_size, display.width(), display.height());
+    LILYGO_LOG_D("lv buffer size : %lu , width:%u height:%u", lv_buffer_size, display.width(), display.height());
 
     lv_init();
 
     lv_group_set_default(lv_group_create());
 
 #if LV_USE_LOG
-    if (debug) {
-        lv_log_register_print_cb(lv_log_print_g_cb);
-    }
+    lv_debug_enabled = LILYGO_DEBUG_ENABLED && debug;
+    lv_log_register_print_cb(lv_log_print_g_cb);
 #endif //LV_USE_LOG
 
     buf = (lv_color_t *)ps_malloc(lv_buffer_size);
@@ -138,7 +130,7 @@ void beginLvglHelper(LilyGo_Display &display, bool debug)
     buf1 = (lv_color_t *)ps_malloc(lv_buffer_size);
     assert(buf);
 
-    log_i("lv buffer alloc successfully!");
+    LILYGO_LOG_I("lv buffer alloc successfully!");
 
     lv_disp_draw_buf_init( &draw_buf, buf, buf1, lv_buffer_size);
     /*Initialize the display*/
@@ -154,7 +146,7 @@ void beginLvglHelper(LilyGo_Display &display, bool debug)
 
 #ifdef USING_INPUT_DEV_TOUCHPAD
     if (display.hasTouch()) {
-        log_d("lv register touchpad");
+        LILYGO_LOG_D("lv register touchpad");
         /*Initialize the input device driver*/
         lv_indev_drv_init( &indev_drv );
         indev_drv.type = LV_INDEV_TYPE_POINTER;
@@ -166,7 +158,7 @@ void beginLvglHelper(LilyGo_Display &display, bool debug)
 
 #ifdef USING_INPUT_DEV_ROTARY
     if (display.hasEncoder()) {
-        log_d("lv register encoder");
+        LILYGO_LOG_D("lv register encoder");
         lv_indev_drv_init(&encoder_drv);
         encoder_drv.type = LV_INDEV_TYPE_ENCODER;
         encoder_drv.read_cb = lv_encoder_read;
@@ -176,9 +168,9 @@ void beginLvglHelper(LilyGo_Display &display, bool debug)
     }
 #endif //USING_INPUT_DEV_ROTARY
 
-#ifdef USING_INPUT_DEV_KEYBOARD
+#if defined(USING_INPUT_DEV_KEYBOARD) || defined(USING_TDECK_KEYBOARD)
     if (display.hasKeyboard()) {
-        log_d("lv register keyboard");
+        LILYGO_LOG_D("lv register keyboard");
         lv_indev_drv_init(&keypad_drv);
         keypad_drv.type = LV_INDEV_TYPE_KEYPAD;
         keypad_drv.read_cb = keypad_read;
@@ -187,10 +179,9 @@ void beginLvglHelper(LilyGo_Display &display, bool debug)
         kb_indev = lv_indev_drv_register(&keypad_drv);
         lv_indev_set_group(kb_indev, lv_group_get_default());
     }
-#endif //USING_INPUT_DEV_KEYBOARD
+#endif // USING_INPUT_DEV_KEYBOARD || USING_TDECK_KEYBOARD
 
-    log_d("lv init successfully!");
+    LILYGO_LOG_D("lv init successfully!");
 }
 
 #endif  //LVGL_VERSION_MAJOR
-
