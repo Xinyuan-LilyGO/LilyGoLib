@@ -65,6 +65,11 @@ static int _i2s_drv_enable(i2s_data_t *i2s_data, bool playback, bool enable)
     if (channel == NULL) {
         return ESP_CODEC_DEV_NOT_FOUND;
     }
+    i2s_chan_info_t channel_info = {0};
+    esp_err_t info_ret = i2s_channel_get_info(channel, &channel_info);
+    if (info_ret == ESP_OK && channel_info.is_enabled == enable) {
+        return ESP_CODEC_DEV_OK;
+    }
     int ret;
     if (enable) {
         ret = i2s_channel_enable(channel);
@@ -107,18 +112,14 @@ static int set_drv_fs(i2s_chan_handle_t channel, bool playback, uint8_t slot_bit
     i2s_chan_info_t channel_info = {0};
     int ret = ESP_CODEC_DEV_OK;
     i2s_channel_get_info(channel, &channel_info);
-    ESP_LOGI(TAG, "channel mode %d bits:%d/%d channel:%d mask:%x",
-        channel_info.mode, fs->bits_per_sample, slot_bits, (int)fs->channel, (int)fs->channel_mask);
     switch (channel_info.mode) {
         case I2S_COMM_MODE_STD: {
             uint8_t bits = fs->bits_per_sample;
             uint8_t active_channel = get_active_channel(fs);
-            uint16_t channel_mask = fs->channel_mask;
             if (fs->channel > 2) {
                 slot_bits = slot_bits * fs->channel / 2;
                 active_channel = 2;
                 bits = slot_bits;
-                channel_mask = 0;
             }
             i2s_std_slot_mask_t slot_mask = fs->channel_mask ? 
                     (i2s_std_slot_mask_t) fs->channel_mask : I2S_STD_SLOT_BOTH;
@@ -141,9 +142,6 @@ static int set_drv_fs(i2s_chan_handle_t channel, bool playback, uint8_t slot_bit
                 return ESP_CODEC_DEV_DRV_ERR;
             }
             ret = i2s_channel_reconfig_std_clock(channel, &clk_cfg);
-            ESP_LOGI(TAG, "STD Mode %d bits:%d/%d channel:%d sample_rate:%d mask:%x",
-                playback, bits, slot_bits, fs->channel,
-                (int)fs->sample_rate, channel_mask);
         } 
         break;
 #if SOC_I2S_SUPPORTS_PDM
@@ -231,9 +229,6 @@ static int set_drv_fs(i2s_chan_handle_t channel, bool playback, uint8_t slot_bit
             if (ret != ESP_OK) {
                 return ESP_CODEC_DEV_DRV_ERR;
             }
-            ESP_LOGI(TAG, "TDM Mode %d bits:%d/%d channel:%d sample_rate:%d mask:%x",
-                playback, fs->bits_per_sample, slot_bits, fs->channel,
-                (int)fs->sample_rate, fs->channel_mask);
         }
         break;
 #endif
@@ -246,10 +241,8 @@ static int set_drv_fs(i2s_chan_handle_t channel, bool playback, uint8_t slot_bit
 static int set_fs(i2s_data_t *i2s_data, bool playback, bool skip)
 {
     i2s_chan_handle_t channel = (i2s_chan_handle_t) playback ? i2s_data->out_handle : i2s_data->in_handle;
-    i2s_chan_info_t channel_info = {0};
     esp_codec_dev_sample_info_t *fs = playback ? &i2s_data->out_fs : &i2s_data->in_fs;
     uint8_t bits_per_sample = get_bits(i2s_data, playback);
-    i2s_channel_get_info(channel, &channel_info);
     int ret = set_drv_fs(channel, playback, bits_per_sample, fs);
     if (ret != ESP_CODEC_DEV_OK) {
         return ret;
@@ -291,7 +284,6 @@ static int check_fs_compatible(i2s_data_t *i2s_data, bool playback, esp_codec_de
     uint16_t run_bits = i2s_data->fs.channel * i2s_data->fs.bits_per_sample;
     int ret;
     // Need expand peer channel bits
-    ESP_LOGI(TAG, "Mode %d need extend bits %d to %d", !playback, run_bits, want_bits);
     do {
         if (want_bits > run_bits) {
             if (playback == false) {
@@ -366,13 +358,11 @@ static int _i2s_data_enable(const audio_codec_data_if_t *h, esp_codec_dev_type_t
         bool playback = dev_type & ESP_CODEC_DEV_TYPE_OUT ? true : false;
         // When RX is working TX disable should be blocked
         if (enable == false && i2s_data->in_enable && playback && i2s_data->out_handle) {
-            ESP_LOGI(TAG, "Pending out channel for in channel running");
             i2s_data->out_disable_pending = true;
         }
     #if SOC_I2S_HW_VERSION_1
         // For ESP32 and ESP32S3 if disable RX, TX also not work need pending until TX not used
         else if (enable == false && i2s_data->out_enable && playback == false && i2s_data->in_handle) {
-            ESP_LOGI(TAG, "Pending in channel for out channel running");
             i2s_data->in_disable_pending = true;
         }
     #endif

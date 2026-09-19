@@ -176,10 +176,16 @@ int esp_codec_dev_open(esp_codec_dev_handle_t handle, esp_codec_dev_sample_info_
     const audio_codec_if_t *codec = dev->codec_if;
     const audio_codec_data_if_t *data_if = dev->data_if;
     if (data_if->set_fmt) {
-        data_if->set_fmt(data_if, dev->dev_caps, fs);
+        int ret = data_if->set_fmt(data_if, dev->dev_caps, fs);
+        if (ret != ESP_CODEC_DEV_OK) {
+            return ret;
+        }
     }
     if (data_if->enable) {
-        data_if->enable(data_if, dev->dev_caps, true);
+        int ret = data_if->enable(data_if, dev->dev_caps, true);
+        if (ret != ESP_CODEC_DEV_OK) {
+            return ret;
+        }
     }
     if (codec) {
         // TODO not set codec fs

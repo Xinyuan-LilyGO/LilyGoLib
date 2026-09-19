@@ -104,13 +104,27 @@ public:
     void setPins(int mclk, int sck, int ws, int data_out, int data_in);
 
     /**
+     * @brief Select the physical ES7210 microphone inputs.
+     * @param mic_mask Bit mask composed from ES7210_SEL_MIC1 through ES7210_SEL_MIC4.
+     */
+    void setEs7210MicMask(uint8_t mic_mask);
+
+    /**
+     * @brief Configure ES7210 inputs while keeping a four-slot TDM stream when requested.
+     * @param mic_mask Non-zero mask composed from ES7210_SEL_MIC1 through ES7210_SEL_MIC4.
+     * @param force_tdm True to output all four ES7210 slots even for a sparse selection.
+     * @return True when the configuration is valid and was applied successfully.
+     */
+    bool configureEs7210Input(uint8_t mic_mask, bool force_tdm);
+
+    /**
      * @brief Initialize the codec over I2C.
      * @param wire Reference to the TwoWire object (I2C interface).
      * @param address I2C slave address of the codec.
      * @param type    Codec chip type.
      * @return True if initialization succeeds, false otherwise.
      */
-    bool begin(TwoWire& wire, uint8_t address, EspCodecType type);
+    bool begin(TwoWire &wire, uint8_t address, EspCodecType type);
 
     /**
      * @brief Deinitialize the codec and release resources.
@@ -137,7 +151,7 @@ public:
      * @param size Size of the data buffer in bytes.
      * @return Number of bytes written, or negative error code on failure.
      */
-    int write(uint8_t * buffer, size_t size);
+    int write(uint8_t *buffer, size_t size);
 
     /**
      * @brief Read audio data from the codec during recording.
@@ -145,7 +159,7 @@ public:
      * @param size Maximum number of bytes to read.
      * @return Number of bytes read, or negative error code on failure.
      */
-    int read(uint8_t * buffer, size_t size);
+    int read(uint8_t *buffer, size_t size);
 
     /**
      * @brief Set the audio volume level.
@@ -184,6 +198,22 @@ public:
     float getGain();
 
     /**
+     * @brief Write one byte to a codec register.
+     * @param reg Codec register address.
+     * @param value Register value.
+     * @return True if the register write succeeds.
+     */
+    bool writeRegister(uint8_t reg, uint8_t value);
+
+    /**
+     * @brief Read one byte from a codec register.
+     * @param reg Codec register address.
+     * @param value Reference where the register value is stored.
+     * @return True if the register read succeeds.
+     */
+    bool readRegister(uint8_t reg, uint8_t &value);
+
+    /**
      * @brief Record audio to a WAV file.
      * @note  This is a blocking recording function that will not exit until the recording is complete.
      * @param rec_seconds Duration of recording in seconds.
@@ -191,7 +221,7 @@ public:
      * @param out_size Pointer to receive the size of the recorded data.
      * @return True if recording succeeds, false otherwise.
      */
-    bool recordWAV(size_t rec_seconds, uint8_t**output, size_t *out_size, uint16_t sample_rate = 16000, uint8_t num_channels = 1);
+    bool recordWAV(size_t rec_seconds, uint8_t **output, size_t *out_size, uint16_t sample_rate = 16000, uint8_t num_channels = 1);
 
     /**
      * @brief Play a WAV audio file from buffer.
@@ -214,18 +244,19 @@ public:
      */
     ~EspCodec();
 
-private:
     /**
-     * @brief Internal function to initialize the I2S peripheral.
-     * @return ESP_OK on success, or other ESP error codes on failure.
-     */
-    esp_err_t _i2s_init();
+    * @brief Internal function to initialize the I2S peripheral.
+    * @return true on success, or false on failure.
+    */
+    bool i2s_init();
 
     /**
      * @brief Internal function to deinitialize the I2S peripheral.
      */
-    void _i2s_deinit();
+    void i2s_deinit();
 
+private:
+    bool _started;       /**< Flag indicating if the codec has been started */
     int _mck_io_num;     /**< Master clock (MCK) pin number (limited to GPIO0/GPIO1/GPIO3 on ESP32) */
     int _bck_io_num;     /**< Bit clock (BCK) pin number */
     int _ws_io_num;      /**< Word select (WS) pin number */
@@ -234,6 +265,12 @@ private:
     int _pa_num;         /**< Power amplifier (PA) control pin number */
     float _pa_voltage;   /**< PA voltage setting */
     uint8_t _i2s_num;    /**< I2S peripheral number (0 or 1) */
+    uint8_t _es7210_mic_mask; /**< Physical microphone inputs enabled on ES7210 */
+    bool _es7210_force_tdm; /**< Keep ES7210 in four-slot TDM mode */
+    EspCodecType _codec_type; /**< Active codec model */
+    esp_codec_dev_type_t _device_type; /**< Active input/output direction */
+    void *_tx_channel;   /**< I2S TX channel handle (IDF 5.x) */
+    void *_rx_channel;   /**< I2S RX channel handle (IDF 5.x) */
     const audio_codec_gpio_if_t *gpio_if;   /**< GPIO interface for codec control */
     const audio_codec_ctrl_if_t *i2c_ctrl_if; /**< I2C control interface for codec */
     const audio_codec_if_t      *codec_if;    /**< Core codec interface */
@@ -245,4 +282,3 @@ private:
 };
 
 #endif
-

@@ -15,10 +15,16 @@ extern "C" {
 
 #define ES7210_CODEC_DEFAULT_ADDR (0x80)
 
-#define ES7120_SEL_MIC1           (uint8_t)(1 << 0)
-#define ES7120_SEL_MIC2           (uint8_t)(1 << 1)
-#define ES7120_SEL_MIC3           (uint8_t)(1 << 2)
-#define ES7120_SEL_MIC4           (uint8_t)(1 << 3)
+#define ES7210_SEL_MIC1           (uint8_t)(1 << 0)
+#define ES7210_SEL_MIC2           (uint8_t)(1 << 1)
+#define ES7210_SEL_MIC3           (uint8_t)(1 << 2)
+#define ES7210_SEL_MIC4           (uint8_t)(1 << 3)
+
+// Preserve the misspelled names exposed by earlier releases.
+#define ES7120_SEL_MIC1           ES7210_SEL_MIC1
+#define ES7120_SEL_MIC2           ES7210_SEL_MIC2
+#define ES7120_SEL_MIC3           ES7210_SEL_MIC3
+#define ES7120_SEL_MIC4           ES7210_SEL_MIC4
 
 /**
  * @brief ES7210 MCLK clock source when work in master mode
@@ -37,6 +43,7 @@ typedef struct {
     uint8_t                      mic_selected; /*!< Selected microphone */
     es7210_mclk_src_t            mclk_src;     /*!< MCLK clock source in master mode */
     uint16_t                     mclk_div;     /*!< MCLK/LRCK default is 256 if not provided */
+    bool                         force_tdm;    /*!< Keep four TDM slots active for sparse microphone selections */
 } es7210_codec_cfg_t;
 
 /**
@@ -46,6 +53,16 @@ typedef struct {
  *                -Others: ES7210 codec interface
  */
 const audio_codec_if_t *es7210_codec_new(es7210_codec_cfg_t *codec_cfg);
+
+/**
+ * @brief Update the active microphone inputs and serial output mode.
+ * @param codec_if Codec interface returned by es7210_codec_new.
+ * @param mic_selected Non-zero mask composed from ES7210_SEL_MIC1 through ES7210_SEL_MIC4.
+ * @param force_tdm Keep the four-slot TDM stream active even when fewer than three microphones are selected.
+ * @return ESP_CODEC_DEV_OK on success, otherwise an esp_codec_dev error code.
+ */
+int es7210_codec_set_mic_selection(const audio_codec_if_t *codec_if,
+                                   uint8_t mic_selected, bool force_tdm);
 
 #ifdef __cplusplus
 }

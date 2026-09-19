@@ -1,0 +1,57 @@
+/**
+ * @file      LilyGoRadioHelper.h
+ * @brief     Helper macros and definitions for LilyGo radio modules.
+ * @author    Lewis He (lewishe@outlook.com)
+ * @license   MIT
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-07-28
+ *
+ */
+#pragma once
+
+#include <RadioLib.h>
+
+#ifndef LILYGO_RADIO_MODULE_CREATE
+#define LILYGO_RADIO_MODULE_CREATE() newModule()
+#endif
+
+#ifndef LILYGO_RADIO_CC1101_CREATE
+#define LILYGO_RADIO_CC1101_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#endif
+
+#if defined(ARDUINO_LILYGO_LORA_SX1262)
+#define LILYGO_RADIO_CLASS SX1262
+#define LILYGO_RADIO_NAME "SX1262"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#elif defined(ARDUINO_LILYGO_LORA_SX1280)
+#define LILYGO_RADIO_CLASS SX1280
+#define LILYGO_RADIO_NAME "SX1280"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#elif defined(ARDUINO_LILYGO_LORA_CC1101)
+#define LILYGO_RADIO_CLASS CC1101
+#define LILYGO_RADIO_NAME "CC1101"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_CC1101_CREATE()
+#elif defined(ARDUINO_LILYGO_LORA_LR1121)
+#define LILYGO_RADIO_CLASS LR1121
+#define LILYGO_RADIO_NAME "LR1121"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#elif defined(ARDUINO_LILYGO_LORA_SI4432)
+#define LILYGO_RADIO_CLASS Si4432
+#define LILYGO_RADIO_NAME "SI4432"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#elif defined(ARDUINO_LILYGO_LORA_LR2021)
+#define LILYGO_RADIO_CLASS LR2021
+#define LILYGO_RADIO_NAME "LR2021"
+#define LILYGO_RADIO_CREATE() LILYGO_RADIO_MODULE_CREATE()
+#endif
+
+#if defined(LILYGO_RADIO_CLASS)
+#define USING_RADIO_NAME LILYGO_RADIO_NAME
+#define LILYGO_DECLARE_RADIO() extern LILYGO_RADIO_CLASS radio
+#define LILYGO_DEFINE_RADIO() LILYGO_RADIO_CLASS radio = LILYGO_RADIO_CREATE()
+#elif defined(LILYGO_RADIO_REQUIRE_MODULE)
+#error "No valid radio module defined!"
+#else
+#define LILYGO_DECLARE_RADIO()
+#define LILYGO_DEFINE_RADIO()
+#endif

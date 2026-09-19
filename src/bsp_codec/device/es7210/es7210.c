@@ -24,6 +24,7 @@ typedef struct {
     es7210_input_mics_t          mic_select;
     es7210_gain_value_t          gain;
     bool                         master_mode;
+    bool                         force_tdm;
     uint8_t                      off_reg;
     uint16_t                     mclk_div;
 } audio_codec_es7210_t;
@@ -182,7 +183,7 @@ static bool es7210_is_tdm_mode(audio_codec_es7210_t *codec)
             mic_num++;
         }
     }
-    return (mic_num >= ENABLE_TDM_MAX_NUM);
+    return codec->force_tdm || (mic_num >= ENABLE_TDM_MAX_NUM);
 }
 
 static int es7210_mic_select(audio_codec_es7210_t *codec, es7210_input_mics_t mic)
@@ -453,6 +454,8 @@ static int es7210_open(const audio_codec_if_t *h, void *cfg, int cfg_size)
     if (codec->mic_select == 0) {
         codec->mic_select = ES7210_INPUT_MIC1 | ES7210_INPUT_MIC2;
     }
+    codec->gain = get_db(30.0f);
+    codec->force_tdm = codec_cfg->force_tdm;
     ret |= es7210_mic_select(codec, codec->mic_select);
     ret |= _es7210_set_channel_gain(codec, 0xF, 30.0);
     if (ret != 0) {
@@ -501,7 +504,11 @@ static int es7210_set_gain(const audio_codec_if_t *h, float db)
     if (codec->is_open == false) {
         return ESP_CODEC_DEV_WRONG_STATE;
     }
-    return _es7210_set_channel_gain(codec, 0xF, db);
+    int ret = _es7210_set_channel_gain(codec, 0xF, db);
+    if (ret == ESP_CODEC_DEV_OK) {
+        codec->gain = get_db(db);
+    }
+    return ret;
 }
 
 static int es7210_set_channel_gain(const audio_codec_if_t *h, uint16_t channel_mask, float db)
@@ -618,4 +625,20 @@ const audio_codec_if_t *es7210_codec_new(es7210_codec_cfg_t *codec_cfg)
         free(codec);
     }
     return NULL;
+}
+
+int es7210_codec_set_mic_selection(const audio_codec_if_t *codec_if,
+                                   uint8_t mic_selected, bool force_tdm)
+{
+    audio_codec_es7210_t *codec = (audio_codec_es7210_t *)codec_if;
+    mic_selected &= ES7210_INPUT_MIC1 | ES7210_INPUT_MIC2 |
+                    ES7210_INPUT_MIC3 | ES7210_INPUT_MIC4;
+    if (codec == NULL || !codec->is_open || mic_selected == 0) {
+        return ESP_CODEC_DEV_INVALID_ARG;
+    }
+
+    codec->mic_select = (es7210_input_mics_t)mic_selected;
+    codec->force_tdm = force_tdm;
+    return es7210_mic_select(codec, codec->mic_select) == 0
+           ? ESP_CODEC_DEV_OK : ESP_CODEC_DEV_WRITE_FAIL;
 }
