@@ -1,6 +1,6 @@
 {
   "name": "LilyGoLib",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LilyGo Arduino library",
   "keywords": "lilygo,t-watch,t-lora-pager",
   "authors": [
