@@ -63,11 +63,11 @@ void setup()
     instance.setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
 
 #ifdef USING_PMU_MANAGE
-    instance.onEvent([](DeviceEvent_t event, void *params, void * user_data) {
-        if (instance.getPMUEventType(params) == PMU_EVENT_KEY_CLICKED) {
+    instance.onEvent(POWER_EVENT, [](const DeviceEvent &event, void *user_data) {
+        if (instance.getPMUEventType(event) == PMU_EVENT_KEY_CLICKED) {
             power_button_clicked = true;
         }
-    }, POWER_EVENT, NULL);
+    });
 #endif
 
     label = lv_label_create(lv_scr_act());
@@ -90,23 +90,9 @@ void loop()
 
     instance.decrementBrightness(0);
 
-    /*
-    * T-Watch-S3 light sleep (TouchPanel + PowerButton + BootButton Wakeup ) about ~2.38mA
-    * T-Watch-S3-Ultra light sleep (TouchPanel + PowerButton + BootButton Wakeup ) about ~4.6mA
-    */
-    // instance.lightSleep();
-
-    /*
-    * T-Watch-S3 does not have a touch reset pin connected, so if you set the touch screen to sleep, the touch will not work.
-    * T-Watch-S3-Ultra light sleep (PowerButton + BootButton Wakeup ) about ~2.1mA
-    */
-    // instance.lightSleep((WakeupSource_t)(WAKEUP_SRC_POWER_KEY | WAKEUP_SRC_BOOT_BUTTON));
-
-    /*
-    * T-LoRa-Pager light-sleep about ~2.26mA
-    * LoRa Sleep other peripherals power off
-    * */
-    instance.lightSleep((WakeupSource_t)(WAKEUP_SRC_ROTARY_BUTTON | WAKEUP_SRC_BOOT_BUTTON));
+    // Use each board's default light-sleep wake source:
+    // watches wake from touch; T-LoRa Pager and T-Deck wake from BOOT.
+    instance.lightSleep();
 
     instance.incrementalBrightness(255);
 

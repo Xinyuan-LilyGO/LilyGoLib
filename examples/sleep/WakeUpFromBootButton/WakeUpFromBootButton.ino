@@ -91,9 +91,7 @@ void setup()
     * T-Watch-S3-Plus deep sleep is about 840 uA
     * */
 
-    // Only T-LoRa-Pager
-    // instance.sleep((WakeupSource_t)(WAKEUP_SRC_BOOT_BUTTON | WAKEUP_SRC_ROTARY_BUTTON));
-
+    // Supported by T-LoRa Pager, T-Watch Ultra, and T-Deck.
     instance.sleep(WAKEUP_SRC_BOOT_BUTTON);
 
 
@@ -118,4 +116,3 @@ void loop()
 }
 
 #endif
-

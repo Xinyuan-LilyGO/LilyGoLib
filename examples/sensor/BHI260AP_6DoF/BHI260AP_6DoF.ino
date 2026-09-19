@@ -12,10 +12,21 @@
 #ifdef USING_BHI260_SENSOR
 
 #include <bosch/BoschSensorDataHelper.hpp>
+#include <stdarg.h>
+#include <stdio.h>
 
+static void serialPrintf(const char *format, ...)
+{
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Serial.print(buffer);
+}
 
-SensorXYZ accel(SensorBHI260AP::ACCEL_PASSTHROUGH, instance.sensor);
-SensorXYZ gyro(SensorBHI260AP::GYRO_PASSTHROUGH, instance.sensor);
+SensorAcceleration accel(instance.sensor);
+SensorGyroscope gyro(instance.sensor);
 
 lv_obj_t *label1;
 
@@ -44,7 +55,7 @@ void setup()
 
     // Output all sensors info to Serial
     BoschSensorInfo info = instance.sensor.getSensorInfo();
-    info.printInfo(Serial);
+    info.printInfo(serialPrintf);
 
     float sample_rate = 100.0;      /* Read out data measured at 100Hz */
     uint32_t report_latency_ms = 0; /* Report immediately */
@@ -94,4 +105,3 @@ void loop()
 }
 
 #endif
-

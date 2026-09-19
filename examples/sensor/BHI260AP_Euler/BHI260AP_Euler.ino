@@ -13,6 +13,18 @@
 #ifdef USING_BHI260_SENSOR
 
 #include <bosch/BoschSensorDataHelper.hpp>
+#include <stdarg.h>
+#include <stdio.h>
+
+static void serialPrintf(const char *format, ...)
+{
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Serial.print(buffer);
+}
 
 SensorQuaternion quaternion(instance.sensor);
 lv_obj_t *label1;
@@ -44,7 +56,7 @@ void setup()
 
     // Output all sensors info to Serial
     BoschSensorInfo info = instance.sensor.getSensorInfo();
-    info.printInfo(Serial);
+    info.printInfo(serialPrintf);
 
     // Define the sample rate for data reading.
     // The sensor will read out data measured at a frequency of 100Hz.
@@ -99,4 +111,3 @@ void loop()
 }
 
 #endif
-

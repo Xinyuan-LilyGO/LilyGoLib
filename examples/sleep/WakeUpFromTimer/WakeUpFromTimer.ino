@@ -63,10 +63,10 @@ void setup()
     instance.setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
 
 
-#ifdef ARDUINO_T_LORA_PAGER
+#if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK)
     const uint8_t boot_pin = 0;
-    pinMode(boot_pin, INPUT);
-    // Waiting to press the crown to go to sleep
+    pinMode(boot_pin, INPUT_PULLUP);
+    // Pager and T-Deck use the GPIO0 BOOT/trackball button to start the test.
     while (digitalRead(boot_pin) == HIGH) {
         // Handle device event
         instance.loop();
@@ -76,11 +76,11 @@ void setup()
     }
 #else
 
-    instance.onEvent([](DeviceEvent_t event, void *params, void * user_data) {
-        if (instance.getPMUEventType(params) == PMU_EVENT_KEY_CLICKED) {
+    instance.onEvent(POWER_EVENT, [](const DeviceEvent &event, void *user_data) {
+        if (instance.getPMUEventType(event) == PMU_EVENT_KEY_CLICKED) {
             power_button_clicked = true;
         }
-    }, POWER_EVENT, NULL);
+    });
 
     // Waiting to press the crown to go to sleep
     while (!power_button_clicked) {
@@ -132,6 +132,3 @@ void loop()
 {
 
 }
-
-
-

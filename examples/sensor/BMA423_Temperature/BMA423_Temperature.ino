@@ -38,7 +38,7 @@ void loop()
     if (interval < millis()) {
         interval = millis() + 1000;
         //Obtain the temperature value on the accelerometer
-        float accel_celsius = instance.sensor.getTemperature(SensorBMA423::TEMP_DEG);
+        float accel_celsius = instance.sensor->getTemperature();
         lv_label_set_text_fmt(label1, "Accel: %.2f°C", accel_celsius);
     }
     lv_task_handler();
@@ -58,5 +58,4 @@ void loop()
 }
 
 #endif
-
 

@@ -15,12 +15,11 @@ lv_obj_t *label1;
 uint32_t interval;
 
 const char *chg_status[] = {
-    "Tri ",
-    "Pre",
-    "Constant current",
-    "Constant voltage",
-    "Charge done",
-    "No charge"
+    "No charge",
+    "Pre-charge",
+    "Fast charging",
+    "Charging terminated",
+    "Unknown",
 };
 
 void setup()
@@ -30,19 +29,6 @@ void setup()
     instance.begin();
 
     beginLvglHelper(instance);
-
-    //Enable or Disable PMU Feature
-    instance.pmu.enableBattDetection();
-    // instance.disableBattDetection();
-
-    instance.pmu.enableVbusVoltageMeasure();
-    // instance.disableVbusVoltageMeasure();
-
-    instance.pmu.enableBattVoltageMeasure();
-    // instance.disableBattVoltageMeasure();
-
-    instance.pmu.enableSystemVoltageMeasure();
-    // instance.disableSystemVoltageMeasure();
 
     label1 = lv_label_create(lv_scr_act());
     lv_obj_center(label1);
@@ -56,16 +42,16 @@ void setup()
 void loop()
 {
     if (interval < millis()) {
-        uint8_t charge_status = instance.pmu.getChargerStatus();
+        PmicChargerBase::ChargingStatus charge_status = instance.getChgStatus();
         lv_label_set_text_fmt(label1, "Charging:%s\nDischarge:%s\nUSB PlugIn:%s\nCHG state:%s\nBattery Voltage:%u mV\n USB Voltage:%u mV\n SYS Voltage:%u mV\n Battery Percent:%d%%",
-                              instance.pmu.isCharging() ? "YES" : "NO",
-                              instance.pmu.isDischarge() ? "YES" : "NO",
-                              instance.pmu.isVbusIn() ? "YES" : "NO",
-                              chg_status[charge_status],
-                              instance.pmu.getBattVoltage(),
-                              instance.pmu.getVbusVoltage(),
-                              instance.pmu.getSystemVoltage(),
-                              instance.pmu.getBatteryPercent()
+                              instance.isCharging() ? "YES" : "NO",
+                              instance.isDischarge() ? "YES" : "NO",
+                              instance.isUsbIn() ? "YES" : "NO",
+                              chg_status[static_cast<uint8_t>(charge_status)],
+                              instance.getBattVoltage(),
+                              instance.getVbusVoltage(),
+                              instance.getSysVoltage(),
+                              instance.getBatteryPercent()
                              );
         interval = millis() + 1000;
     }

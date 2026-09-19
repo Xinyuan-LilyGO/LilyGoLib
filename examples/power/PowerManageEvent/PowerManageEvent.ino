@@ -13,13 +13,12 @@
 
 lv_obj_t *label1;
 
-
-void device_event_cb(DeviceEvent_t event, void*params, void*user_data)
+void device_event_cb(const DeviceEvent &event, void *user_data)
 {
-    if (event != POWER_EVENT) {
+    if (event.type != POWER_EVENT) {
         return;
     }
-    switch (instance.getPMUEventType(params)) {
+    switch (instance.getPMUEventType(event)) {
     case PMU_EVENT_BATTERY_LOW_TEMP:
         Serial.println("Battery temperature is low");
         break;
@@ -31,12 +30,6 @@ void device_event_cb(DeviceEvent_t event, void*params, void*user_data)
         break;
     case PMU_EVENT_CHARGE_HIGH_TEMP:
         Serial.println("Charger temperature is high");
-        break;
-    case PMU_EVENT_LOW_VOLTAGE_LEVEL1:
-        Serial.println("Low battery low voltage warning level 1");
-        break;
-    case PMU_EVENT_LOW_VOLTAGE_LEVEL2:
-        Serial.println("Low battery low voltage warning level 2");
         break;
     case PMU_EVENT_KEY_CLICKED:
         Serial.println("Power button is clicked");
@@ -56,20 +49,11 @@ void device_event_cb(DeviceEvent_t event, void*params, void*user_data)
     case PMU_EVENT_USBC_INSERT:
         Serial.println("Power adapter plugged in");
         break;
-    case PMU_EVENT_BATTERY_OVER_VOLTAGE:
-        Serial.println("Battery over-voltage protection warning");
-        break;
-    case PMU_EVENT_CHARGE_TIMEOUT:
-        Serial.println("Battery charging timeout");
-        break;
     case PMU_EVENT_CHARGE_STARTED:
         Serial.println("Battery charging starts");
         break;
     case PMU_EVENT_CHARGE_FINISH:
         Serial.println("Battery charging finish");
-        break;
-    case PMU_EVENT_BAT_FET_OVER_CURRENT:
-        Serial.println("Battery FET over-current detected");
         break;
     default:
         break;
@@ -87,20 +71,14 @@ void setup()
     label1 = lv_label_create(lv_scr_act());
     lv_obj_center(label1);
 
-    // Clear all interrupt status
-    instance.pmu.clearIrqStatus();
-
-    // Enable the required interrupt function
-    instance.pmu.enableIRQ(
-        XPOWERS_AXP2101_BAT_INSERT_IRQ    |
-        XPOWERS_AXP2101_BAT_REMOVE_IRQ    |   // BATTERY
-        XPOWERS_AXP2101_VBUS_INSERT_IRQ   |
-        XPOWERS_AXP2101_VBUS_REMOVE_IRQ   |   // VBUS
-        XPOWERS_AXP2101_PKEY_SHORT_IRQ    |
-        XPOWERS_AXP2101_PKEY_LONG_IRQ     |   // POWER KEY
-        XPOWERS_AXP2101_BAT_CHG_DONE_IRQ  |
-        XPOWERS_AXP2101_BAT_CHG_START_IRQ     // CHARGE
-    );
+    instance.enablePowerEvent(PowerEvent::IRQ_BAT_CHG_DONE |
+                              PowerEvent::IRQ_BAT_CHG_START |
+                              PowerEvent::IRQ_PEKEY_CLICKED |
+                              PowerEvent::IRQ_PEKEY_LONG_PRESSED |
+                              PowerEvent::IRQ_BAT_REMOVE |
+                              PowerEvent::IRQ_BAT_INSERT |
+                              PowerEvent::IRQ_BAT_TEMP_HIGH |
+                              PowerEvent::IRQ_BAT_TEMP_LOW, true);
 
     // Set brightness to MAX
     // T-LoRa-Pager brightness level is 0 ~ 16
@@ -108,7 +86,7 @@ void setup()
     instance.setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
 
     // Register power event
-    instance.onEvent(device_event_cb, POWER_EVENT, NULL);
+    instance.onEvent(POWER_EVENT, device_event_cb);
 
 }
 

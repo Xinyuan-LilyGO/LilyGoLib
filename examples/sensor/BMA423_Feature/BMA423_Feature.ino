@@ -25,14 +25,6 @@ void setup()
 
     beginLvglHelper(instance);
 
-    //Default 4G ,200HZ
-    instance.sensor.configAccelerometer();
-
-    instance.sensor.enableAccelerometer();
-
-    instance.sensor.enablePedometer();
-
-
     lv_obj_t *cont = lv_obj_create(lv_scr_act());
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(cont, LV_DIR_VER);
@@ -56,23 +48,25 @@ void setup()
     instance.onEvent(device_event_cb);
 }
 
-void device_event_cb(DeviceEvent_t event, void *params, void * user_data)
+void device_event_cb(const DeviceEvent &event, void *user_data)
 {
     uint32_t stepCounter;
-    
-    if (event == POWER_EVENT) {
-        if (instance.getPMUEventType(params) == PMU_EVENT_KEY_CLICKED) {
-            instance.sensor.resetPedometer();
-            lv_label_set_text_fmt(label2, "[%lu]STEP COUNTER:%u", millis() / 1000, 0);
+
+    if (event.type == POWER_EVENT) {
+        if (instance.getPMUEventType(event) == PMU_EVENT_KEY_CLICKED) {
+            // instance.sensor.resetPedometer();
+            // lv_label_set_text_fmt(label2, "[%lu]STEP COUNTER:%u", millis() / 1000, 0);
         }
 
     }
-    if (event != SENSOR_EVENT) {
+    if (event.type != SENSOR_EVENT) {
         return;
     }
-    switch (instance.getSensorEventType(params)) {
+    switch (instance.getSensorEventType(event)) {
     case SENSOR_STEPS_UPDATED:
-        stepCounter = instance.sensor.getPedometerCounter();
+        // stepCounter = instance.sensor.getPedometerCounter();
+        // instance.sensor->getStepCounter(stepCounter);
+        stepCounter = instance.getStepCounter();
         Serial.printf("Step count interrupt,step Counter:%u\n", stepCounter);
         lv_label_set_text_fmt(label2, "[%lu]STEP COUNTER:%u", millis() / 1000, stepCounter);
         break;
