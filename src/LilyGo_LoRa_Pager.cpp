@@ -8,6 +8,7 @@
  */
 
 #ifdef ARDUINO_T_LORA_PAGER
+#include "LilyGoLog.h"
 #include "LilyGo_LoRa_Pager.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -16,37 +17,340 @@
 #include "freertos/event_groups.h"
 #include "driver/gpio.h"
 #include "LilyGoLib.h"
+#include "core/LilyGoGeneral.h"
+#include "input/LilyGoRotaryInput.h"
 #include <SensorWireHelper.h>
+#include <cbuf.h>
 #include "driver/rtc_io.h"
+#include <Preferences.h>
 
-extern bool esp_enable_slow_crystal();
-extern void setGroupBitsFromISR(EventGroupHandle_t xEventGroup,
-                                const EventBits_t uxBitsToSet);
-
-#if    defined(ARDUINO_LILYGO_LORA_SX1262)
-SX1262 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_SX1280)
-SX1280 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_CC1101)
-CC1101 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_LR1121)
-LR1121 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_SI4432)
-Si4432 radio = newModule();
+#ifndef LILYGO_LORA_PAGER_SD_SPI_FREQ
+#define LILYGO_LORA_PAGER_SD_SPI_FREQ 40000000U
 #endif
+
+#ifndef LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP
+#define LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP 1
+#endif
+
+#ifndef LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER
+#define LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER LILYGO_ROTARY_COUNTS_PER_STEP_MAX
+#endif
+
+#ifndef LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN
+#define LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN -1
+#endif
+
+#ifndef LILYGO_LORA_PAGER_GPS_BAUDRATE
+#define LILYGO_LORA_PAGER_GPS_BAUDRATE 38400U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_RUNTIME_DETECT
+#define LILYGO_LORA_PAGER_RADIO_RUNTIME_DETECT 1
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_PIN
+#define LILYGO_LORA_PAGER_RADIO_DETECT_PIN LORA_IRQ
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_LOW
+#define LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_LOW 1200U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_HIGH
+#define LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_HIGH 2900U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_LOW
+#define LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_LOW 64U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_HIGH
+#define LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_HIGH 4030U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES
+#define LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES 11
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES
+#define LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES 7
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_SETTLE_MS
+#define LILYGO_LORA_PAGER_RADIO_DETECT_SETTLE_MS 2
+#endif
+
+#ifndef LILYGO_LORA_PAGER_RADIO_DETECT_PULLDOWN_ADC_LOW
+#define LILYGO_LORA_PAGER_RADIO_DETECT_PULLDOWN_ADC_LOW 500U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY
+#define LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY 1500U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY
+#define LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY 1500U
+#endif
+
+#ifndef LILYGO_LORA_PAGER_GAUGE_CONFIG_VERSION
+#define LILYGO_LORA_PAGER_GAUGE_CONFIG_VERSION 1U
+#endif
+
+LILYGO_DEFINE_RADIO();
 
 RfalRfST25R3916Class nfc_hw(&SPI, NFC_CS, NFC_INT);
 RfalNfcClass NFCReader(&nfc_hw);
 
-#define TASK_ROTARY_START_PRESSED_FLAG  _BV(0)
-
 EventGroupHandle_t LilyGoLoRaPager::_event;
 static TimerHandle_t timerHandler = NULL;
-static QueueHandle_t rotaryMsg;
-static TaskHandle_t  rotaryHandler = NULL;
-static EventGroupHandle_t  rotaryTaskFlag = NULL;
-static void rotaryTask(void *p);
+static LilyGoRotaryInput rotaryInput;
 extern void setupMSC(lock_callback_t lock_cb, lock_callback_t ulock_cb);
+static uint32_t _devices_probe = 0;
+
+static constexpr char LORA_PAGER_NVS_NAMESPACE[] = "lora_pager";
+static constexpr char LORA_PAGER_GAUGE_CONFIG_KEY[] = "gauge_cfg";
+static constexpr uint32_t LORA_PAGER_GAUGE_CONFIG_MAGIC = 0x47554346; // GUCF
+static constexpr uint8_t LORA_PAGER_GAUGE_CONFIG_OK = 1;
+static constexpr uint8_t LORA_PAGER_GAUGE_CONFIG_FAILED = 2;
+
+struct LoraPagerGaugeConfigRecord {
+    uint32_t magic;
+    uint16_t version;
+    uint16_t size;
+    uint16_t designCapacity;
+    uint16_t fullChargeCapacity;
+    uint8_t status;
+    uint8_t reserved[7];
+};
+
+struct LoRaDetectAdcStats {
+    uint16_t minValue;
+    uint16_t maxValue;
+    uint16_t median;
+};
+
+static uint8_t clampRotaryStepDivider(uint8_t divider)
+{
+    uint8_t minDivider = LilyGoRotaryInput::getCountsPerStepMin();
+    uint8_t maxDivider = LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER;
+    if (maxDivider < minDivider) {
+        maxDivider = minDivider;
+    }
+    if (divider < minDivider) {
+        return minDivider;
+    }
+    if (divider > maxDivider) {
+        return maxDivider;
+    }
+    return divider;
+}
+
+static bool gaugeConfigMatchesTarget(const LoraPagerGaugeConfigRecord &record)
+{
+    return record.magic == LORA_PAGER_GAUGE_CONFIG_MAGIC &&
+           record.version == LILYGO_LORA_PAGER_GAUGE_CONFIG_VERSION &&
+           record.size == sizeof(LoraPagerGaugeConfigRecord) &&
+           record.designCapacity == LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY &&
+           record.fullChargeCapacity == LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY;
+}
+
+static bool loadGaugeConfigRecord(LoraPagerGaugeConfigRecord &record)
+{
+    Preferences prefs;
+    if (!prefs.begin(LORA_PAGER_NVS_NAMESPACE, true)) {
+        LILYGO_LOG_W("Gauge config NVS open failed");
+        return false;
+    }
+    bool loaded = prefs.getBytes(LORA_PAGER_GAUGE_CONFIG_KEY, &record, sizeof(record)) == sizeof(record);
+    prefs.end();
+    return loaded && gaugeConfigMatchesTarget(record);
+}
+
+static void saveGaugeConfigRecord(uint8_t status)
+{
+    LoraPagerGaugeConfigRecord record = {};
+    record.magic = LORA_PAGER_GAUGE_CONFIG_MAGIC;
+    record.version = LILYGO_LORA_PAGER_GAUGE_CONFIG_VERSION;
+    record.size = sizeof(record);
+    record.designCapacity = LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY;
+    record.fullChargeCapacity = LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY;
+    record.status = status;
+
+    Preferences prefs;
+    if (!prefs.begin(LORA_PAGER_NVS_NAMESPACE, false)) {
+        LILYGO_LOG_W("Gauge config NVS open failed");
+        return;
+    }
+    if (prefs.putBytes(LORA_PAGER_GAUGE_CONFIG_KEY, &record, sizeof(record)) != sizeof(record)) {
+        LILYGO_LOG_W("Gauge config NVS save failed");
+    }
+    prefs.end();
+}
+
+static bool configureGaugeCapacityIfNeeded(GaugeBQ27220 &gauge)
+{
+    LoraPagerGaugeConfigRecord record = {};
+
+    if (gauge.refresh() && gauge.getDesignCapacity() == LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY) {
+        LILYGO_LOG_I("Gauge capacity already matches target design=%u",
+                     (unsigned)LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY);
+        saveGaugeConfigRecord(LORA_PAGER_GAUGE_CONFIG_OK);
+        return true;
+    }
+
+    if (loadGaugeConfigRecord(record)) {
+        if (record.status == LORA_PAGER_GAUGE_CONFIG_OK) {
+            LILYGO_LOG_I("Gauge capacity config already recorded design=%u full=%u",
+                         (unsigned)record.designCapacity,
+                         (unsigned)record.fullChargeCapacity);
+            return true;
+        }
+        if (record.status == LORA_PAGER_GAUGE_CONFIG_FAILED) {
+            LILYGO_LOG_W("Skip gauge capacity config after previous failure design=%u full=%u",
+                         (unsigned)record.designCapacity,
+                         (unsigned)record.fullChargeCapacity);
+            return false;
+        }
+    }
+
+    LILYGO_LOG_I("Configure gauge capacity design=%u full=%u",
+                 (unsigned)LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY,
+                 (unsigned)LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY);
+    bool ok = gauge.setNewCapacity(LILYGO_LORA_PAGER_GAUGE_DESIGN_CAPACITY,
+                                   LILYGO_LORA_PAGER_GAUGE_FULL_CHARGE_CAPACITY);
+    saveGaugeConfigRecord(ok ? LORA_PAGER_GAUGE_CONFIG_OK : LORA_PAGER_GAUGE_CONFIG_FAILED);
+    return ok;
+}
+
+static void sortLoRaDetectSamples(uint16_t *samples, uint8_t count)
+{
+    for (uint8_t i = 1; i < count; ++i) {
+        uint16_t value = samples[i];
+        int j = i - 1;
+        while (j >= 0 && samples[j] > value) {
+            samples[j + 1] = samples[j];
+            --j;
+        }
+        samples[j + 1] = value;
+    }
+}
+
+static LoRaDetectAdcStats readLoRaDetectAdcStats(uint8_t mode)
+{
+    uint16_t samples[LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES] = {};
+
+    gpio_reset_pin((gpio_num_t)LILYGO_LORA_PAGER_RADIO_DETECT_PIN);
+    pinMode(LILYGO_LORA_PAGER_RADIO_DETECT_PIN, mode);
+    delay(LILYGO_LORA_PAGER_RADIO_DETECT_SETTLE_MS);
+    (void)analogRead(LILYGO_LORA_PAGER_RADIO_DETECT_PIN);
+    delayMicroseconds(250);
+
+    for (uint8_t i = 0; i < LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES; ++i) {
+        samples[i] = analogRead(LILYGO_LORA_PAGER_RADIO_DETECT_PIN);
+        delayMicroseconds(250);
+    }
+
+    sortLoRaDetectSamples(samples, LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES);
+
+    LoRaDetectAdcStats stats = {
+        samples[0],
+        samples[LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES - 1],
+        samples[LILYGO_LORA_PAGER_RADIO_DETECT_SAMPLES / 2]
+    };
+    return stats;
+}
+
+static uint8_t countLoRaDetectPinHigh(uint8_t mode)
+{
+    uint8_t highSamples = 0;
+
+    gpio_reset_pin((gpio_num_t)LILYGO_LORA_PAGER_RADIO_DETECT_PIN);
+    pinMode(LILYGO_LORA_PAGER_RADIO_DETECT_PIN, mode);
+    delay(LILYGO_LORA_PAGER_RADIO_DETECT_SETTLE_MS);
+
+    for (uint8_t i = 0; i < LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES; ++i) {
+        if (digitalRead(LILYGO_LORA_PAGER_RADIO_DETECT_PIN) == HIGH) {
+            ++highSamples;
+        }
+        delayMicroseconds(250);
+    }
+
+    return highSamples;
+}
+
+static bool detectNoLoRaDividerByPullResponse(uint8_t &pullupHighSamples,
+        uint8_t &pulldownHighSamples)
+{
+    pullupHighSamples = countLoRaDetectPinHigh(INPUT_PULLUP);
+    pulldownHighSamples = countLoRaDetectPinHigh(INPUT_PULLDOWN);
+    pinMode(LILYGO_LORA_PAGER_RADIO_DETECT_PIN, INPUT);
+
+    return pullupHighSamples > (LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES / 2) &&
+           pulldownHighSamples <= (LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES / 2);
+}
+
+static bool detectLoRaHardwarePresent()
+{
+#if !LILYGO_LORA_PAGER_RADIO_RUNTIME_DETECT
+    return true;
+#else
+    LoRaDetectAdcStats inputAdc = readLoRaDetectAdcStats(INPUT);
+    uint16_t minValue = inputAdc.minValue;
+    uint16_t maxValue = inputAdc.maxValue;
+    uint16_t median = inputAdc.median;
+    bool noLoRaByAdc = median >= LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_LOW &&
+                       median <= LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_HIGH;
+    bool adcNearRail = median <= LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_LOW ||
+                       median >= LILYGO_LORA_PAGER_RADIO_DETECT_ADC_RAIL_HIGH;
+    LoRaDetectAdcStats pullupAdc = {};
+    LoRaDetectAdcStats pulldownAdc = {};
+    uint8_t pullupHighSamples = 0;
+    uint8_t pulldownHighSamples = 0;
+    bool noLoRaByPullResponse = false;
+    bool pulldownAdcLow = false;
+
+    if (noLoRaByAdc || adcNearRail) {
+        noLoRaByPullResponse = detectNoLoRaDividerByPullResponse(pullupHighSamples,
+                               pulldownHighSamples);
+        pullupAdc = readLoRaDetectAdcStats(INPUT_PULLUP);
+        pulldownAdc = readLoRaDetectAdcStats(INPUT_PULLDOWN);
+        pulldownAdcLow = pulldownAdc.median <= LILYGO_LORA_PAGER_RADIO_DETECT_PULLDOWN_ADC_LOW;
+    }
+
+    bool noLoRaDivider = (noLoRaByAdc && !pulldownAdcLow) ||
+                         (adcNearRail && noLoRaByPullResponse && !pulldownAdcLow);
+    bool present = !noLoRaDivider;
+    LILYGO_LOG_I("LoRa detect pull adc pin=%d input=%u/%u/%u pull_up=%u/%u/%u pull_down=%u/%u/%u pulldown_low<=%u pd_low=%d",
+                 LILYGO_LORA_PAGER_RADIO_DETECT_PIN,
+                 inputAdc.minValue,
+                 inputAdc.median,
+                 inputAdc.maxValue,
+                 pullupAdc.minValue,
+                 pullupAdc.median,
+                 pullupAdc.maxValue,
+                 pulldownAdc.minValue,
+                 pulldownAdc.median,
+                 pulldownAdc.maxValue,
+                 LILYGO_LORA_PAGER_RADIO_DETECT_PULLDOWN_ADC_LOW,
+                 pulldownAdcLow);
+    LILYGO_LOG_I("LoRa detect adc pin=%d median=%u min=%u max=%u no_lora_window=%u-%u rail=%u pull_up=%u/%u pull_down=%u/%u divider=%d present=%d",
+                 LILYGO_LORA_PAGER_RADIO_DETECT_PIN,
+                 median,
+                 minValue,
+                 maxValue,
+                 LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_LOW,
+                 LILYGO_LORA_PAGER_RADIO_DETECT_NO_LORA_ADC_HIGH,
+                 adcNearRail,
+                 pullupHighSamples,
+                 LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES,
+                 pulldownHighSamples,
+                 LILYGO_LORA_PAGER_RADIO_DETECT_PULL_SAMPLES,
+                 noLoRaDivider,
+                 present);
+    pinMode(LILYGO_LORA_PAGER_RADIO_DETECT_PIN, INPUT);
+    return present;
+#endif
+}
 
 #ifndef RADIOLIB_EXCLUDE_NRF24
 nRF24 nrf24 = new Module(44/*CS*/, 9/*IRQ*/, 43/*CE*/);
@@ -90,19 +394,27 @@ static constexpr char symbol_map[4][10] = {
     {' '/*Space*/, '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'}
 };
 
-static const LilyGoKeyboardConfigure_t keyboardConfig = {
-    .kb_rows = 4,
-    .kb_cols = 10,
-    .current_keymap = &keymap[0][0],
-    .current_symbol_map = &symbol_map[0][0],
-    .symbol_key_value = 0x1E,
-    .alt_key_value = 0x14,
-    .caps_key_value = 0x1C,
-    .caps_b_key_value = 0xFF,
-    .char_b_value = 0x19,
-    .backspace_value = 0x1D,
-    .has_symbol_key = false
+static const LilyGoKeyboardConfig keyboardConfig = {
+    .layout = {
+        .kb_rows = 4,
+        .kb_cols = 10,
+        .current_keymap = &keymap[0][0],
+        .current_symbol_map = &symbol_map[0][0],
+        .has_symbol_key = false,
+        .space_as_symbol_key = true
+    },
+    .modifiers = {
+        .symbol_key_value = 0x1E,
+        .alt_key_value = 0x14,
+        .caps_key_value = 0x1C,
+        .caps_b_key_value = 0xFF,
+        .fn_key_value = 0xFF,
+        .ctrl_key_value = 0xFF,
+        .shift_key_value = 0xFF,
+        .backspace_value = 0x1D,
+    },
 };
+static cbuf _key_buf(32);
 
 static const DispRotationConfig_t rotation_config[4] = {
     {0xE8, DISP_HEIGHT, DISP_WIDTH, 0, 49},
@@ -122,12 +434,30 @@ static bool _unlock_callback(void)
     return true;
 }
 
+static void clickHandler(Button2 &btn)
+{
+    LILYGO_LOG_D("Click event");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_CLICK));
+}
+
+static void longClickHandler(Button2 &btn)
+{
+    LILYGO_LOG_D("Long click event");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_LONG_PRESSED));
+}
+
+static void doubleClickHandler(Button2 &btn)
+{
+    LILYGO_LOG_D("Double click event");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_DOUBLE_CLICK));
+}
+
 LilyGoLoRaPager::LilyGoLoRaPager() : LilyGo_Display(SPI_DRIVER, false),
     LilyGoDispArduinoSPI(DISP_WIDTH, DISP_HEIGHT, st7796_init_list,
                          sizeof(st7796_init_list) / sizeof(st7796_init_list[0]), rotation_config),
-    LilyGoEventManage()
+    LilyGoEventManage(), LilyGoPowerManageInf(pmic, PMIC_TYPE_BQ25896)
 {
-    _effects = 80;
+    _effects = 1;
     _brightness = 0;    //Default disp is brightness is zero
     _boot_images_addr = nullptr;
 }
@@ -142,14 +472,62 @@ const char *LilyGoLoRaPager::getName()
     return "LilyGo T-LoRa-Pager (2025)";
 }
 
+const LilyGoDeviceCapability &LilyGoLoRaPager::getCapability() const
+{
+    static const LilyGoDeviceCapability capability = {
+        /* boardName */       "LilyGo T-LoRa-Pager (2025)",
+#ifdef USING_RADIO_NAME
+        /* radioName */       USING_RADIO_NAME,
+#else
+        /* radioName */       "None",
+#endif
+        /* pmicName */        "BQ25896",
+        /* gaugeName */       "BQ27220",
+        /* hasSd */           true,
+        /* hasGps */          true,
+        /* gpsRuntimeProbe */ false,
+        /* hasTouch */        false,
+        /* hasKeyboard */     true,
+        /* hasTrackball */    false,
+        /* hasRotary */       true,
+        /* hasBma423 */       false,
+        /* hasBhi260 */       true,
+        /* hasNfc */          true,
+        /* hasIrTx */         false,
+        /* hasIrRx */         false,
+        /* hasEnvSensor */    false,
+        /* hasCompass */      false,
+        /* hasAudioOut */     true,
+        /* hasAudioIn */      true,
+        /* hasHaptic */       true,
+        /* hasExternalI2c */  true,
+        /* hasExternalSpi */  true,
+        /* hasExternalUart */ true,
+        /* hasExternalGpio */ true,
+        /* pmicType */        PMIC_TYPE_BQ25896,
+        /* hasButton */       true,
+        /* hasPmuButton */    false,
+    };
+    return capability;
+}
+
+LilyGoDeviceInitOptions LilyGoLoRaPager::getDefaultInitOptions() const
+{
+    LilyGoDeviceInitOptions options = lilygo_init_options_from_capability(getCapability());
+    options.initFatfs = true;
+    options.initRtc = true;
+    options.initCodec = true;
+    return options;
+}
+
 bool LilyGoLoRaPager::hasEncoder()
 {
-    return true;
+    return rotaryInput.isRunning();
 }
 
 bool LilyGoLoRaPager::hasKeyboard()
 {
-    return devices_probe & HW_KEYBOARD_ONLINE;
+    return _devices_probe & HW_KEYBOARD_ONLINE;
 }
 
 void LilyGoLoRaPager::setRotation(uint8_t rotation)
@@ -194,52 +572,66 @@ void LilyGoLoRaPager::initShareSPIPins()
     }
 }
 
+uint32_t LilyGoLoRaPager::begin()
+{
+    return begin(getDefaultInitOptions());
+}
+
 uint32_t LilyGoLoRaPager::begin(uint32_t disable_hw_init)
+{
+    return begin(lilygo_init_options_from_disable_mask(getDefaultInitOptions(), disable_hw_init));
+}
+
+uint32_t LilyGoLoRaPager::begin(const LilyGoDeviceInitOptions &init_options)
 {
     bool res = false;
 
+    LILYGO_LOG_D("LilyGoLib run with %d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
+
     if (_event) {
-        return devices_probe;
+        return _devices_probe;
     }
 
     _event = xEventGroupCreate();
 
-    devices_probe = 0x00;
+    _devices_probe = 0x00;
 
     while (!psramFound()) {
-        log_e("ERROR:PSRAM NOT FOUND!"); delay(1000);
+        LILYGO_LOG_E("ERROR:PSRAM NOT FOUND!"); delay(1000);
     }
 
-    devices_probe |= HW_PSRAM_ONLINE;
+    _devices_probe |= HW_PSRAM_ONLINE;
 
     Wire.begin(SDA, SCL);
 
-    if (!(disable_hw_init & NO_SCAN_I2C_DEV)) {
-        SensorWireHelper::dumpDevices(Wire, Serial);
+    if (init_options.scanI2c) {
+        LILYGO_LOG_ONLY(SensorWireHelper::dumpDevices(Wire, Serial));
     }
 
-    if (!gauge.begin(Wire, SDA, SCL)) {
-        log_e("Failed to find GAUGE.");
-    } else {
-        log_d("Initializing GAUGE succeeded");
-        devices_probe |= HW_GAUGE_ONLINE;
-        uint16_t newDesignCapacity = 1500;
-        uint16_t newFullChargeCapacity = 1500;
-        gauge.setNewCapacity(newDesignCapacity, newFullChargeCapacity);
+    if (init_options.initGauge) {
+        if (!gauge.begin(Wire, SDA, SCL)) {
+            LILYGO_LOG_E("Failed to find GAUGE.");
+        } else {
+            LILYGO_LOG_D("Initializing GAUGE succeeded");
+            _devices_probe |= HW_GAUGE_ONLINE;
+            configureGaugeCapacityIfNeeded(gauge);
+        }
     }
 
-    res = initPMU();
-    if (!res) {
-        log_e("Failed to find PMU.");
-    } else {
-        log_d("Initializing PMU succeeded");
-        devices_probe |= HW_PMU_ONLINE;
+    if (init_options.initPmu) {
+        res = initPMU();
+        if (!res) {
+            LILYGO_LOG_E("Failed to find PMU.");
+        } else {
+            LILYGO_LOG_D("Initializing PMU succeeded");
+            _devices_probe |= HW_PMU_ONLINE;
+        }
     }
 
 #ifdef USING_XL9555_EXPANDS
     if (io.begin(Wire, 0x20)) {
-        log_d("Initializing expand succeeded");
-        devices_probe |= HW_EXPAND_ONLINE;
+        LILYGO_LOG_D("Initializing expand succeeded");
+        _devices_probe |= HW_EXPAND_ONLINE;
         const uint8_t expands[] = {
 #ifdef  EXPANDS_DISP_RST
             EXPANDS_DISP_RST,
@@ -279,24 +671,13 @@ uint32_t LilyGoLoRaPager::begin(uint32_t disable_hw_init)
         io.digitalWrite(EXPANDS_DISP_RST, HIGH);
 #endif /*EXPANDS_DISP_RST*/
     } else {
-        log_d("Initializing expand Failed!");
+        LILYGO_LOG_D("Initializing expand Failed!");
     }
 #endif /*USING_XL9555_EXPANDS*/
 
     //BHI260AP Address: 0x28
-    if (!(disable_hw_init & NO_HW_SENSOR)) {
-        if (initSensor()) {
-#ifdef USING_BHI_EXPANDS
-            sensor.digitalWrite(BHI_GPS_EN, HIGH);
-            sensor.digitalWrite(BHI_LORA_EN, HIGH);
-            sensor.digitalWrite(BHI_DRV_EN, HIGH);
-            sensor.digitalWrite(BHI_KB_RST, HIGH);
-            sensor.digitalWrite(BHI_NFC_EN, HIGH);
-            sensor.digitalWrite(BHI_DISP_RST, LOW);
-            delay(50);
-            sensor.digitalWrite(BHI_DISP_RST, HIGH);
-#endif /*USING_BHI_EXPANDS*/
-        }
+    if (init_options.initSensor) {
+        initSensor();
     }
 
     backlight.begin(DISP_BL);
@@ -321,7 +702,7 @@ uint32_t LilyGoLoRaPager::begin(uint32_t disable_hw_init)
         incrementalBrightness(250, 20);
     }
 
-    if (!(disable_hw_init & NO_INIT_FATFS)) {
+    if (init_options.initFatfs) {
         setupMSC(_lock_callback, _unlock_callback);
     }
 
@@ -333,91 +714,88 @@ uint32_t LilyGoLoRaPager::begin(uint32_t disable_hw_init)
 
     pinMode(NFC_INT, INPUT);
 
-    if (!(disable_hw_init & NO_SCAN_I2C_DEV)) {
-        SensorWireHelper::dumpDevices(Wire);
+    if (init_options.scanI2c) {
+        LILYGO_LOG_ONLY(SensorWireHelper::dumpDevices(Wire));
     }
 
-    if (!(disable_hw_init & NO_HW_RTC)) {
+    if (init_options.initRtc) {
         initRTC();
     }
 
-    if (!(disable_hw_init & NO_HW_NFC)) {
+    if (init_options.initNfc) {
         initNFC();
     }
 
-    if (!(disable_hw_init & NO_HW_KEYBOARD)) {
+    if (init_options.initKeyboard) {
         initKeyboard();
     }
 
-    if (!(disable_hw_init & NO_HW_DRV)) {
+    if (init_options.initHaptic) {
         initDrv();
     }
 
-    if (!(disable_hw_init & NO_HW_GPS)) {
+    if (init_options.initGps) {
         initGPS();
     }
 
-    if (!(disable_hw_init & NO_HW_LORA)) {
+    if (init_options.initRadio) {
         initLoRa();
     }
 
-    if (!(disable_hw_init & NO_HW_SD)) {
+    if (init_options.initSd) {
         int retry = 2;
         do {
-            log_d("Init SD");
+            LILYGO_LOG_D("Init SD");
             res = installSD();
             if (!res) {
-                log_e("Warning: Failed to find SD");
+                LILYGO_LOG_E("Warning: Failed to find SD");
             } else {
-                log_d("SD init succeeded.");
-                devices_probe |= HW_SD_ONLINE;
+                LILYGO_LOG_D("SD init succeeded.");
                 break;
             }
         } while (--retry);
     }
 
-
-#ifdef USING_PDM_MICROPHONE
-#if  ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5,0,0)
-    if (!(disable_hw_init & NO_HW_MIC)) {
-        log_d("Init Microphone");
-        res = mic.init(MIC_SCK, MIC_DAT);
-        if (res) {
-            log_i("Microphone init succeeded");
-        } else {
-            log_e("Warning: Failed to find Microphone");
-        }
-    }
-#endif
-#endif /*USING_PDM_MICROPHONE*/
-
-#ifdef USING_AUDIO_CODEC
-    if (!(disable_hw_init & NO_HW_CODEC)) {
+    if (init_options.initAudio && init_options.initCodec) {
         codec.setPins(I2S_MCLK, I2S_SCK, I2S_WS, I2S_SDOUT, I2S_SDIN);
         if (codec.begin(Wire, 0x18, CODEC_TYPE_ES8311)) {
-            devices_probe |= HW_CODEC_ONLINE;
-            log_i("Codec init succeeded");
+            _devices_probe |= HW_CODEC_ONLINE;
+            LILYGO_LOG_I("Codec init succeeded");
+            codec.setGain(20);
+            codec.setVolume(100);
         } else {
-            log_e("Warning: Failed to find Codec");
+            LILYGO_LOG_E("Warning: Failed to find Codec");
         }
-        codec.setPaPinCallback([](bool enable, void *user_data) {
-            ((ExtensionIOXL9555 *)user_data)->digitalWrite(EXPANDS_AMP_EN, enable);
-        }, &io);
-    }
-#endif /*USING_AUDIO_CODEC*/
 
+        audioOutput.setMuteCallback([](bool en) {
+            instance.powerControl(POWER_SPEAK, en);
+        });
 
-    if (!(disable_hw_init & NO_HW_ROTARY)) {
-        // Create message queue
-        rotaryMsg = xQueueCreate(5, sizeof(RotaryMsg_t));
-
-        rotaryTaskFlag = xEventGroupCreate();
-
-        // Create a rotary encoder processing task
-        xTaskCreate(rotaryTask, "rotary", 2 * 1024, NULL, 10, &rotaryHandler);
     }
 
-    return devices_probe;
+    if (init_options.initRotary) {
+        LilyGoRotaryInputConfig rotaryConfig;
+        rotaryConfig.pinA = ROTARY_A;
+        rotaryConfig.pinB = ROTARY_B;
+        rotaryConfig.pinButton = ROTARY_C;
+        rotaryConfig.countsPerStep = clampRotaryStepDivider(LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP);
+        rotaryConfig.directionSign = LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN;
+        // ROTARY_A/B/C have board-level external pull-ups on T-LoRa-Pager hardware.
+        rotaryConfig.encoderUseInternalPullup = false;
+        rotaryConfig.buttonUseInternalPullup = false;
+        if (rotaryInput.begin(rotaryConfig)) {
+            LILYGO_LOG_I("Rotary init succeeded, backend: %s", rotaryInput.backendName());
+        } else {
+            LILYGO_LOG_E("Warning: Failed to init rotary");
+        }
+    }
+
+    pinMode(0, INPUT);
+    bootButton.setClickHandler(clickHandler);
+    bootButton.setLongClickHandler(longClickHandler);
+    bootButton.setDoubleClickHandler(doubleClickHandler);
+
+    return _devices_probe;
 }
 
 bool LilyGoLoRaPager::lockSPI(TickType_t xTicksToWait)
@@ -432,29 +810,25 @@ void LilyGoLoRaPager::unlockSPI()
 
 int LilyGoLoRaPager::getKeyChar(char *c)
 {
-    if (devices_probe & HW_KEYBOARD_ONLINE) {
-        return kb.getKey(c);
+    if (!_key_buf.empty()) {
+        _key_buf.read(c, 1);
+        return KB_PRESSED;
     }
     return -1;
 }
 
 bool LilyGoLoRaPager::initPMU()
 {
-    bool res = ppm.init(Wire, SDA, SCL);
+    bool res = pmic.begin(Wire, BQ25896_SLAVE_ADDRESS, SDA, SCL);
     if (!res) {
         return false;
     }
-    // Reset PPM
-    ppm.resetDefault();
-
     // Set the charging target voltage full voltage to 4288mV
-    ppm.setChargeTargetVoltage(4288);
+    pmic.charger().setChargeVoltage(4288);
 
     // The charging current should not be greater than half of the battery capacity.
-    ppm.setChargerConstantCurr(704);
+    pmic.charger().setFastChargeCurrent(DEVICE_CHARGE_CURRENT_RECOMMEND);
 
-    // Enable measure
-    ppm.enableMeasure();
 
     return res;
 }
@@ -463,9 +837,9 @@ bool LilyGoLoRaPager::initPMU()
  * @brief   Hang on SD card
  * @retval Returns true if successful, otherwise false
  */
-bool LilyGoLoRaPager::installSD()
+bool LilyGoLoRaPager::installSD(uint32_t spi_freq)
 {
-
+    _devices_probe &= (~HW_SD_ONLINE);
 #ifdef EXPANDS_SD_DET
     io.pinMode(EXPANDS_SD_DET, INPUT);
     if (io.digitalRead(EXPANDS_SD_DET)) {
@@ -473,14 +847,18 @@ bool LilyGoLoRaPager::installSD()
     }
 #endif /*EXPANDS_SD_DET*/
 
-    initShareSPIPins();
+    if (spi_freq == 0) {
+        spi_freq = LILYGO_LORA_PAGER_SD_SPI_FREQ;
+    }
+    SD.end();
     // Set mount point to /fs
-    if (!SD.begin(SD_CS, SPI, 4000000U, "/sd")) {
-        log_e("Failed to detect SD Card!!");
+    if (!SD.begin(SD_CS, SPI, spi_freq, "/sd")) {
+        LILYGO_LOG_E("Failed to detect SD Card!!");
         return false;
     }
     if (SD.cardType() != CARD_NONE) {
-        log_d("SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
+        LILYGO_LOG_D("SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
+        _devices_probe |= HW_SD_ONLINE;
         return true;
     }
     return false;
@@ -513,11 +891,15 @@ uint8_t LilyGoLoRaPager::getBrightness()
     return backlight.getBrightness();
 }
 
+bool LilyGoLoRaPager::needSwapColors()
+{
+    return true;
+}
+
 void LilyGoLoRaPager::pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color)
 {
     LilyGoDispArduinoSPI::pushColors( x1,  y1,  x2,  y2, color);
 }
-
 
 void LilyGoLoRaPager::powerControl(PowerCtrlChannel_t ch, bool enable)
 {
@@ -525,44 +907,22 @@ void LilyGoLoRaPager::powerControl(PowerCtrlChannel_t ch, bool enable)
     case POWER_DISPLAY_BACKLIGHT:
         break;
     case POWER_RADIO:
-#if  defined(USING_BHI_EXPANDS)
-        sensor.digitalWrite(BHI_LORA_EN, enable);
-#elif defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_LORA_EN, enable);
-#endif
         break;
     case POWER_HAPTIC_DRIVER:
-#if  defined(USING_BHI_EXPANDS)
-        sensor.digitalWrite(BHI_DRV_EN, enable);
-#elif defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_DRV_EN, enable);
-#endif
         break;
     case POWER_GPS:
-#if  defined(USING_BHI_EXPANDS)
-        sensor.digitalWrite(BHI_GPS_EN, enable);
-#elif defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_GPS_EN, enable);
-#endif
         break;
     case POWER_NFC:
-#if  defined(USING_BHI_EXPANDS)
-        sensor.digitalWrite(BHI_NFC_EN, enable);
-#elif defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_NFC_EN, enable);
-#endif
         break;
     case POWER_SD_CARD:
-#if  defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_SD_EN, enable);
-#endif
         break;
     case POWER_SPEAK:
-#if  defined(USING_BHI_EXPANDS)
-
-#elif defined(USING_XL9555_EXPANDS)
         io.digitalWrite(EXPANDS_AMP_EN, enable);
-#endif
         break;
     case POWER_SENSOR:
         break;
@@ -590,14 +950,11 @@ void LilyGoLoRaPager::wakeupDisplay()
 uint64_t LilyGoLoRaPager::checkWakeupPins(WakeupSource_t wakeup_src)
 {
     uint64_t wakeup_pin = 0;
-    if (wakeup_src & WAKEUP_SRC_ROTARY_BUTTON) {
-        wakeup_pin |=  _BV(ROTARY_C);
-    }
     if (wakeup_src & WAKEUP_SRC_BOOT_BUTTON) {
         wakeup_pin |=  _BV(0);
     }
     if (wakeup_pin == 0) {
-        log_e("No wake-up method is set. T-LoRa-Pager allows setting  WAKEUP_SRC_BOOT_BUTTON and WAKEUP_SRC_ROTARY_BUTTON as wake-up methods.");
+        LILYGO_LOG_E("No wake-up method is set. T-LoRa-Pager supports WAKEUP_SRC_BOOT_BUTTON.");
     }
     return wakeup_pin;
 }
@@ -609,11 +966,35 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
         return;
     }
 
-    ppm.disableMeasure();
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_err_t wakeup_result;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    wakeup_result = esp_sleep_enable_ext1_wakeup_io(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#else
+    wakeup_result = esp_sleep_enable_ext1_wakeup(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
+    if (wakeup_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to enable T-LoRa Pager light-sleep wakeup: %s",
+                     esp_err_to_name(wakeup_result));
+        return;
+    }
 
-    radio.sleep();
+    rotaryInput.suspend();
 
-    if (devices_probe & HW_KEYBOARD_ONLINE) {
+    // Convert only once, and close automatically after conversion is complete.
+    pmic.adc().startConversion();
+
+    if (_devices_probe & HW_RADIO_ONLINE) {
+        radio.sleep();
+    }
+
+    uint32_t gps_baudrate = Serial1.baudRate();
+    if (gps_baudrate == 0) {
+        gps_baudrate = LILYGO_LORA_PAGER_GPS_BAUDRATE;
+    }
+    Serial1.end();
+
+    if (_devices_probe & HW_KEYBOARD_ONLINE) {
         kb.end();
     }
 
@@ -630,7 +1011,7 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
 
 
 #ifdef EXPANDS_GPS_RST
-    log_d("Disable GPS RST Pin");
+    LILYGO_LOG_D("Disable GPS RST Pin");
     io.digitalWrite(EXPANDS_GPS_RST, LOW);
 #endif
 
@@ -639,7 +1020,8 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     gpio_reset_pin((gpio_num_t )GPS_TX);
     gpio_reset_pin((gpio_num_t )GPS_PPS);
     pinMode(GPS_RX, OPEN_DRAIN);
-    pinMode(GPS_RX, OPEN_DRAIN);
+    pinMode(GPS_TX, OPEN_DRAIN);
+    pinMode(GPS_PPS, OPEN_DRAIN);
 
     sleepDisplay();
 
@@ -650,13 +1032,12 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     Serial.flush();
     delay(1000);
 
-#if  ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-    esp_sleep_enable_ext1_wakeup_io((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#else
-    esp_sleep_enable_ext1_wakeup((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#endif
-
-    esp_light_sleep_start();
+    const esp_err_t sleep_result = esp_light_sleep_start();
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+    if (sleep_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to enter T-LoRa Pager light sleep: %s",
+                     esp_err_to_name(sleep_result));
+    }
 
 #ifdef EXPANDS_GPS_RST
     io.digitalWrite(EXPANDS_GPS_RST, HIGH);
@@ -666,9 +1047,13 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     pinMode(NFC_CS, OUTPUT);
     digitalWrite(NFC_CS, HIGH);
 
-    radio.standby();
+    if (_devices_probe & HW_RADIO_ONLINE) {
+        radio.standby();
+    }
 
     wakeupDisplay();
+
+    rotaryInput.resume();
 
     powerControl(POWER_HAPTIC_DRIVER, true);
     powerControl(POWER_GPS, true);
@@ -677,49 +1062,70 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     powerControl(POWER_SD_CARD, true);
     installSD();
 
-    ppm.enableMeasure();
 
     initKeyboard();
 
-    Serial1.begin(38400, SERIAL_8N1, GPS_RX, GPS_TX);
+    Serial1.begin(gps_baudrate, SERIAL_8N1, GPS_RX, GPS_TX);
+    pinMode(GPS_PPS, INPUT);
 }
 
 void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, uint32_t sleep_second)
 {
     uint64_t wakeup_pin = 0;
-    bool keep_touch_power = false;
-    if ((wakeup_src & WAKEUP_SRC_TIMER)) {
-        if (sleep_second == 0) {
-            log_e("Too little sleep time.");
-            return;
-        }
-    } else {
-        wakeup_pin = checkWakeupPins(wakeup_src);
+    const bool timer_wakeup = wakeup_src & WAKEUP_SRC_TIMER;
+    const WakeupSource_t physical_sources = static_cast<WakeupSource_t>(
+            static_cast<uint32_t>(wakeup_src) & ~static_cast<uint32_t>(WAKEUP_SRC_TIMER));
+
+    if (timer_wakeup && sleep_second == 0) {
+        LILYGO_LOG_E("Timer wakeup requires a non-zero sleep duration.");
+        return;
+    }
+    if (physical_sources) {
+        wakeup_pin = checkWakeupPins(physical_sources);
         if (wakeup_pin == 0) {
             return;
         }
+        pinMode(0, INPUT_PULLUP);
+        delayMicroseconds(50);
+        if (digitalRead(0) == LOW) {
+            LILYGO_LOG_W("T-LoRa Pager deep sleep skipped: BOOT button is still pressed");
+            return;
+        }
+    } else if (!timer_wakeup) {
+        LILYGO_LOG_E("No deep-sleep wake-up method is set.");
+        return;
     }
 
-    vTaskDelete(rotaryHandler);
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_err_t wakeup_result = ESP_OK;
+    if (timer_wakeup) {
+        wakeup_result = esp_sleep_enable_timer_wakeup(
+                            static_cast<uint64_t>(sleep_second) * 1000000ULL);
+    }
+    if (wakeup_result == ESP_OK && wakeup_pin != 0) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        wakeup_result = esp_sleep_enable_ext1_wakeup_io(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#else
+        wakeup_result = esp_sleep_enable_ext1_wakeup(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
+    }
+    if (wakeup_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to configure T-LoRa Pager deep-sleep wakeup: %s",
+                     esp_err_to_name(wakeup_result));
+        return;
+    }
 
-    ppm.disableMeasure();
+    rotaryInput.end();
 
-    if (devices_probe & HW_KEYBOARD_ONLINE) {
+    // Convert only once, and close automatically after conversion is complete.
+    pmic.adc().startConversion();
+
+
+    if (_devices_probe & HW_KEYBOARD_ONLINE) {
         kb.end();
     }
 
     backlight.setBrightness(0);
-
-#if  defined(USING_BHI_EXPANDS)
-
-    sensor.digitalWrite(BHI_GPS_EN, LOW);
-    sensor.digitalWrite(BHI_LORA_EN, LOW);
-    sensor.digitalWrite(BHI_DISP_RST, HIGH);
-    sensor.digitalWrite(BHI_DRV_EN, LOW);
-    sensor.digitalWrite(BHI_KB_RST, HIGH);
-    sensor.digitalWrite(BHI_NFC_EN, LOW);
-
-#elif defined(USING_XL9555_EXPANDS)
 
     codec.end();
 
@@ -757,15 +1163,10 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
         delay(1);
     }
 
-#endif
-
     drv.stop();
 
+    // Reset the sensor to put it into sleep mode
     sensor.reset();
-
-    // Output all sensors info to Serial
-    BoschSensorInfo info = sensor.getSensorInfo();
-    info.printInfo(Serial);
 
     LilyGoDispArduinoSPI::sleep();
 
@@ -774,7 +1175,7 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
     int i = 3;
 
     while (i--) {
-        log_d("%d second sleep ...", i);
+        LILYGO_LOG_D("%d second sleep ...", i);
         delay(1000);
     }
     if (io.digitalRead(EXPANDS_SD_DET)) {
@@ -801,24 +1202,12 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
         SENSOR_INT,
         NFC_CS,
 
-#if  defined(USING_PDM_MICROPHONE)
-        MIC_SCK,
-        MIC_DAT,
-#endif
-
-#if  defined(USING_PCM_AMPLIFIER)
-        I2S_BCLK,
-        I2S_WCLK,
-        I2S_DOUT,
-#endif
-
-#if defined(USING_AUDIO_CODEC)
         I2S_WS,
         I2S_SCK,
         I2S_MCLK,
         I2S_SDIN,
         I2S_SDOUT,
-#endif
+
         GPS_TX,
         GPS_RX,
         GPS_PPS,
@@ -837,7 +1226,7 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
     };
 
     for (auto pin : pins) {
-        log_d("Set pin %d to open drain\n", pin);
+        LILYGO_LOG_D("Set pin %d to open drain\n", pin);
         gpio_reset_pin((gpio_num_t )pin);
         pinMode(pin, OPEN_DRAIN);
     }
@@ -849,34 +1238,27 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
 
     delay(1000);
 
-    if (wakeup_src & WAKEUP_SRC_TIMER) {
-        esp_sleep_enable_timer_wakeup(sleep_second * 1000000UL);
-    } else {
-#if  ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-        esp_sleep_enable_ext1_wakeup_io((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#else
-        esp_sleep_enable_ext1_wakeup((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#endif
-    }
-
     esp_deep_sleep_start();
 }
 
 uint32_t LilyGoLoRaPager::getDeviceProbe()
 {
-    return devices_probe;
+    if (gps.probeDone() && !gps.probeInProgress() && gps.probeSuccess()) {
+        _devices_probe |= HW_GPS_ONLINE;
+    }
+    return _devices_probe;
 }
 
 bool LilyGoLoRaPager::initNFC()
 {
     bool res = false;
-    log_d("Init NFC");
+    LILYGO_LOG_D("Init NFC");
     res = NFCReader.rfalNfcInitialize() == ST_ERR_NONE;
     if (!res) {
-        log_e("Failed to find NFC Reader");
+        LILYGO_LOG_E("Failed to find NFC Reader");
     } else {
-        log_d("Initializing NFC Reader succeeded");
-        devices_probe |= HW_NFC_ONLINE;
+        LILYGO_LOG_D("Initializing NFC Reader succeeded");
+        _devices_probe |= HW_NFC_ONLINE;
         // Turn off NFC power
         powerControl(POWER_NFC, false);
     }
@@ -888,10 +1270,10 @@ bool LilyGoLoRaPager::initKeyboard()
     kb.setPins(KB_BACKLIGHT);
     bool res = kb.begin(keyboardConfig, Wire, KB_INT);
     if (!res) {
-        log_e("Failed to find Keyboard");
+        LILYGO_LOG_E("Failed to find Keyboard");
     } else {
-        log_d("Initializing Keyboard succeeded");
-        devices_probe |= HW_KEYBOARD_ONLINE;
+        LILYGO_LOG_D("Initializing Keyboard succeeded");
+        _devices_probe |= HW_KEYBOARD_ONLINE;
     }
     // kb.setBrightness(50);
     return res;
@@ -899,22 +1281,19 @@ bool LilyGoLoRaPager::initKeyboard()
 
 bool LilyGoLoRaPager::initDrv()
 {
-    bool res = false;
     //DRV2605 Address: 0x5A
-    log_d("Init DRV2605 Haptic Driver");
-    res = drv.begin(Wire);
+    LILYGO_LOG_D("Init DRV2605 Haptic Driver");
+    bool res = drv.begin(Wire, DRV2605_SLAVE_ADDRESS);
     if (!res) {
-        log_e("Failed to find DRV2605");
+        LILYGO_LOG_E("Failed to find DRV2605");
     } else {
-        log_d("Initializing DRV2605 succeeded");
+        LILYGO_LOG_D("Initializing DRV2605 succeeded");
         drv.selectLibrary(1);
-        drv.setMode(SensorDRV2605::MODE_INTTRIG);
-        drv.useERM();
-        // set the effect to play
-        drv.setWaveform(0, 15);  // play effect
+        drv.setMode(HapticMode::INTERNAL_TRIGGER);
+        drv.setWaveform(0, _effects);  // play effect
         drv.setWaveform(1, 0);   // end waveform
         drv.run();
-        devices_probe |= HW_DRV_ONLINE;
+        _devices_probe |= HW_DRV_ONLINE;
     }
     return res;
 }
@@ -939,7 +1318,7 @@ void LilyGoLoRaPager::feedback(void *args)
         _custom_feedback(args);
         return;
     }
-    if (devices_probe & HW_DRV_ONLINE) {
+    if (_devices_probe & HW_DRV_ONLINE) {
         drv.setWaveform(0, _feedback_effects);  // play effect
         drv.setWaveform(1, 0);   // end waveform
         drv.run();
@@ -959,54 +1338,53 @@ uint8_t LilyGoLoRaPager::getHapticEffects()
 
 void LilyGoLoRaPager::vibrator()
 {
-    if (devices_probe & HW_DRV_ONLINE) {
+    if (_devices_probe & HW_DRV_ONLINE) {
         drv.setWaveform(0, _effects);
         drv.setWaveform(1, 0);
         drv.run();
     }
 }
 
+static void lora_pager_gps_probe_cb(bool success, const char *model, void *user_data)
+{
+    (void)user_data;
+    if (success) {
+        LILYGO_LOG_D("%s GPS init succeeded\n", model ? model : "UBlox");
+        _devices_probe |= HW_GPS_ONLINE;
+    } else {
+        LILYGO_LOG_E("Warning: Failed to find Ublox GPS Module\n");
+        _devices_probe &= ~HW_GPS_ONLINE;
+    }
+}
+
 bool LilyGoLoRaPager::initGPS()
 {
-    bool res = false;
     // GPS BAUD 38400 DEFAULT
-    Serial1.begin(38400, SERIAL_8N1, GPS_RX, GPS_TX);
-    log_d("Init GPS");
-    res = gps.init(&Serial1);
-    if (!res) {
-        log_e("Warning: Failed to find UBlox GPS Module\n");
-    } else {
-        log_d("UBlox GPS init succeeded, using UBlox GPS Module\n");
-        devices_probe |= HW_GPS_ONLINE;
-    }
+    Serial1.begin(LILYGO_LORA_PAGER_GPS_BAUDRATE, SERIAL_8N1, GPS_RX, GPS_TX);
+    LILYGO_LOG_D("Init GPS");
+    bool res = gps.beginAsyncProbe(&Serial1, GPS_PROBE_UBLOX, lora_pager_gps_probe_cb);
+    if (res) LILYGO_LOG_D("GPS async probe started");
     return res;
 }
 
 
 
-#ifdef USING_XL9555_EXPANDS
 #define BOSCH_BHI260_KLIO
-#else
-#define BOSCH_BHI260_GPIO
-#endif
 #include <BoschFirmware.h>
-
-
 bool LilyGoLoRaPager::initSensor()
 {
     bool res = false;
     Wire.setClock(1000000UL);
-    log_d("Init BHI260AP Sensor");
-    sensor.setPins(-1);
+    LILYGO_LOG_D("Init BHI260AP Sensor");
     sensor.setFirmware(bosch_firmware_image, bosch_firmware_size, bosch_firmware_type);
     sensor.setBootFromFlash(false);
-    res = sensor.begin(Wire);
+    res = sensor.begin(Wire, BHI260AP_SLAVE_ADDRESS_L);
     if (!res) {
-        log_e("Failed to find BHI260AP");
+        LILYGO_LOG_E("Failed to find BHI260AP");
     } else {
-        log_d("Initializing BHI260AP succeeded");
-        devices_probe |= HW_BHI260AP_ONLINE;
-        sensor.setRemapAxes(SensorBHI260AP::BOTTOM_LAYER_TOP_LEFT_CORNER);
+        LILYGO_LOG_D("Initializing BHI260AP succeeded");
+        _devices_probe |= HW_BHI260AP_ONLINE;
+        sensor.setRemapAxes(SensorRemap::BOTTOM_LAYER_TOP_LEFT_CORNER);
         pinMode(SENSOR_INT, INPUT);
         attachInterrupt(SENSOR_INT, []() {
             setGroupBitsFromISR(_event, HW_IRQ_SENSOR);
@@ -1020,13 +1398,13 @@ bool LilyGoLoRaPager::initSensor()
 bool LilyGoLoRaPager::initRTC()
 {
     bool res = false;
-    log_d("Init PCF85063 RTC");
+    LILYGO_LOG_D("Init PCF85063 RTC");
     res = rtc.begin(Wire);
     if (!res) {
-        log_e("Failed to find PCF85063");
+        LILYGO_LOG_E("Failed to find PCF85063");
     } else {
-        devices_probe |= HW_RTC_ONLINE;
-        log_d("Initializing PCF85063 succeeded");
+        _devices_probe |= HW_RTC_ONLINE;
+        LILYGO_LOG_D("Initializing PCF85063 succeeded");
         rtc.hwClockRead();  //Synchronize RTC clock to system clock
         rtc.setClockOutput(SensorPCF85063::CLK_LOW);
 
@@ -1046,29 +1424,43 @@ bool LilyGoLoRaPager::initNRF24()
     // io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
     int state = nrf24.begin();
     if (state == RADIOLIB_ERR_NONE) {
-        log_d("Initializing NRF2401 Extern Module succeeded");
-        devices_probe |= HW_NRF24_ONLINE;
+        LILYGO_LOG_D("Initializing NRF2401 Extern Module succeeded");
+        _devices_probe |= HW_NRF24_ONLINE;
         return true;
     }
 #endif
-    log_e("Failed to find NRF2401 Extern Module");
+    LILYGO_LOG_E("Failed to find NRF2401 Extern Module");
     // io.digitalWrite(EXPANDS_GPIO_EN, LOW);
     return false;
 }
 
 bool LilyGoLoRaPager::initLoRa()
 {
+    if (_devices_probe & HW_RADIO_ONLINE) {
+        _radio_hardware_present = true;
+    } else {
+        _radio_hardware_present = detectLoRaHardwarePresent();
+    }
+
+    if (!_radio_hardware_present) {
+        _devices_probe &= ~HW_RADIO_ONLINE;
+        LILYGO_LOG_W("LoRa module not detected, skip radio init");
+        return false;
+    }
+    pinMode(LORA_IRQ, INPUT);
+    pinMode(LORA_BUSY, INPUT);
+
     radio.reset();
 
     int state = radio.begin();
 
     if (state != RADIOLIB_ERR_NONE) {
-        devices_probe &= ~HW_RADIO_ONLINE;
-        log_e("❌Radio init failed, code :%d , Use %s", state, USING_RADIO_NAME);
+        _devices_probe &= ~HW_RADIO_ONLINE;
+        LILYGO_LOG_E("❌Radio init failed, code :%d , Use %s", state, USING_RADIO_NAME);
         return false;
     }
 
-    devices_probe |= HW_RADIO_ONLINE;
+    _devices_probe |= HW_RADIO_ONLINE;
 
 #if defined(ARDUINO_LILYGO_LORA_LR1121)
     // Set RF switch configuration
@@ -1093,20 +1485,29 @@ bool LilyGoLoRaPager::initLoRa()
     // Set TCXO voltage to 3.0V
     radio.setTCXO(3.0);
 
-    log_i("✅Radio init succeeded, module: %s", USING_RADIO_NAME);
+    LILYGO_LOG_I("✅Radio init succeeded, module: %s", USING_RADIO_NAME);
 
 #endif /*ARDUINO_LILYGO_LORA_LR1121*/
 
     return true;
 }
 
+bool LilyGoLoRaPager::isLoRaHardwarePresent() const
+{
+    return _radio_hardware_present;
+}
+
 
 void LilyGoLoRaPager::loop()
 {
     EventBits_t bits = xEventGroupGetBits(_event);
-    // if (bits & HW_IRQ_POWER) {
-    //     xEventGroupClearBits(_event, HW_IRQ_POWER);
-    // }
+
+    if (_devices_probe & HW_GAUGE_ONLINE) {
+        if (millis() - _gauge_update_timestamp > _gauge_update_interval) {
+            _gauge_update_timestamp = millis();
+            gauge.refresh();
+        }
+    }
 
     if (bits & HW_IRQ_RTC) {
         xEventGroupClearBits(_event, HW_IRQ_RTC);
@@ -1115,117 +1516,186 @@ void LilyGoLoRaPager::loop()
 
     if (bits & HW_IRQ_SENSOR) {
         xEventGroupClearBits(_event, HW_IRQ_SENSOR);
-        sensor.update();
+        if (!sensor.update()) {
+            static uint32_t last_bhi_update_error = 0;
+            uint32_t now = millis();
+            if (last_bhi_update_error == 0 || now - last_bhi_update_error > 2000) {
+                last_bhi_update_error = now;
+                LILYGO_LOG_W("BHI260 update failed: %s", sensor.getError());
+            }
+        }
     }
 
-    // if (devices_probe & HW_NFC_ONLINE) {
+    // if (_devices_probe & HW_NFC_ONLINE) {
     //     lockSPI();
     //     NFCReader.rfalNfcWorker();
     //     unlockSPI();
     // }
+
+    if (_devices_probe & HW_KEYBOARD_ONLINE) {
+        static char c;
+        if (kb.getKey(&c) > 0) {
+            if (_enable_keyboard) {
+                if (_key_buf.full()) {
+                    _key_buf.read();
+                }
+                _key_buf.write(c);
+            } else {
+                LILYGO_LOG_PRINTF("_enable_keyboard not enabled\n");
+            }
+        }
+    }
+
+    // Keep the GNSS parser fed after the asynchronous probe completes. This
+    // also prevents NMEA data from accumulating until the GNSS app opens.
+    if (gps.probeDone() && !gps.probeInProgress() && gps.probeSuccess()) {
+        while (Serial1.available()) {
+            gps.encode((char)Serial1.read());
+        }
+    }
+
+    bootButton.loop();
+}
+
+void LilyGoLoRaPager::enableKeyboard()
+{
+    LILYGO_LOG_D("Enable keyboard");
+    _enable_keyboard = true;
+    _key_buf.remove(_key_buf.available());
+}
+
+void LilyGoLoRaPager::disableKeyboard()
+{
+    LILYGO_LOG_D("Disable keyboard");
+    _enable_keyboard = false;
+    _key_buf.remove(_key_buf.available());
+}
+
+bool LilyGoLoRaPager::hasOTG()
+{
+    return _devices_probe & HW_PMU_ONLINE;
+}
+
+bool LilyGoLoRaPager::hasGauge()
+{
+    return _devices_probe & HW_GAUGE_ONLINE;
+}
+
+bool LilyGoLoRaPager::readPowerSnapshot(LilyGoPowerSnapshot &snapshot)
+{
+    LilyGoPowerManageInf::readPowerSnapshot(snapshot);
+    if (!snapshot.externalGaugePresent) {
+        return snapshot.pmuPresent || snapshot.fuelGaugePresent;
+    }
+
+    copyPowerLabel(snapshot.gaugeName, sizeof(snapshot.gaugeName), "BQ27220");
+    gauge.refresh();
+
+    setPowerMetric(snapshot.remainingCapacityMah, gauge.getRemainingCapacity(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.fullChargeCapacityMah, gauge.getFullChargeCapacity(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.standbyCurrentMa, gauge.getStandbyCurrent(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.designCapacityMah, gauge.getDesignCapacity(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.averagePowerMw, gauge.getAveragePower(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.maxLoadCurrentMa, gauge.getMaxLoadCurrent(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.batteryPercent, gauge.getStateOfCharge(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.batteryMv, gauge.getVoltage(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.batteryMa, gauge.getCurrent(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    setPowerMetric(snapshot.temperatureC, gauge.getTemperature(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+
+    BatteryStatus batteryStatus = gauge.getBatteryStatus();
+    if (batteryStatus.isInDischargeMode()) {
+        setPowerMetric(snapshot.timeToEmptyMin, gauge.getTimeToEmpty(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    } else if (batteryStatus.isFullChargeDetected()) {
+        setPowerMetric(snapshot.timeToFullMin, 0, LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+        setPowerMetric(snapshot.timeToEmptyMin, 0, LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    } else {
+        setPowerMetric(snapshot.timeToFullMin, gauge.getTimeToFull(), LILYGO_POWER_SRC_EXTERNAL_GAUGE);
+    }
+
+    snapshot.fuelGaugePresent = snapshot.batteryPercent.valid;
+    snapshot.batteryPresentValid = true;
+    snapshot.batteryPresent = snapshot.batteryMv.valid ? snapshot.batteryMv.value > 2500.0f : true;
+    return true;
+}
+
+bool LilyGoLoRaPager::shutdown()
+{
+    if (pmic.charger().getStatus().vbusPresent) {
+        return false;
+    }
+    pmic.power().enableShipMode(true);
+    // The return value is meaningless; it only returns false when the device cannot be shut down.
+    return true;
+}
+
+bool LilyGoLoRaPager::isOTGEnabled()
+{
+    return pmic.power().isBoostEnabled();
+}
+
+bool LilyGoLoRaPager::enableOTG()
+{
+    return pmic.power().enableBoost(true);
+}
+
+bool LilyGoLoRaPager::disableOTG()
+{
+    return pmic.power().enableBoost(false);
+}
+
+float LilyGoLoRaPager::getBattVoltage()
+{
+    return gauge.getVoltage();
+}
+
+float LilyGoLoRaPager::getBatteryPercent()
+{
+    return gauge.getStateOfCharge();
+}
+
+float LilyGoLoRaPager::getTemperature()
+{
+    return gauge.getTemperature();
 }
 
 RotaryMsg_t LilyGoLoRaPager::getRotary()
 {
-    static RotaryMsg_t msg;
-    if (rotaryMsg) {
-        if (xQueueReceive(rotaryMsg, &msg, pdMS_TO_TICKS(50)) == pdPASS) {
-            return (msg);
-        }
-    }
-    // No new event in the queue: rotation is momentary, but the center button
-    // level must persist so that holding it is reported as continuously
-    // pressed (e.g. push-to-talk). Keep the last known centerBtnPressed value.
-    msg.dir = ROTARY_DIR_NONE;
-    return (msg);
+    return rotaryInput.read();
 }
 
 void LilyGoLoRaPager::clearRotaryMsg()
 {
-    if (rotaryMsg) {
-        UBaseType_t uxMessagesWaiting;
-        uxMessagesWaiting = uxQueueMessagesWaiting(rotaryMsg);
-        while (uxMessagesWaiting > 0) {
-            RotaryMsg_t msg;;
-            xQueueReceive(rotaryMsg, &msg, 0);
-            uxMessagesWaiting = uxQueueMessagesWaiting(rotaryMsg);
-        }
-    }
+    rotaryInput.clear();
+}
+
+void LilyGoLoRaPager::setRotaryStepDivider(uint8_t divider)
+{
+    rotaryInput.setCountsPerStep(clampRotaryStepDivider(divider));
+}
+
+uint8_t LilyGoLoRaPager::getRotaryStepDivider()
+{
+    return rotaryInput.getCountsPerStep();
+}
+
+uint8_t LilyGoLoRaPager::getRotaryStepDividerMin()
+{
+    return LilyGoRotaryInput::getCountsPerStepMin();
+}
+
+uint8_t LilyGoLoRaPager::getRotaryStepDividerMax()
+{
+    return clampRotaryStepDivider(LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER);
 }
 
 void LilyGoLoRaPager::disableRotary()
 {
-    if (rotaryHandler) {
-        vTaskSuspend(rotaryHandler);
-    }
+    rotaryInput.suspend();
 }
 
 void LilyGoLoRaPager::enableRotary()
 {
-    if (rotaryHandler) {
-        if (digitalRead(ROTARY_C) == LOW) {
-            xEventGroupSetBits(rotaryTaskFlag, TASK_ROTARY_START_PRESSED_FLAG);
-        }
-        vTaskResume(rotaryHandler);
-    }
-}
-
-static bool getButtonState()
-{
-    static uint8_t buttonState = HIGH;      // debounced, stable level
-    static uint8_t lastReading = HIGH;      // last raw reading
-    static uint32_t lastDebounceTime = 0;
-    const uint8_t debounceDelay = 20;
-    int reading = digitalRead(ROTARY_C);
-
-    EventBits_t eventBits = xEventGroupGetBits(rotaryTaskFlag);
-    if (eventBits & TASK_ROTARY_START_PRESSED_FLAG) {
-        if (reading == HIGH) {
-            xEventGroupClearBits(rotaryTaskFlag, TASK_ROTARY_START_PRESSED_FLAG);
-        } else {
-            return false;
-        }
-    }
-
-    if (reading != lastReading) {
-        lastDebounceTime = millis();
-        lastReading = reading;
-    }
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-        buttonState = reading;
-    }
-    // Report the current held level (LOW = pressed) rather than just the press
-    // edge, so that holding the button stays "pressed" the whole time.
-    return (buttonState == LOW);
-}
-
-static void rotaryTask(void *p)
-{
-    RotaryMsg_t msg;
-    bool last_btn_state = false;
-    instance.rotary.begin();
-    pinMode(ROTARY_C, INPUT);
-    while (1) {
-        msg.centerBtnPressed = getButtonState();
-        uint8_t result = instance.rotary.process();
-        if (result || msg.centerBtnPressed != last_btn_state) {
-            switch (result) {
-            case DIR_CW:
-                msg.dir = ROTARY_DIR_UP;
-                break;
-            case DIR_CCW:
-                msg.dir = ROTARY_DIR_DOWN;
-                break;
-            default:
-                msg.dir = ROTARY_DIR_NONE;
-                break;
-            }
-            last_btn_state = msg.centerBtnPressed;
-            xQueueSend(rotaryMsg, (void *)&msg, portMAX_DELAY);
-        }
-        delay(2);
-    }
-    vTaskDelete(NULL);
+    rotaryInput.resume();
 }
 
 

@@ -1,55 +1,117 @@
 /**
- * @file      LilyGoWatchS3.h
+ * @file      LilyGoWatch.h
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
- * @copyright Copyright (c) 2023  Shenzhen XinYuan Electronic Technology Co., Ltd
- * @date      2023-04-28
+ * @copyright Copyright (c) 2026  Shenzhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-05-30
  *
  */
 #pragma once
 
-#ifdef ARDUINO_T_WATCH_S3
+#ifdef ARDUINO_TWATCH_BASE
 
 #include <Arduino.h>
 #include <FFat.h>
 #include <FS.h>
 #include <Wire.h>
+#include <Button2.h>
+#include <Adafruit_PN532.h>
 #include <TouchDrvFocalTech.hpp>
-#include <HapticDrivers.hpp>
 #include <RtcDrv.hpp>
-#include <RadioLib.h>
-#include "gps/GPS.h"
-#include "audio/AudioDevice.h"
 #include "display/LilyGoDispInterface.h"
 #include "core/LilyGoEventManage.h"
+#include "core/LilyGoPowerManageInf.h"
 #include "core/LilyGoTypedef.h"
 #include "display/BrightnessController.h"
-#include "core/LilyGoPowerManageInf.h"
 #include "sensor/BMASensorHelper.h"
+#include "audio/AudioInputIf.h"
+#include "audio/AudioOutputIf.h"
 
-#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY,SPI)
-#include "radio/LilyGoRadioHelper.h"
+// Arduino-ESP32 upstream uses the shared "twatch" variant for 2019/2020
+// revisions and only exposes the common pins. Keep the board class buildable
+// without requiring this repository's legacy variant copy.
+#ifndef DISP_WIDTH
+#define DISP_WIDTH      (240)
+#endif
+#ifndef DISP_HEIGHT
+#define DISP_HEIGHT     (240)
+#endif
+#ifndef DISP_MOSI
+#define DISP_MOSI       (19)
+#endif
+#ifndef DISP_MISO
+#define DISP_MISO       (34)
+#endif
+#ifndef DISP_SCK
+#define DISP_SCK        (18)
+#endif
+#ifndef DISP_RST
+#define DISP_RST        (-1)
+#endif
+#ifndef DISP_CS
+#define DISP_CS         (5)
+#endif
+#ifndef DISP_DC
+#define DISP_DC         (27)
+#endif
+#ifndef DISP_BL
+#define DISP_BL         (12)
+#endif
+#ifndef TP_RST
+#define TP_RST          (-1)
+#endif
+#ifndef PMU_INT
+#ifdef APX20X_INT
+#define PMU_INT         APX20X_INT
+#else
+#define PMU_INT         (35)
+#endif
+#endif
+#ifndef SENSOR_INT
+#ifdef BMA42X_INT1
+#define SENSOR_INT      BMA42X_INT1
+#else
+#define SENSOR_INT      (39)
+#endif
+#endif
+#ifndef BUTTON_INT
+#define BUTTON_INT      (36)
+#endif
+#ifndef USING_PMU_MANAGE
+#define USING_PMU_MANAGE
+#endif
+#ifndef USING_INPUT_DEV_TOUCHPAD
+#define USING_INPUT_DEV_TOUCHPAD
+#endif
+#ifndef USING_BMA423_SENSOR
+#define USING_BMA423_SENSOR
+#endif
+#ifndef HAS_SD_CARD_SOCKET
+#define HAS_SD_CARD_SOCKET
+#endif
 
-class LilyGoWatch2022;
-extern LilyGoWatch2022 &instance;
+// Options PN532
+#define PN532_IRQ       34
+#define PN532_RST       33
+#define PN532_BUZZER    13
 
-class LilyGoWatch2022 : public LilyGo_Display,
+class LilyGoWatch : public LilyGo_Display,
     public LilyGoDispSPI,
     public LilyGoEventManage,
-    public BrightnessController<LilyGoWatch2022, 0, 255, 5>,
     public LilyGoPowerManageInf,
+    public BrightnessController<LilyGoWatch, 0, 255, 5>,
     public BMASensorHelper
 {
 private:
-    LilyGoWatch2022();
-    ~LilyGoWatch2022();
-    LilyGoWatch2022(const LilyGoWatch2022 &) = delete;
-    LilyGoWatch2022 &operator=(const LilyGoWatch2022 &) = delete;
-
-
+    LilyGoWatch();
+    ~LilyGoWatch();
+    LilyGoWatch(const LilyGoWatch &) = delete;
+    LilyGoWatch &operator=(const LilyGoWatch &) = delete;
 public:
-    AudioInputDev _audioInput;
-    AudioOutputDev _audioOutput;
+    TouchDrvFT6X36 touch;
+    SensorPCF8563 rtc;
+    PmicAXP202 pmic;
+    Button2    bootButton = Button2(36);    //USER BUTTON ( button)
 
     /**
      * @brief Get the instance of the AudioOutputDev class.
@@ -57,7 +119,7 @@ public:
      */
     AudioOutputIf *getAudioOutput()
     {
-        return &_audioOutput;
+        return nullptr;
     }
     /**
      * @brief Get the instance of the AudioInputDev class.
@@ -65,25 +127,16 @@ public:
      */
     AudioInputIf *getAudioInput()
     {
-        return &_audioInput;
+        return nullptr;
     }
-
-
-public:
-    GPS gps;
-    TouchDrvFT6X36 touch;
-    SensorPCF8563 rtc;
-    HapticDriver_DRV2605 drv;
-    PmicAXP2101 pmic;
-
     /**
-     * @brief  Get the instance of the LilyGoWatch2022 class.
+     * @brief  Get the instance of the LilyGoWatch class.
      * @note   This function returns a pointer to the singleton instance of the class.
-     * @retval Pointer to the LilyGoWatch2022 instance.
+     * @retval Pointer to the LilyGoWatch instance.
      */
-    static LilyGoWatch2022 *getInstance()
+    static LilyGoWatch *getInstance()
     {
-        static LilyGoWatch2022 _instance;
+        static LilyGoWatch _instance;
         return &_instance;
     }
 
@@ -125,36 +178,15 @@ public:
     LILYGO_DEPRECATED("Use begin(const LilyGoDeviceInitOptions&) instead. The disable_hw_init bitmask overload will be removed in a future release.")
     uint32_t begin(uint32_t disable_hw_init);
 
+
+    void setTouchType(uint8_t type);
+
     /**
      * @brief Main loop function.
      *
      * This function is typically called in an infinite loop.
      */
     void loop();
-
-    /**
-     * @brief Initialize the LoRa module.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * This function attempts to initialize the LoRa module. It returns 'true' if the initialization is successful,
-     * and 'false' otherwise.
-     *
-     * @return bool True if LoRa initialization is successful, false otherwise.
-     */
-    bool initLoRa();
-
-    /**
-     * @brief Initialize the driver.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
-     */
-    bool initDrv();
-
-    /**
-     * @brief Initialize the GPS module.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
-     */
-    bool initGPS();
 
     /**
      * @brief Initialize the touch screen.
@@ -178,18 +210,18 @@ public:
     bool initRTC();
 
     /**
-     * @brief Initialize the microphone.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
+     * @brief Probe and configure the optional PN532 backplate on Wire (SDA 21, SCL 22).
+     * @note Called by begin() when initNfc is enabled. Safe to call after a reader reset.
+     *       Detecting this backplate unmounts SD and prevents SD mounting until reboot.
+     * @return True only when a PN532 responds and reader configuration succeeds.
      */
-    bool initMicrophone();
+    bool initNFC();
 
-    /**
-     * @brief Initialize the amplifier.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
-     */
-    bool initAmplifier();
+    /** @brief Get the PN532 I2C driver. Call initNFC() before using it. */
+    Adafruit_PN532 &getNFC();
+
+    /** @brief Get the firmware version cached by the successful PN532 probe. */
+    uint32_t getNFCFirmwareVersion() const;
 
     /**
      * @brief Lock the SPI bus.
@@ -243,7 +275,6 @@ public:
      */
     void pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color) override;
 
-
     /**
     * @brief Check if the color data needs to be swapped.
     * @note  Pass the query to lvgl whether a swap is needed.
@@ -290,20 +321,6 @@ public:
     bool getTouched();
 
     /**
-     * @brief Set haptic effects.
-     *
-     * @param effects Haptic effects setting.
-     */
-    void setHapticEffects(uint8_t effects);
-
-    /**
-     * @brief Get the current haptic effects setting.
-     *
-     * @return uint8_t Current haptic effects setting.
-     */
-    uint8_t getHapticEffects();
-
-    /**
      * @brief Trigger the vibrator.
      */
     void vibrator();
@@ -315,12 +332,13 @@ public:
      * If you need to enable NFC after calling this method, you must call the NFC initialization method again.
      *
      * @param wakeup_src Wake-up source (default: touch panel). Supported physical
-     * wake-up sources are the power key and touch panel.
+     * wake-up sources are the power key, touch panel, and BUTTON_INT (GPIO36).
      */
-    void lightSleep(WakeupSource_t wakeup_src =  (WakeupSource_t)(WAKEUP_SRC_TOUCH_PANEL));
+    void lightSleep(WakeupSource_t wakeup_src = (WakeupSource_t)(WAKEUP_SRC_TOUCH_PANEL));
 
     /**
      * @brief Put the device into sleep mode.
+     * @ On an ESP32, only one wake-up method can be used; unlike the ESP32S3, multiple combinations are not possible.
      * @param wakeup_src Wake-up source (default: power key). Timer wake-up may be
      * used alone or combined with the supported physical sources.
      * @param off_rtc_backup_domain The parameter is retained but has no effect.
@@ -347,6 +365,33 @@ public:
      * @param enable Whether to enable the channel.
      */
     void powerControl(PowerCtrlChannel_t ch, bool enable);
+
+    /**
+    * @brief Install the SD card.
+    *
+    * This function attempts to install the SD card. It returns 'true' if the installation is successful, and
+    * 'false' otherwise.
+    * Mounting is rejected when the mutually exclusive PN532 backplate has been detected.
+    *
+    * @return bool True if SD card installation is successful, false otherwise.
+    */
+    bool installSD(uint32_t spi_freq = 0);
+
+    /**
+     * @brief Uninstall the SD card.
+     *
+     * This function uninstalls the previously installed SD card.
+     */
+    void uninstallSD();
+
+    /**
+     * @brief Check if the SD card is ready.
+     *
+     * This function checks whether the SD card is ready for use. It returns 'true' if ready, and 'false' otherwise.
+     *
+     * @return bool True if the SD card is ready, false otherwise.
+     */
+    bool isCardReady();
 
     /**
      * @brief Get the device probe value.
@@ -405,6 +450,7 @@ public:
         return 255;
     };
 
+
     /**
      * @brief Shutdown the device.
      *
@@ -415,11 +461,7 @@ public:
      * returns nothing and the device will power off.
      */
     bool shutdown() override;
-
 private:
-    static void gpsProbeCallback(bool success, const char *model, void *user_data);
-    void calibrateBatteryIfNeeded(bool gps_present);
-
     /**
      * @brief Clear the specified event bits.
      *
@@ -464,39 +506,24 @@ private:
      */
     bool initPMU();
 
-    /**
-     * @brief  Rewrite battery parameters , Determining if it's a T-Watch Plus by checking if GPS is present.
-     * @note   This function only needs to be written once.
-     * @param  batteryCapacity: The capacity of the battery in mAh.
-     * @retval True indicates successful write; otherwise, write failed.
-     */
-    bool calibrationPMU(uint16_t batteryCapacity);
+    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override
+    {
+        return pmic.getConfig().chargeCurrentStep * level;
+    }
 
-    /**
-     * @brief  Convert charge level to current.
-     * @note   This function converts a given charge level to its corresponding current value.
-     * @param  level: The charge level to convert.
-     * @retval The corresponding current value.
-     */
-    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override;
-
-    /**
-    * @brief  Convert charge current to level.
-    * @note   This function converts a given charge current to its corresponding charge level.
-    * @retval The corresponding charge level.
-    */
-    uint16_t getChargeCurrentToLevelImpl() override;
+    uint16_t getChargeCurrentToLevelImpl() override
+    {
+        uint16_t current = getChargeCurrent();
+        uint16_t step = pmic.getConfig().chargeCurrentStep;
+        return current / step;
+    }
 
     static EventGroupHandle_t _event;
-    uint8_t _effects;
-    uint32_t devices_probe;
     uint8_t *_boot_images_addr;
-    bool _is_watch_plus;
+    bool _touchType;
 };
 
-extern LilyGoWatch2022 &instance;
-
-LILYGO_DECLARE_RADIO();
+extern LilyGoWatch &instance;
 
 #define DEVICE_MAX_BRIGHTNESS_LEVEL 255
 #define DEVICE_MIN_BRIGHTNESS_LEVEL 0
@@ -504,6 +531,7 @@ LILYGO_DECLARE_RADIO();
 #define DEVICE_MIN_CHARGE_CURRENT   100
 #define DEVICE_CHARGE_LEVEL_NUMS    12
 #define DEVICE_CHARGE_STEPS         1
-#define DEVICE_CHARGE_CURRENT_RECOMMEND 125
+#define DEVICE_CHARGE_CURRENT_RECOMMEND 190
+
 
 #endif

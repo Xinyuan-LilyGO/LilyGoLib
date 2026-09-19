@@ -8,6 +8,7 @@
  */
 
 #ifdef ARDUINO_T_WATCH_S3_ULTRA
+#include "LilyGoLog.h"
 #include "LilyGoWatchUltra.h"
 #include "SensorWireHelper.h"
 #include "freertos/FreeRTOS.h"
@@ -17,20 +18,29 @@
 #include "freertos/event_groups.h"
 #include "driver/gpio.h"
 #include "LilyGoLib.h"
+#include "core/LilyGoGeneral.h"
 #include "driver/rtc_io.h"
 #include <Preferences.h>
 
+#ifndef LILYGO_WATCH_ULTRA_SD_SPI_FREQ
+#define LILYGO_WATCH_ULTRA_SD_SPI_FREQ 4000000U //4MHZ
+#endif
+
 extern void setupMSC(lock_callback_t lock_cb, lock_callback_t ulock_cb);
-extern bool esp_enable_slow_crystal();
-extern void setGroupBitsFromISR(EventGroupHandle_t xEventGroup,
-                                const EventBits_t uxBitsToSet);
 
-#define PIN_NONE    -1
+static uint8_t BATTER_PARAMS[] = {
+    0x01, 0xf5, 0x40, 0x00, 0x1b, 0x1e, 0x28, 0x0f, 0x0c, 0x1e, 0x32, 0x02, 0x14, 0x05, 0x0a, 0x04,
+    0x74, 0xfc, 0xf4, 0x0d, 0x43, 0x10, 0x52, 0xfb, 0xa6, 0x01, 0xea, 0x04, 0x64, 0x06, 0x52, 0x06,
+    0x18, 0x0a, 0xe7, 0x0f, 0x9f, 0x0f, 0x51, 0x09, 0xf7, 0x0e, 0x89, 0x0e, 0x71, 0x04, 0x58, 0x04,
+    0x43, 0x09, 0x32, 0x0e, 0x1c, 0x0e, 0x14, 0x09, 0x04, 0x0d, 0xe9, 0x0d, 0xde, 0x03, 0xc8, 0x03,
+    0xb3, 0x08, 0x9d, 0x0d, 0x79, 0x0d, 0x3a, 0x07, 0xf5, 0x9e, 0x56, 0x47, 0x36, 0x20, 0x24, 0x17,
+    0xc5, 0x98, 0x7e, 0x66, 0x4e, 0x44, 0x38, 0x1a, 0x12, 0x0a, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
+    0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
+    0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
+};
 
-
-#define CO5300_206_INIT_SEQUENCE_LENGTH             11u
-
-static const disp_cmd_t co5300_206_cmd[CO5300_206_INIT_SEQUENCE_LENGTH] = {
+static constexpr uint8_t co5300_206_seq_length = 11;
+static const disp_cmd_t co5300_206_cmd[co5300_206_seq_length] = {
     {0xFE, {0x00}, 0x01},
     {0xC4, {0x80}, 0x01},
     {0x3A, {0x55}, 0x01},
@@ -44,30 +54,10 @@ static const disp_cmd_t co5300_206_cmd[CO5300_206_INIT_SEQUENCE_LENGTH] = {
     {0x51, {0x00}, 0x01},
 };
 
+LILYGO_DEFINE_RADIO();
 
-#ifdef USING_BHI_EXPANDS
-#define EXPANDS_DISP_RST        SensorBHI260AP::M2SDX
-#define EXPANDS_DISP_EN         SensorBHI260AP::M2SCX
-#define EXPANDS_DRV_EN          SensorBHI260AP::MCSB4
-#define EXPANDS_TOUCH_RST       SensorBHI260AP::M2SDI
-#endif
-
-#if    defined(ARDUINO_LILYGO_LORA_SX1262)
-SX1262 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_SX1280)
-SX1280 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_CC1101)
-CC1101 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_LR1121)
-LR1121 radio = newModule();
-#elif  defined(ARDUINO_LILYGO_LORA_SI4432)
-Si4432 radio = newModule();
-#endif
-
-#ifdef USING_ST25R3916
 RfalRfST25R3916Class nfc_hw(&SPI, NFC_CS, NFC_INT);
 RfalNfcClass NFCReader(&nfc_hw);
-#endif
 
 EventGroupHandle_t LilyGoUltra::_event = NULL;
 
@@ -82,14 +72,35 @@ static bool _unlock_callback(void)
     return true;
 }
 
-LilyGoUltra::LilyGoUltra() : LilyGo_Display(QSPI_DRIVER, false),
-    LilyGoDispQSPI(co5300_206_cmd, CO5300_206_INIT_SEQUENCE_LENGTH, DISP_WIDTH, DISP_HEIGHT),
-    LilyGoPowerManage(&pmu),
-    _effects(80), devices_probe(0), _boot_images_addr(NULL), _lock(NULL),
+
+static void clickHandler(Button2 &btn)
+{
+    LILYGO_LOG_PRINTF("Click event\n");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_CLICK));
+}
+
+static void longClickHandler(Button2 &btn)
+{
+    LILYGO_LOG_PRINTF("Long click event\n");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_LONG_PRESSED));
+}
+
+static void doubleClickHandler(Button2 &btn)
+{
+    LILYGO_LOG_PRINTF("Double click event\n");
+    instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_DOUBLE_CLICK));
+}
+
+
+LilyGoUltra::LilyGoUltra() : LilyGo_Display(QSPI_DRIVER, true),
+    LilyGoDispQSPI(co5300_206_cmd, co5300_206_seq_length, DISP_WIDTH, DISP_HEIGHT),
+    LilyGoPowerManageInf(pmic, PMIC_TYPE_AXP2101),
+    _audioOutput(I2S_BCLK, I2S_WCLK, I2S_DOUT),
+    _audioInput(MIC_SCK, MIC_DAT),
+    _effects(1), devices_probe(0), _boot_images_addr(NULL), _lock(NULL),
     _enableDMA(false),
     _enableTearingEffect(false)
 {
-    // LilyGoDispQSPI::setGapOffset(22, 0);
     LilyGoDispQSPI::setRotation(0);
     _brightness = 0;    //Default disp is brightness is zero
 }
@@ -148,9 +159,6 @@ void LilyGoUltra::setBootImage(uint8_t *image)
 void LilyGoUltra::initShareSPIPins()
 {
     const uint8_t share_spi_bus_devices_cs_pins[] = {
-#ifdef NFC_RST
-        NFC_RST,
-#endif
         NFC_CS,
         LORA_CS,
         SD_CS,
@@ -162,7 +170,17 @@ void LilyGoUltra::initShareSPIPins()
     }
 }
 
+uint32_t LilyGoUltra::begin()
+{
+    return begin(getDefaultInitOptions());
+}
+
 uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
+{
+    return begin(lilygo_init_options_from_disable_mask(getDefaultInitOptions(), disable_hw_init));
+}
+
+uint32_t LilyGoUltra::begin(const LilyGoDeviceInitOptions &init_options)
 {
     if (_event) {
         return devices_probe;
@@ -176,9 +194,9 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
     prefs.end();
 
     if (batteryCalibrated) {
-        log_d("Battery already calibrated");
+        LILYGO_LOG_D("Battery already calibrated");
     } else {
-        log_d("Battery not calibrated");
+        LILYGO_LOG_D("Battery not calibrated");
     }
 
     _lock = xSemaphoreCreateMutex();
@@ -186,7 +204,7 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
     _event = xEventGroupCreate();
 
     while (!psramFound()) {
-        log_e("PSRAM NOT FOUND!");
+        LILYGO_LOG_E("PSRAM NOT FOUND!");
         delay(1000);
     }
 
@@ -194,92 +212,57 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
 
     Wire.begin(SDA, SCL);
 
-    if (!(disable_hw_init & NO_SCAN_I2C_DEV)) {
-        SensorWireHelper::dumpDevices(Wire);
+    if (init_options.scanI2c) {
+        LILYGO_LOG_ONLY(SensorWireHelper::dumpDevices(Wire));
     }
 
     initShareSPIPins();
 
-    if (!(disable_hw_init & NO_INIT_FATFS)) {
+    if (init_options.initFatfs) {
         setupMSC(_lock_callback, _unlock_callback);
     }
 
-    res = initPMU(batteryCalibrated == false);
-    if (!res) {
-        log_e("Failed to find PMU.");
-        assert(0);
-    } else {
-        log_d("Initializing PMU succeeded");
+    if (init_options.initPmu) {
+        res = initPMU(batteryCalibrated == false);
+        if (!res) {
+            LILYGO_LOG_E("Failed to find PMU.");
+            assert(0);
+        } else {
+            LILYGO_LOG_D("Initializing PMU succeeded");
+        }
     }
 
     LilyGoDispQSPI::enableDMA(_enableDMA);
 
     LilyGoDispQSPI::enableTearingEffect(_enableTearingEffect);
 
-#if defined(USING_BHI_EXPANDS)
-
-    if (!initSensor()) {
-        assert(0);
-    }
-
-    sensor.digitalWrite(EXPANDS_DISP_EN, HIGH);
-    delay(20);
-    sensor.digitalWrite(EXPANDS_DISP_RST, HIGH);
-    delay(200);
-    sensor.digitalWrite(EXPANDS_DISP_RST, LOW);
-    delay(300);
-    sensor.digitalWrite(EXPANDS_DISP_RST, HIGH);
-    delay(200);
-
-    // Enable touch
-    sensor.digitalWrite(EXPANDS_TOUCH_RST, HIGH);
-
-    // Enable Drv2605
-    sensor.digitalWrite(EXPANDS_DRV_EN, HIGH);
-
-#elif defined(USING_XL9555_EXPANDS)
-
-    if (io.begin(Wire, 0x20)) {
-        log_d("Initializing expand succeeded");
+    if (io.begin(Wire, XL9555_SLAVE_ADDRESS0)) {
+        LILYGO_LOG_D("Initializing expand succeeded");
         devices_probe |= HW_EXPAND_ONLINE;
         const uint8_t expands[] = {
             EXPANDS_DRV_EN,
             EXPANDS_DISP_EN,
             EXPANDS_TOUCH_RST,
-#ifdef EXPANDS_DISP_RST
-            EXPANDS_DISP_RST
-#endif
         };
         for (auto pin : expands) {
             io.pinMode(pin, OUTPUT);
             io.digitalWrite(pin, HIGH);
             delay(1);
         }
-#ifdef EXPANDS_DISP_RST
-        io.digitalWrite(EXPANDS_DISP_RST, LOW);
-        delay(50);
-        io.digitalWrite(EXPANDS_DISP_RST, HIGH);
-#endif
     } else {
-        log_d("Initializing expand Failed!");
+        LILYGO_LOG_D("Initializing expand Failed!");
     }
 
-#endif
 
-    if (!(disable_hw_init & NO_HW_DRV)) {
+    if (init_options.initHaptic) {
         initDrv();
     }
 
-
-#ifndef DISP_RST
-#define DISP_RST -1
-#endif
-
-    LilyGoDispQSPI::init(DISP_RST, DISP_CS,
+    const int disp_rst = -1;
+    LilyGoDispQSPI::init(disp_rst, DISP_CS,
                          DISP_TE, DISP_SCK,
                          DISP_D0, DISP_D1,
                          DISP_D2, DISP_D3, 80);
-
 
     if (_boot_images_addr) {
         uint16_t w = this->width();
@@ -292,48 +275,46 @@ uint32_t LilyGoUltra::begin(uint32_t disable_hw_init)
 
     SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI);
 
-#ifndef USING_BHI_EXPANDS
-    if (!(disable_hw_init & NO_HW_SENSOR)) {
+    if (init_options.initSensor) {
         initSensor();
     }
-#endif
 
-    if (!(disable_hw_init & NO_HW_TOUCH)) {
+    if (init_options.initTouch) {
         initTouch();
     }
 
-    if (!(disable_hw_init & NO_HW_RTC)) {
+    if (init_options.initRtc) {
         initRTC();
     }
 
-    if (!(disable_hw_init & NO_HW_NFC)) {
+    if (init_options.initNfc) {
         initNFC();
     }
 
-    if (!(disable_hw_init & NO_HW_GPS)) {
+    if (init_options.initGps) {
         initGPS();
     }
 
-    if (!(disable_hw_init & NO_HW_LORA)) {
+    if (init_options.initRadio) {
         initLoRa();
     }
 
-    if (!(disable_hw_init & NO_HW_SD)) {
+    if (init_options.initSd) {
         installSD();
     }
 
-#ifdef USING_PDM_MICROPHONE
-    if (!(disable_hw_init & NO_HW_MIC)) {
+    if (init_options.initAudio) {
         initMicrophone();
     }
-#endif
 
-
-#ifdef USING_PCM_AMPLIFIER
-    if (!(disable_hw_init & NO_HW_MIC)) {
+    if (init_options.initAudio) {
         initAmplifier();
     }
-#endif // USING_PCM_AMPLIFIER
+
+    pinMode(0, INPUT);
+    bootButton.setClickHandler(clickHandler);
+    bootButton.setLongClickHandler(longClickHandler);
+    bootButton.setDoubleClickHandler(doubleClickHandler);
 
     return devices_probe;
 }
@@ -351,11 +332,25 @@ uint8_t LilyGoUltra::getPoint(int16_t *x_array, int16_t *y_array, uint8_t get_po
 {
     EventBits_t bits = xEventGroupGetBits(_event);
     if (bits & HW_IRQ_TOUCHPAD) {
-        uint8_t tp = touch.getPoint(x_array, y_array, get_point);
-        if (tp == 0) {
-            clearEventBits(HW_IRQ_TOUCHPAD);
+        if (get_point == 0) {
+            xEventGroupClearBits(_event, HW_IRQ_TOUCHPAD);
+            return 0;
         }
-        return tp;
+        TouchPoints data = touch.getTouchPoints();
+        if (x_array == nullptr || y_array == nullptr) {
+            return 0;
+        }
+        if (data.hasPoints()) {
+            uint8_t pointsToCopy = (get_point < data.getPointCount()) ? get_point : data.getPointCount();
+            for (int i = 0; i < pointsToCopy; i++) {
+                const TouchPoint &pt = data.getPoint(i);
+                // log_d("Point %d: x=%d, y=%d\n", i, pt.x, pt.y);
+                x_array[i] = pt.x;
+                y_array[i] = pt.y;
+            }
+            return pointsToCopy;
+        }
+        xEventGroupClearBits(_event, HW_IRQ_TOUCHPAD);
     }
     return 0;
 }
@@ -405,84 +400,95 @@ void LilyGoUltra::vibrator()
 */
 bool LilyGoUltra::initPMU(bool batteryCalibration)
 {
-    bool res = pmu.init();
+    bool res =  pmic.begin(Wire, AXP2101_SLAVE_ADDRESS);
     if (!res) {
         return false;
     }
 
     if (batteryCalibration) {
-        if (pmu.writeGaugeData(BATTER_PARAMS, sizeof(BATTER_PARAMS))) {
-            log_d("Battery calibration data write success");
+        if (pmic.power().writeGaugeData(BATTER_PARAMS, sizeof(BATTER_PARAMS))) {
+            LILYGO_LOG_D("Battery calibration data write success");
             Preferences prefs;
             prefs.begin("lilygo", false);
             prefs.putBool("calibration", true);
             prefs.end();
         } else {
-            log_e("Battery calibration data write failed");
+            LILYGO_LOG_E("Battery calibration data write failed");
         }
     }
 
-    // if (pmu.compareGaugeData(BATTER_PARAMS, sizeof(BATTER_PARAMS))) {
-    //     log_d("Battery calibration data verified successfully");
-    // } else {
-    //     log_e("Battery calibration data verify failed");
-    // }
-
     devices_probe |= HW_PMU_ONLINE;
 
-    // Clear PMU interrupt status
-    pmu.clearIrqStatus();
+    // SD Card
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_ALDO1, 3300);
+    pmic.getChannel()->enable(AXP2101Channel::CH_ALDO1, true);
 
-    // Turn off the PMU charging indicator light, no physical connection
-    pmu.setChargingLedMode(XPOWERS_CHG_LED_OFF); // NO LED
+    // Display
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_ALDO2, 3300);
+    pmic.getChannel()->enable(AXP2101Channel::CH_ALDO2, true);
 
-    pmu.setALDO1Voltage(3300);  // SD Card
-    pmu.enableALDO1();
+    // Radio
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_ALDO3, 3300);
+    pmic.getChannel()->enable(AXP2101Channel::CH_ALDO3, true);
 
-    pmu.setALDO2Voltage(3300);  // Display
-    pmu.enableALDO2();
+    // Sensor
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_ALDO4, 1800);
+    pmic.getChannel()->enable(AXP2101Channel::CH_ALDO4, true);
 
-    pmu.setALDO3Voltage(3300);  // Radio
-    pmu.enableALDO3();
+    // GPS
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_BLDO1, 3300);
+    pmic.getChannel()->enable(AXP2101Channel::CH_BLDO1, true);
 
-    pmu.setALDO4Voltage(1800);  // Sensor
-    pmu.enableALDO4();
+    // Speaker
+    pmic.getChannel()->setVoltage(AXP2101Channel::CH_BLDO2, 3300);
+    pmic.getChannel()->enable(AXP2101Channel::CH_BLDO2, true);
 
-    pmu.setBLDO1Voltage(3300);  // GPS
-    pmu.enableBLDO1();
+    // RTC backup battery
+    pmic.charger().setButtonBatteryChargeVoltage(3300);
+    pmic.enableModule(AXP2101Core::Module::BTN_CHARGE, true);
 
-    pmu.setBLDO2Voltage(3300);  // Speaker
-    pmu.enableBLDO2();
-
-    pmu.setButtonBatteryChargeVoltage(3300);    // RTC Button battery
-    pmu.enableButtonBatteryCharge();
-
-    pmu.enableDLDO1();  // NFC
+    // NFC
+    pmic.getChannel()->enable(AXP2101Channel::CH_DLDO1, true);
 
     // UNUSED POWER CHANNEL
-    pmu.disableDC2();
-    pmu.disableDC3();
-    pmu.disableDC4();
-    pmu.disableDC5();
-    pmu.disableCPUSLDO();
+    pmic.getChannel()->enable(AXP2101Channel::CH_DCDC2, false);
+    pmic.getChannel()->enable(AXP2101Channel::CH_DCDC3, false);
+    pmic.getChannel()->enable(AXP2101Channel::CH_DCDC4, false);
+    pmic.getChannel()->enable(AXP2101Channel::CH_DCDC5, false);
+    pmic.getChannel()->enable(AXP2101Channel::CH_CPUSLDO, false);
+
+    // Set the time of pressing the button to turn off
+    pmic.pwron().setOnDurationMs(4000);
+
+    // Set the button power-on press time
+    pmic.pwron().setOffDurationMs(128);
 
     // Enable Measure
-    pmu.enableBattDetection();
-    pmu.enableVbusVoltageMeasure();
-    pmu.enableBattVoltageMeasure();
-    pmu.enableSystemVoltageMeasure();
-    pmu.enableTemperatureMeasure();
+    pmic.adc().enableChannels(
+        PmicAdcBase::Channel::VBUS_VOLTAGE |
+        PmicAdcBase::Channel::VBUS_CURRENT |
+        PmicAdcBase::Channel::VSYS_VOLTAGE |
+        PmicAdcBase::Channel::BAT_VOLTAGE |
+        PmicAdcBase::Channel::BAT_CURRENT |
+        PmicAdcBase::Channel::DIE_TEMPERATURE |
+        PmicAdcBase::Channel::BAT_TEMPERATURE
+    );
 
-    // Clear all PMU interrupts
-    pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
+
+    pmic.led().setMode(PmicLedBase::Mode::MANUAL);
+    pmic.led().setManualState(PmicLedBase::ManualState::HiZ);
 
     // Enable PMU interrupt
-    pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ |
-                  XPOWERS_AXP2101_PKEY_LONG_IRQ |
-                  XPOWERS_AXP2101_VBUS_INSERT_IRQ |
-                  XPOWERS_AXP2101_VBUS_REMOVE_IRQ |
-                  XPOWERS_AXP2101_BAT_CHG_START_IRQ |
-                  XPOWERS_AXP2101_BAT_CHG_DONE_IRQ);
+    pmic.getIrq()->disable(AXP2101Irq::IRQ_ALL_MASK);
+    pmic.getIrq()->enable(
+        AXP2101Irq::IRQ_VBUS_INSERT |
+        AXP2101Irq::IRQ_VBUS_REMOVE |
+        AXP2101Irq::IRQ_BAT_CHG_START |
+        AXP2101Irq::IRQ_BAT_CHG_DONE |
+        AXP2101Irq::IRQ_PEKEY_SHORT_PRESS |
+        AXP2101Irq::IRQ_PEKEY_LONG_PRESS);
+    // Clear all PMU interrupts
+    pmic.getIrq()->clearStatus();
 
     // Register PMU interrupt management
     pinMode(PMU_INT, INPUT_PULLUP);
@@ -491,116 +497,78 @@ bool LilyGoUltra::initPMU(bool batteryCalibration)
     }, FALLING);
 
     // Enable the battery NTC temperature detection function
-    pmu.enableTSPinMeasure();
+    pmic.enableModule(AXP2101Core::Module::TS_MEASURE, true);
 
     // T-Watch-S3 is designed for high-voltage(4.2V) batteries by default.
-    pmu.setChargeTargetVoltage(XPOWERS_AXP2101_CHG_VOL_4V2);
+    pmic.getCharger()->setChargeVoltage(4288);
+
+    pmic.getCharger()->setPreChargeCurrent(128);
 
     // The charging current should not be greater than half of the battery capacity.
-    setChargeCurrent(DEVICE_CHARGE_CURRENT_RECOMMEND);
+    pmic.getCharger()->setFastChargeCurrent(DEVICE_CHARGE_CURRENT_RECOMMEND);
 
-    return res;
+    return true;
 }
 
 
 void LilyGoUltra::checkPowerStatus()
 {
-    static PMUEventType_t event;
-
-    event = PMU_EVENT_NONE;
-
-    bool batteryInsert = pmu.isBatteryConnect();
+    bool batteryInsert = pmic.isBatteryConnect();
     // Get PMU Interrupt Status Register
-    pmu.getIrqStatus();
+    uint64_t irqStatus = pmic.irq().readStatus();
 
-    if (pmu.isDropWarningLevel2Irq()) {
-        log_d("isDropWarningLevel2");
-        event = PMU_EVENT_LOW_VOLTAGE_LEVEL2;
+    if (pmic.irq().isGaugeWdtTimeout(irqStatus)) {
+        LILYGO_LOG_D("isWdtTimeout");
     }
-    if (pmu.isDropWarningLevel1Irq()) {
-        log_d("isDropWarningLevel1");
-        event = PMU_EVENT_LOW_VOLTAGE_LEVEL1;
+    if (pmic.irq().isDieOverTemp(irqStatus)) {
+        LILYGO_LOG_D("isBatChargeOverTemperature");
+        sendEvent(DeviceEvent::power(PMU_EVENT_CHARGE_HIGH_TEMP));
     }
-    if (pmu.isGaugeWdtTimeoutIrq()) {
-        log_d("isWdtTimeout");
+    if (pmic.irq().isVbusInsert(irqStatus)) {
+        LILYGO_LOG_D("isVbusInsert");
+        sendEvent(DeviceEvent::power(PMU_EVENT_USBC_INSERT));
     }
-    if (pmu.isBatChargerOverTemperatureIrq()) {
-        log_d("isBatChargeOverTemperature");
-        event = PMU_EVENT_CHARGE_HIGH_TEMP;
+    if (pmic.irq().isVbusRemove(irqStatus)) {
+        LILYGO_LOG_D("isVbusRemove");
+        sendEvent(DeviceEvent::power(PMU_EVENT_USBC_REMOVE));
     }
-    if (pmu.isBatWorkOverTemperatureIrq()) {
-        log_d("isBatWorkOverTemperature");
+    if (pmic.irq().isBatInsert(irqStatus)) {
+        LILYGO_LOG_D("isBatInsert");
+        sendEvent(DeviceEvent::power(PMU_EVENT_BATTERY_INSERT));
     }
-    if (pmu.isBatWorkUnderTemperatureIrq()) {
-        log_d("isBatWorkUnderTemperature");
+    if (pmic.irq().isBatRemove(irqStatus)) {
+        LILYGO_LOG_D("isBatRemove");
+        sendEvent(DeviceEvent::power(PMU_EVENT_BATTERY_REMOVE));
     }
-    if (pmu.isVbusInsertIrq()) {
-        log_d("isVbusInsert");
-        event = PMU_EVENT_USBC_INSERT;
+    if (pmic.irq().isPekeyShortPress(irqStatus)) {
+        LILYGO_LOG_D("isPekeyShortPress");
+        sendEvent(DeviceEvent::power(PMU_EVENT_KEY_CLICKED));
     }
-    if (pmu.isVbusRemoveIrq()) {
-        log_d("isVbusRemove");
-        event = PMU_EVENT_USBC_REMOVE;
+    if (pmic.irq().isPekeyLongPress(irqStatus)) {
+        LILYGO_LOG_D("isPekeyLongPress");
+        sendEvent(DeviceEvent::power(PMU_EVENT_KEY_LONG_PRESSED));
     }
-    if (pmu.isBatInsertIrq()) {
-        log_d("isBatInsert");
-        event = PMU_EVENT_BATTERY_INSERT;
+    if (pmic.irq().isWdtExpire(irqStatus)) {
+        LILYGO_LOG_D("isWdtExpire");
     }
-    if (pmu.isBatRemoveIrq()) {
-        log_d("isBatRemove");
-        event = PMU_EVENT_BATTERY_REMOVE;
+    if (pmic.irq().isLdoOverCurr(irqStatus)) {
+        LILYGO_LOG_D("isLdoOverCurrentIrq");
     }
-    if (pmu.isPekeyShortPressIrq()) {
-        log_d("isPekeyShortPress");
-        event = PMU_EVENT_KEY_CLICKED;
+    if (pmic.irq().isBatfetOverCurr(irqStatus)) {
+        LILYGO_LOG_D("isBatfetOverCurrentIrq");
     }
-    if (pmu.isPekeyLongPressIrq()) {
-        log_d("isPekeyLongPress");
-        event = PMU_EVENT_KEY_LONG_PRESSED;
-    }
-    if (pmu.isPekeyNegativeIrq()) {
-        log_d("isPekeyNegative");
-    }
-    if (pmu.isPekeyPositiveIrq()) {
-        log_d("isPekeyPositive");
-    }
-    if (pmu.isWdtExpireIrq()) {
-        log_d("isWdtExpire");
-    }
-    if (pmu.isLdoOverCurrentIrq()) {
-        log_d("isLdoOverCurrentIrq");
-    }
-    if (pmu.isBatfetOverCurrentIrq()) {
-        log_d("isBatfetOverCurrentIrq");
-    }
-
     if (batteryInsert) {
-        if (pmu.isBatChargeDoneIrq()) {
-            log_d("isBatChargeDone");
-            event = PMU_EVENT_CHARGE_FINISH;
+        if (pmic.irq().isBatChgDone(irqStatus)) {
+            LILYGO_LOG_D("isBatChargeDone");
+            sendEvent(DeviceEvent::power(PMU_EVENT_CHARGE_FINISH));
         }
-        if (pmu.isBatChargeStartIrq()) {
-            log_d("isBatChargeStart");
-            event = PMU_EVENT_CHARGE_STARTED;
+        if (pmic.irq().isBatChgStart(irqStatus)) {
+            LILYGO_LOG_D("isBatChargeStart");
+            sendEvent(DeviceEvent::power(PMU_EVENT_CHARGE_STARTED));
         }
     }
-
-    if (pmu.isBatDieOverTemperatureIrq()) {
-        log_d("isBatDieOverTemperature");
-    }
-    if (pmu.isChargeOverTimeoutIrq()) {
-        log_d("isChargeOverTimeout");
-        event = PMU_EVENT_CHARGE_TIMEOUT;
-    }
-    if (pmu.isBatOverVoltageIrq()) {
-        log_d("isBatOverVoltage");
-        event = PMU_EVENT_BATTERY_OVER_VOLTAGE;
-    }
-    // Clear PMU Interrupt Status Register
-    pmu.clearIrqStatus();
-
-    if (event != PMU_EVENT_NONE) {
-        sendEvent(POWER_EVENT, &event);
+    if (pmic.irq().isDieOverTemp(irqStatus)) {
+        LILYGO_LOG_D("isBatDieOverTemperature");
     }
 }
 
@@ -608,10 +576,9 @@ void LilyGoUltra::checkPowerStatus()
  * @brief   Hang on SD card
  * @retval Returns true if successful, otherwise false
  */
-bool LilyGoUltra::installSD()
+bool LilyGoUltra::installSD(uint32_t spi_freq)
 {
-    log_d("Init SD");
-
+    devices_probe &= (~HW_SD_ONLINE);
 #ifdef EXPANDS_SD_DET
     io.pinMode(EXPANDS_SD_DET, INPUT);
     if (io.digitalRead(EXPANDS_SD_DET) == HIGH) {
@@ -619,13 +586,17 @@ bool LilyGoUltra::installSD()
     }
 #endif /*EXPANDS_SD_DET*/
 
+    if (spi_freq == 0) {
+        spi_freq = LILYGO_WATCH_ULTRA_SD_SPI_FREQ;
+    }
+    SD.end();
     // Set mount point to /fs
-    if (!SD.begin(SD_CS, SPI, 4000000U, "/sd")) {
-        log_e("Failed to detect SD Card!!");
+    if (!SD.begin(SD_CS, SPI, spi_freq, "/sd")) {
+        LILYGO_LOG_E("Failed to detect SD Card!!");
         return false;
     }
     if (SD.cardType() != CARD_NONE) {
-        log_i("SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
+        LILYGO_LOG_I("SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
         devices_probe |= HW_SD_ONLINE;
         return true;
     }
@@ -634,14 +605,23 @@ bool LilyGoUltra::installSD()
 
 void LilyGoUltra::uninstallSD()
 {
+    devices_probe &= (~HW_SD_ONLINE);
     SD.end();
 }
 
 bool LilyGoUltra::isCardReady()
 {
     bool rlst = false;
+#ifdef EXPANDS_SD_DET
+    if (io.digitalRead(EXPANDS_SD_DET) == HIGH) {
+        LILYGO_LOG_D("SD is not insert");
+        return false;
+    }
+#endif
+    LILYGO_LOG_D("SD is insert detected");
     if (lockSPI(pdTICKS_TO_MS(100))) {
         rlst =  SD.sectorSize() != 0;
+        LILYGO_LOG_D("SD Card %s", rlst ? "Ready" : "Not Ready");
         unlockSPI();
     }
     return rlst;
@@ -657,6 +637,11 @@ uint8_t LilyGoUltra::getBrightness()
     return LilyGoDispQSPI::_brightness;
 }
 
+bool LilyGoUltra::needSwapColors()
+{
+    return true;
+}
+
 void LilyGoUltra::pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color)
 {
     LilyGoDispQSPI::pushColors( x1,  y1,  x2,  y2, color);
@@ -666,21 +651,29 @@ void LilyGoUltra::powerControl(enum PowerCtrlChannel ch, bool enable)
 {
     switch (ch) {
     case POWER_DISPLAY:
-        enable ? pmu.enableALDO2() : pmu.disableALDO2();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO2, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO2, false);
+        }
         break;
     case POWER_RADIO:
-        enable ? pmu.enableALDO3() : pmu.disableALDO3();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO3, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO3, false);
+        }
         break;
     case POWER_HAPTIC_DRIVER:
         io.digitalWrite(EXPANDS_DRV_EN, enable);
         break;
     case POWER_GPS:
         if (enable) {
-            pmu.enableBLDO1();
+            pmic.getChannel()->enable(AXP2101Channel::CH_BLDO1, true);
             Serial1.begin(38400, SERIAL_8N1, GPS_RX, GPS_TX);
             pinMode(GPS_PPS, INPUT);
         } else {
-            pmu.disableBLDO1();
+            pmic.getChannel()->enable(AXP2101Channel::CH_BLDO1, false);
             gpio_reset_pin((gpio_num_t )GPS_RX);
             gpio_reset_pin((gpio_num_t )GPS_TX);
             gpio_reset_pin((gpio_num_t )GPS_PPS);
@@ -690,16 +683,32 @@ void LilyGoUltra::powerControl(enum PowerCtrlChannel ch, bool enable)
         }
         break;
     case POWER_NFC:
-        enable ? pmu.enableDLDO1() : pmu.disableDLDO1();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_DLDO1, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_DLDO1, false);
+        }
         break;
     case POWER_SD_CARD:
-        enable ? pmu.enableALDO1() : pmu.disableALDO1();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO1, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO1, false);
+        }
         break;
     case POWER_SPEAK:
-        enable ? pmu.enableBLDO2() : pmu.disableBLDO2();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_BLDO2, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_BLDO2, false);
+        }
         break;
     case POWER_SENSOR:
-        enable ? pmu.enableALDO4() : pmu.disableALDO4();
+        if (enable) {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO4, true);
+        } else {
+            pmic.getChannel()->enable(AXP2101Channel::CH_ALDO4, false);
+        }
         break;
     default:
         break;
@@ -719,7 +728,7 @@ uint64_t LilyGoUltra::checkWakeupPins(WakeupSource_t wakeup_src)
         wakeup_pin |=  _BV(0);
     }
     if (wakeup_pin == 0) {
-        log_e("No wake-up method is set. T-Watch Ultra allows setting WAKEUP_SRC_POWER_KEY and WAKEUP_SRC_TOUCH_PANEL, WAKEUP_SRC_BOOT_BUTTON as wake-up methods.");
+        LILYGO_LOG_E("No wake-up method is set. T-Watch Ultra allows setting WAKEUP_SRC_POWER_KEY and WAKEUP_SRC_TOUCH_PANEL, WAKEUP_SRC_BOOT_BUTTON as wake-up methods.");
     }
     return wakeup_pin;
 }
@@ -728,6 +737,19 @@ void LilyGoUltra::lightSleep(WakeupSource_t wakeup_src)
 {
     uint64_t wakeup_pin = checkWakeupPins(wakeup_src);
     if (wakeup_pin == 0) {
+        return;
+    }
+
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_err_t wakeup_result;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    wakeup_result = esp_sleep_enable_ext1_wakeup_io(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#else
+    wakeup_result = esp_sleep_enable_ext1_wakeup(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
+    if (wakeup_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to enable T-Watch Ultra light-sleep wakeup: %s",
+                     esp_err_to_name(wakeup_result));
         return;
     }
 
@@ -745,16 +767,22 @@ void LilyGoUltra::lightSleep(WakeupSource_t wakeup_src)
 
     sleepDisplay();
 
-    disablePowerMeasure();
+    pmic.adc().disableChannels(
+        PmicAdcBase::Channel::VBUS_VOLTAGE |
+        PmicAdcBase::Channel::VBUS_CURRENT |
+        PmicAdcBase::Channel::VSYS_VOLTAGE |
+        PmicAdcBase::Channel::BAT_VOLTAGE |
+        PmicAdcBase::Channel::BAT_CURRENT |
+        PmicAdcBase::Channel::DIE_TEMPERATURE |
+        PmicAdcBase::Channel::BAT_TEMPERATURE);
 
-    pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-    pmu.clearIrqStatus();
+    pmic.getIrq()->disable(AXP2101Irq::IRQ_ALL_MASK);
     if (wakeup_src & WAKEUP_SRC_POWER_KEY) {
-        pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ);
+        pmic.getIrq()->enable(AXP2101Irq::IRQ_PEKEY_SHORT_PRESS);
     }
 
     if (wakeup_src & WAKEUP_SRC_TOUCH_PANEL) {
-        log_d("Enable power touch panel from wakeup source.");
+        LILYGO_LOG_D("Enable power touch panel from wakeup source.");
     } else {
         touch.sleep();
         detachInterrupt(TP_INT);
@@ -762,6 +790,7 @@ void LilyGoUltra::lightSleep(WakeupSource_t wakeup_src)
 
     pinMode(NFC_CS, OPEN_DRAIN);
 
+    pmic.getIrq()->clearStatus();
     Wire.end();
     gpio_reset_pin((gpio_num_t )SDA);
     gpio_reset_pin((gpio_num_t )SCL);
@@ -773,13 +802,12 @@ void LilyGoUltra::lightSleep(WakeupSource_t wakeup_src)
     pinMode(TP_INT, OPEN_DRAIN);
     pinMode(PMU_INT, OPEN_DRAIN);
 
-#if  ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-    esp_sleep_enable_ext1_wakeup_io((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#else
-    esp_sleep_enable_ext1_wakeup((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#endif
-
-    esp_light_sleep_start();
+    const esp_err_t sleep_result = esp_light_sleep_start();
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+    if (sleep_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to enter T-Watch Ultra light sleep: %s",
+                     esp_err_to_name(sleep_result));
+    }
 
     Wire.begin(SDA, SCL);
 
@@ -793,17 +821,24 @@ void LilyGoUltra::lightSleep(WakeupSource_t wakeup_src)
     powerControl(POWER_SD_CARD, true);
     installSD();
 
-    pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-    pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ |
-                  XPOWERS_AXP2101_PKEY_LONG_IRQ |
-                  XPOWERS_AXP2101_VBUS_INSERT_IRQ |
-                  XPOWERS_AXP2101_VBUS_REMOVE_IRQ |
-                  XPOWERS_AXP2101_BAT_CHG_START_IRQ |
-                  XPOWERS_AXP2101_BAT_CHG_DONE_IRQ);
+    pmic.getIrq()->disable(AXP2101Irq::IRQ_ALL_MASK);
+    pmic.getIrq()->enable(
+        AXP2101Irq::IRQ_VBUS_INSERT |
+        AXP2101Irq::IRQ_VBUS_REMOVE |
+        AXP2101Irq::IRQ_BAT_CHG_START |
+        AXP2101Irq::IRQ_BAT_CHG_DONE |
+        AXP2101Irq::IRQ_PEKEY_SHORT_PRESS |
+        AXP2101Irq::IRQ_PEKEY_LONG_PRESS);
+    pmic.getIrq()->clearStatus();
 
-    pmu.clearIrqStatus();
-
-    enablePowerMeasure();
+    pmic.adc().enableChannels(
+        PmicAdcBase::Channel::VBUS_VOLTAGE |
+        PmicAdcBase::Channel::VBUS_CURRENT |
+        PmicAdcBase::Channel::VSYS_VOLTAGE |
+        PmicAdcBase::Channel::BAT_VOLTAGE |
+        PmicAdcBase::Channel::BAT_CURRENT |
+        PmicAdcBase::Channel::DIE_TEMPERATURE |
+        PmicAdcBase::Channel::BAT_TEMPERATURE);
 
     wakeupTouch();
 
@@ -821,34 +856,60 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
 {
     uint64_t wakeup_pin = 0;
     bool keep_touch_power = false;
-    if ((wakeup_src & WAKEUP_SRC_TIMER)) {
-        if (sleep_second == 0) {
-            log_e("Too little sleep time.");
-            return;
-        }
-    } else {
-        wakeup_pin = checkWakeupPins(wakeup_src);
+    const bool timer_wakeup = wakeup_src & WAKEUP_SRC_TIMER;
+    const WakeupSource_t physical_sources = static_cast<WakeupSource_t>(
+            static_cast<uint32_t>(wakeup_src) & ~static_cast<uint32_t>(WAKEUP_SRC_TIMER));
+
+    if (timer_wakeup && sleep_second == 0) {
+        LILYGO_LOG_E("Timer wakeup requires a non-zero sleep duration.");
+        return;
+    }
+    if (physical_sources) {
+        wakeup_pin = checkWakeupPins(physical_sources);
         if (wakeup_pin == 0) {
             return;
         }
+    } else if (!timer_wakeup) {
+        LILYGO_LOG_E("No deep-sleep wake-up method is set.");
+        return;
     }
 
-    pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_err_t wakeup_result = ESP_OK;
+    if (timer_wakeup) {
+        wakeup_result = esp_sleep_enable_timer_wakeup(
+                            static_cast<uint64_t>(sleep_second) * 1000000ULL);
+    }
+    if (wakeup_result == ESP_OK && wakeup_pin != 0) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        wakeup_result = esp_sleep_enable_ext1_wakeup_io(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#else
+        wakeup_result = esp_sleep_enable_ext1_wakeup(wakeup_pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
+    }
+    if (wakeup_result != ESP_OK) {
+        LILYGO_LOG_E("Failed to configure T-Watch Ultra deep-sleep wakeup: %s",
+                     esp_err_to_name(wakeup_result));
+        return;
+    }
+
+    pmic.getIrq()->disable(AXP2101Irq::IRQ_ALL_MASK);
 
     if (wakeup_src & WAKEUP_SRC_POWER_KEY) {
-        log_d("Enable power button from wakeup source.");
-        pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ);
+        LILYGO_LOG_D("Enable power button from wakeup source.");
+        // pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ);
+        pmic.getIrq()->enable(AXP2101Irq::IRQ_PEKEY_SHORT_PRESS);
 
     }
     if (wakeup_src & WAKEUP_SRC_TOUCH_PANEL) {
-        log_d("Enable power touch panel from wakeup source.");
+        LILYGO_LOG_D("Enable power touch panel from wakeup source.");
         keep_touch_power = true;
     } else {
         touch.sleep();
     }
 
     if (wakeup_src & WAKEUP_SRC_BOOT_BUTTON) {
-        log_d("Enable power boot button from wakeup source.");
+        LILYGO_LOG_D("Enable power boot button from wakeup source.");
     }
 
     LilyGoDispQSPI::sleep();
@@ -857,18 +918,7 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
 
     uninstallSD();
 
-#if  defined(USING_BHI_EXPANDS)
-
-    sensor.digitalWrite(EXPANDS_DISP_RST, LOW);
-    sensor.digitalWrite(EXPANDS_DRV_EN, LOW);
-    sensor.digitalWrite(EXPANDS_TOUCH_RST, HIGH);
-    sensor.digitalWrite(EXPANDS_DISP_EN, LOW);
-
-#elif defined(USING_XL9555_EXPANDS)
     const uint8_t expands[] = {
-#ifdef EXPANDS_DISP_RST
-        EXPANDS_DISP_RST,
-#endif
         EXPANDS_DRV_EN,
         // EXPANDS_TOUCH_RST,
         EXPANDS_DISP_EN,
@@ -877,13 +927,20 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
         io.digitalWrite(pin, LOW);
         delay(1);
     }
-#endif
 
     // Turn off ADC data monitoring to save power
-    disablePowerMeasure();
+    pmic.adc().disableChannels(
+        PmicAdcBase::Channel::VBUS_VOLTAGE |
+        PmicAdcBase::Channel::VBUS_CURRENT |
+        PmicAdcBase::Channel::VSYS_VOLTAGE |
+        PmicAdcBase::Channel::BAT_VOLTAGE |
+        PmicAdcBase::Channel::BAT_CURRENT |
+        PmicAdcBase::Channel::DIE_TEMPERATURE |
+        PmicAdcBase::Channel::BAT_TEMPERATURE);
 
     // Enable PMU sleep
-    pmu.enableSleep();
+    pmic.power().enableSleep();
+
 
     // Do not turn off the screen power in deep sleep,
     // otherwise the current will increase abnormally by about 600uA.
@@ -901,14 +958,13 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
 
     // Turn off the RTC backup battery, adding about 200uA
     if (off_rtc_backup_domain) {
-        pmu.disableButtonBatteryCharge();   // RTC Battery
+        // RTC Battery
+        pmic.enableModule(AXP2101Core::Module::BTN_CHARGE, false);
     }
-
-    pmu.clearIrqStatus();
 
     int i = 4;
     while (i--) {
-        log_d("%d second sleep ...", i);
+        LILYGO_LOG_D("%d second sleep ...", i);
         delay(500);
     }
 
@@ -916,6 +972,9 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
 
     SPI.end();
 
+    // This must be the final PMIC access before sleep. A pending PMIC status
+    // holds PMU_INT low and would wake the ESP immediately.
+    pmic.getIrq()->clearStatus();
     Wire.end();
 
     const uint8_t pins[] = {
@@ -963,7 +1022,7 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
     };
 
     for (auto pin : pins) {
-        log_d("Set pin %d to open drain\n", pin);
+        LILYGO_LOG_D("Set pin %d to open drain\n", pin);
         gpio_reset_pin((gpio_num_t )pin);
         pinMode(pin, OPEN_DRAIN);
     }
@@ -976,16 +1035,6 @@ void LilyGoUltra::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domain, u
     if (!(wakeup_src & WAKEUP_SRC_TOUCH_PANEL)) {
         gpio_reset_pin((gpio_num_t )TP_INT);
         pinMode(TP_INT, OPEN_DRAIN);
-    }
-
-    if (wakeup_src & WAKEUP_SRC_TIMER) {
-        esp_sleep_enable_timer_wakeup(sleep_second * 1000000UL);
-    } else {
-#if  ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-        esp_sleep_enable_ext1_wakeup_io((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#else
-        esp_sleep_enable_ext1_wakeup((wakeup_pin), ESP_EXT1_WAKEUP_ANY_LOW);
-#endif
     }
 
     esp_deep_sleep_start();
@@ -1005,12 +1054,63 @@ void LilyGoUltra::wakeupDisplay()
 
 uint32_t LilyGoUltra::getDeviceProbe()
 {
+    if (gps.probeDone() && !gps.probeInProgress() && gps.probeSuccess()) {
+        devices_probe |= HW_GPS_ONLINE;
+    }
     return devices_probe;
 }
 
 const char *LilyGoUltra::getName()
 {
     return "LilyGo T-Watch Ultra (2025)";
+}
+
+const LilyGoDeviceCapability &LilyGoUltra::getCapability() const
+{
+    static const LilyGoDeviceCapability capability = {
+        /* boardName */       "LilyGo T-Watch Ultra (2025)",
+#ifdef USING_RADIO_NAME
+        /* radioName */       USING_RADIO_NAME,
+#else
+        /* radioName */       "None",
+#endif
+        /* pmicName */        "AXP2101",
+        /* gaugeName */       "PMU internal",
+        /* hasSd */           true,
+        /* hasGps */          true,
+        /* gpsRuntimeProbe */ false,
+        /* hasTouch */        true,
+        /* hasKeyboard */     false,
+        /* hasTrackball */    false,
+        /* hasRotary */       false,
+        /* hasBma423 */       false,
+        /* hasBhi260 */       true,
+        /* hasNfc */          true,
+        /* hasIrTx */         false,
+        /* hasIrRx */         false,
+        /* hasEnvSensor */    false,
+        /* hasCompass */      false,
+        /* hasAudioOut */     true,
+        /* hasAudioIn */      true,
+        /* hasHaptic */       true,
+        /* hasExternalI2c */  false,
+        /* hasExternalSpi */  false,
+        /* hasExternalUart */ false,
+        /* hasExternalGpio */ false,
+        /* pmicType */        PMIC_TYPE_AXP2101,
+        /* hasButton */       true,
+        /* hasPmuButton */    true,
+    };
+    return capability;
+}
+
+LilyGoDeviceInitOptions LilyGoUltra::getDefaultInitOptions() const
+{
+    LilyGoDeviceInitOptions options = lilygo_init_options_from_capability(getCapability());
+    options.initFatfs = true;
+    options.initRtc = true;
+    options.initCodec = false;
+    return options;
 }
 
 bool LilyGoUltra::hasTouch()
@@ -1020,36 +1120,29 @@ bool LilyGoUltra::hasTouch()
 
 bool LilyGoUltra::initNFC()
 {
-    bool res = false;
-#ifdef USING_ST25R3916
-    log_d("Init NFC");
+    LILYGO_LOG_D("Init NFC");
     pinMode(NFC_INT, INPUT);
-    res = NFCReader.rfalNfcInitialize() == ST_ERR_NONE;
+    bool res = NFCReader.rfalNfcInitialize() == ST_ERR_NONE;
     if (!res) {
-        log_e("Failed to find NFC Reader!");
+        LILYGO_LOG_E("Failed to find NFC Reader!");
     } else {
-        log_d("Initializing NFC Reader succeeded");
+        LILYGO_LOG_D("Initializing NFC Reader succeeded");
         devices_probe |= HW_NFC_ONLINE;
     }
-#endif
     return res;
 }
 
-
 bool LilyGoUltra::initDrv()
 {
-    bool res = false;
-    log_d("Init DRV2605 Haptic Driver");
-    res = drv.begin(Wire);
+    LILYGO_LOG_D("Init DRV2605 Haptic Driver");
+    bool res = drv.begin(Wire, DRV2605_SLAVE_ADDRESS);
     if (!res) {
-        log_e("Failed to find DRV2605!");
+        LILYGO_LOG_E("Failed to find DRV2605!");
     } else {
-        log_d("Initializing DRV2605 succeeded");
+        LILYGO_LOG_D("Initializing DRV2605 succeeded");
         drv.selectLibrary(1);
-        drv.setMode(SensorDRV2605::MODE_INTTRIG);
-        drv.useERM();
-        // set the effect to play
-        drv.setWaveform(0, 15);  // play effect
+        drv.setMode(HapticMode::INTERNAL_TRIGGER);
+        drv.setWaveform(0, _effects);  // play effect
         drv.setWaveform(1, 0);   // end waveform
         drv.run();
         devices_probe |= HW_DRV_ONLINE;
@@ -1057,26 +1150,31 @@ bool LilyGoUltra::initDrv()
     return res;
 }
 
+void LilyGoUltra::gpsProbeCallback(bool success, const char *model, void *user_data)
+{
+    LilyGoUltra *watch = static_cast<LilyGoUltra *>(user_data);
+    if (!watch) {
+        return;
+    }
+
+    if (success) {
+        LILYGO_LOG_D("%s GPS init succeeded\n", model ? model : "UBlox");
+        watch->devices_probe |= HW_GPS_ONLINE;
+    } else {
+        LILYGO_LOG_E("Warning: Failed to find Ublox GPS Module\n");
+        watch->devices_probe &= ~HW_GPS_ONLINE;
+    }
+}
 
 bool LilyGoUltra::initGPS()
 {
-    bool res = false;
     // GPS BAUD 38400 DEFAULT
     Serial1.begin(38400, SERIAL_8N1, GPS_RX, GPS_TX);
-    log_d("Init GPS");
-    res = gps.init(&Serial1);
-    if (!res) {
-        log_e("Warning: Failed to find UBlox GPS Module\n");
-    } else {
-        log_d("UBlox GPS init succeeded, using UBlox GPS Module\n");
-        devices_probe |= HW_GPS_ONLINE;
-    }
+    LILYGO_LOG_D("Init GPS");
+    bool res = gps.beginAsyncProbe(&Serial1, GPS_PROBE_UBLOX, LilyGoUltra::gpsProbeCallback, this);
+    if (res) LILYGO_LOG_D("GPS async probe started");
     return res;
 }
-
-#ifndef TP_RST
-#define TP_RST -1
-#endif
 
 bool LilyGoUltra::initTouch()
 {
@@ -1090,15 +1188,18 @@ bool LilyGoUltra::initTouch()
     Wire.beginTransmission(0x1A);
     if (Wire.endTransmission() == 0) {
         touch_panel_addr = 0x1A;
-        log_d("TouchPanel using 0x1A address");
+        LILYGO_LOG_D("TouchPanel using 0x1A address");
     }
-    touch.setPins(TP_RST, TP_INT);
+
+    const int tp_rst = -1;
+    const int tp_int = TP_INT;
+    touch.setPins(tp_rst, tp_int);
     res = touch.begin(Wire, touch_panel_addr, TP_SDA, TP_SCL);
     if (!res) {
-        log_e("Failed to find TouchPanel!");
+        LILYGO_LOG_E("Failed to find TouchPanel!");
     } else {
-        log_d("Initializing TouchPanel succeeded");
-        log_d("TouchPanel model: %s", touch.getModelName());
+        LILYGO_LOG_D("Initializing TouchPanel succeeded");
+        LILYGO_LOG_D("TouchPanel model: %s", touch.getModelName());
 
         devices_probe |= HW_TOUCH_ONLINE;
 
@@ -1111,32 +1212,27 @@ bool LilyGoUltra::initTouch()
     return res;
 }
 
-#ifdef USING_XL9555_EXPANDS
 #define BOSCH_BHI260_KLIO
-#else
-#define BOSCH_BHI260_GPIO
-#endif
 #include <BoschFirmware.h>
 
 bool LilyGoUltra::initSensor()
 {
     bool res = false;
     Wire.setClock(1000000UL);
-    log_d("Init BHI260AP Sensor");
-    sensor.setPins(PIN_NONE);
+    LILYGO_LOG_D("Init BHI260AP Sensor");
     // Set the firmware array address and firmware size
     sensor.setFirmware(bosch_firmware_image, bosch_firmware_size, bosch_firmware_type);
     // Set to load firmware from flash
     sensor.setBootFromFlash(false);
-    res = sensor.begin(Wire);
+    res = sensor.begin(Wire, BHI260AP_SLAVE_ADDRESS_L);
     if (!res) {
-        log_e("Failed to find BHI260AP!");
+        LILYGO_LOG_E("Failed to find BHI260AP!");
     } else {
-        log_d("Initializing BHI260AP succeeded");
+        LILYGO_LOG_D("Initializing BHI260AP succeeded");
         devices_probe |= HW_BHI260AP_ONLINE;
 
         // sensor.setRemapAxes(SensorBHI260AP::TOP_LAYER_RIGHT_CORNER); // Initial test version
-        sensor.setRemapAxes(SensorBHI260AP::TOP_LAYER_BOTTOM_RIGHT_CORNER);
+        sensor.setRemapAxes(SensorRemap::TOP_LAYER_BOTTOM_RIGHT_CORNER);
 
         pinMode(SENSOR_INT, INPUT);
         attachInterrupt(SENSOR_INT, []() {
@@ -1151,13 +1247,13 @@ bool LilyGoUltra::initSensor()
 bool LilyGoUltra::initRTC()
 {
     bool res = false;
-    log_v("Init PCF85063 RTC");
+    LILYGO_LOG_V("Init PCF85063 RTC");
     res = rtc.begin(Wire);
     if (!res) {
-        log_e("Failed to find PCF85063!");
+        LILYGO_LOG_E("Failed to find PCF85063!");
     } else {
         devices_probe |= HW_RTC_ONLINE;
-        log_v("Initializing PCF85063 succeeded");
+        LILYGO_LOG_V("Initializing PCF85063 succeeded");
         rtc.hwClockRead();  //Synchronize RTC clock to system clock
         rtc.setClockOutput(SensorPCF85063::CLK_LOW);
 
@@ -1171,20 +1267,13 @@ bool LilyGoUltra::initRTC()
 
 bool LilyGoUltra::initMicrophone()
 {
-    log_v("Init Microphone");
+    LILYGO_LOG_V("Init Microphone");
     bool res = false;
-#if  ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5,0,0)
-    res = mic.init(MIC_SCK, MIC_DAT);
-#else
-    // Set up the pins used for audio input
-    mic.setPinsPdmRx(MIC_SCK, MIC_DAT);
-    // Initialize the I2S bus in standard mode
-    res = mic.begin(I2S_MODE_PDM_RX, 16000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
-#endif
+    res = _audioInput.begin();
     if (res) {
-        log_v("Microphone init succeeded");
+        LILYGO_LOG_I("Microphone init succeeded");
     } else {
-        log_e("Warning: Failed to init Microphone");
+        LILYGO_LOG_E("Warning: Failed to init Microphone");
     }
     return res;
 }
@@ -1192,19 +1281,17 @@ bool LilyGoUltra::initMicrophone()
 
 bool LilyGoUltra::initAmplifier()
 {
-    log_v("Init PCM Amplifier");
+    LILYGO_LOG_V("Init Audio Amplifier");
     bool res = false;
-#if  ESP_IDF_VERSION > ESP_IDF_VERSION_VAL(5,0,0)
-    player.setPins(I2S_BCLK, I2S_WCLK, I2S_DOUT);
-    // start I2S at the sample rate with 16-bits per sample
-    res = player.begin(I2S_MODE_STD, 160000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
-#else
-    res = player.init(I2S_BCLK, I2S_WCLK, I2S_DOUT);
-#endif
+    res = _audioOutput.begin();
+    _audioOutput.setMuteCallback([](bool muted) {
+        LILYGO_LOG_D("Audio Amplifier %s", muted ? "muted" : "unmuted");
+        instance.powerControl(POWER_SPEAK, muted);
+    });
     if (res) {
-        log_v("PCM Amplifier init succeeded");
+        LILYGO_LOG_I("Audio Amplifier init succeeded");
     } else {
-        log_e("Warning: Failed to init PCM Amplifier");
+        LILYGO_LOG_E("Warning: Failed to init Audio Amplifier");
     }
     return res;
 }
@@ -1214,12 +1301,12 @@ bool LilyGoUltra::initLoRa()
     int state = radio.begin();
     if (state == RADIOLIB_ERR_NONE) {
         devices_probe |= HW_RADIO_ONLINE;
-        log_i("✅Radio init succeeded, module: %s", USING_RADIO_NAME);
+        LILYGO_LOG_I("✅Radio init succeeded, module: %s", USING_RADIO_NAME);
         setRFSwitch(false); // Default to Built-in LoRa antenna
         return true;
     }
     devices_probe &= ~HW_RADIO_ONLINE;
-    log_e("❌Radio init failed, code :%d , Use %s", state, USING_RADIO_NAME);
+    LILYGO_LOG_E("❌Radio init failed, code :%d , Use %s", state, USING_RADIO_NAME);
     return false;
 }
 
@@ -1238,8 +1325,22 @@ void LilyGoUltra::loop()
 
     if (bits & HW_IRQ_SENSOR) {
         clearEventBits(HW_IRQ_SENSOR);
-        sensor.update();
+        if (!sensor.update()) {
+            static uint32_t last_bhi_update_error = 0;
+            uint32_t now = millis();
+            if (last_bhi_update_error == 0 || now - last_bhi_update_error > 2000) {
+                last_bhi_update_error = now;
+                LILYGO_LOG_W("BHI260 update failed: %s", sensor.getError());
+            }
+        }
         sendEvent(SENSOR_EVENT);
+    }
+
+    // Keep the GNSS parser fed after the asynchronous probe completes.
+    if (gps.probeDone() && !gps.probeInProgress() && gps.probeSuccess()) {
+        while (Serial1.available()) {
+            gps.encode((char)Serial1.read());
+        }
     }
 
     // if (devices_probe & HW_NFC_ONLINE) {
@@ -1248,6 +1349,7 @@ void LilyGoUltra::loop()
     //     unlockSPI();
     // }
 
+    bootButton.loop();
 }
 
 void LilyGoUltra::wakeupTouch()
@@ -1277,12 +1379,43 @@ void LilyGoUltra::setRFSwitch(bool to_usb)
 {
     io.pinMode(EXPANDS_LORA_RF_SW, OUTPUT);
     if (to_usb) {
-        log_d("Set RF Switch to USB Iface");
+        LILYGO_LOG_D("Set RF Switch to USB Iface");
         io.digitalWrite(EXPANDS_LORA_RF_SW, LOW); // to USB
     } else {
-        log_d("Set RF Switch to Built-in LoRa Antenna");
+        LILYGO_LOG_D("Set RF Switch to Built-in LoRa Antenna");
         io.digitalWrite(EXPANDS_LORA_RF_SW, HIGH); // to Built-in LoRa antenna
     }
+}
+
+uint16_t LilyGoUltra::getChargeLevelToCurrentImpl(uint8_t level)
+{
+    static const uint16_t table[] = {
+        0, 100, 125, 150, 175, 200, 300, 400, 500, 600, 700, 800, 900, 1000
+    };
+    if (level < 14)
+        return table[level];
+    return 0;
+}
+
+uint16_t LilyGoUltra::getChargeCurrentToLevelImpl()
+{
+    static const uint16_t table[] = {
+        0, 100, 125, 150, 175, 200, 300, 400, 500, 600, 700, 800, 900, 1000
+    };
+    uint16_t cur = getChargeCurrent();
+    int i = 0;
+    for (i = 0; i < sizeof(table) / sizeof(table[0]); ++i) {
+        if (cur == table[i]) {
+            return i;
+        }
+    }
+    return i;
+}
+
+bool LilyGoUltra::shutdown()
+{
+    pmic.shutdown();
+    return true;
 }
 
 namespace

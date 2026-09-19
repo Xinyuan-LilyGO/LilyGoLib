@@ -14,71 +14,84 @@
 #include <Arduino.h>
 #include <driver/spi_master.h>
 #include <SPI.h>
-#define XPOWERS_CHIP_BQ25896
-#include <XPowersLib.h>
-#include <SensorPCF85063.hpp>
-#include <SensorDRV2605.hpp>
-#include <SensorBHI260AP.hpp>
-#include <LilyGoDispInterface.h>
-#include <RadioLib.h>
 #include <SD.h>
-#include "GPS.h"
-#include "PDM.h"
-#include "rotary/Rotary.h"
+#include <RtcDrv.hpp>
+#include <HapticDrivers.hpp>
+#include <IoExpanderDrv.hpp>
 #include <AW9364LedDriver.hpp>
-#include <GaugeBQ27220.hpp>
-#include "LilyGoKeyboard.h"
-#include "nfc_include.h"
-#include "LilyGoEventManage.h"
-#include "LilyGoTypedef.h"
-
-#ifdef USING_XL9555_EXPANDS
-#include <ExtensionIOXL9555.hpp>
-#endif
-
-#ifdef USING_AUDIO_CODEC
-#include "bsp_codec/esp_codec.h"
-#endif
-#include "BrightnessController.h"
+#include <GaugeDrv.hpp>
+#include <ImuDrv.hpp>
+#include "core/LilyGoPowerManageInf.h"
+#include "display/LilyGoDispInterface.h"
+#include <RadioLib.h>
+#include "gps/GPS.h"
+#include "input/LilyGoKeyboard.h"
+#include "nfc/nfc_include.h"
+#include "core/LilyGoEventManage.h"
+#include "core/LilyGoTypedef.h"
+#include "display/BrightnessController.h"
+#include "audio/AudioDevice.h"
+#include <Button2.h>
 
 #define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY)
+#include "radio/LilyGoRadioHelper.h"
 
 using custom_feedback_t = void(*)(void *args);
 
 class LilyGoLoRaPager: public LilyGo_Display,
     public LilyGoDispArduinoSPI,
     public LilyGoEventManage,
+    public LilyGoPowerManageInf,
     public BrightnessController<LilyGoLoRaPager, 0, 16, 50>
 {
 private:
+    /**
+     * @brief Private constructor for singleton pattern.
+     */
     LilyGoLoRaPager();
+    /**
+     * @brief Private destructor.
+     */
     ~LilyGoLoRaPager();
+    bool _radio_hardware_present = true;
     LilyGoLoRaPager(const LilyGoLoRaPager &) = delete;
     LilyGoLoRaPager &operator=(const LilyGoLoRaPager &) = delete;
+
+
+public:
+
+    EspCodec            codec;
+    AudioInputCodecDev  audioInput{&codec};
+    AudioOutputCodecDev audioOutput{&codec};
+
+    /**
+     * @brief Get the instance of the AudioOutputCodecDev class.
+     * @note  This function returns a pointer to the AudioOutputCodecDev instance.
+     */
+    AudioOutputIf *getAudioOutput()
+    {
+        return &audioOutput;
+    }
+    /**
+     * @brief Get the instance of the AudioInputCodecDev class.
+     * @note  This function returns a pointer to the AudioInputCodecDev instance.
+     */
+    AudioInputIf *getAudioInput()
+    {
+        return &audioInput;
+    }
+
 public:
     GPS             gps;
     SensorBHI260AP  sensor;
     SensorPCF85063  rtc;
-    SensorDRV2605   drv;
+    HapticDriver_DRV2605   drv;
     GaugeBQ27220    gauge;
     AW9364LedDriver backlight;
-    PowersBQ25896   ppm;
-    Rotary          rotary = Rotary(ROTARY_A, ROTARY_B);
+    PmicBQ25896     pmic;
     LilyGoKeyboard  kb;
-
-#ifdef USING_PDM_MICROPHONE
-#if  ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5,0,0)
-    PDM mic;
-#endif
-#endif
-
-#ifdef USING_XL9555_EXPANDS
-    ExtensionIOXL9555 io;
-#endif
-
-#ifdef USING_AUDIO_CODEC
-    EspCodec          codec;
-#endif
+    IoExpanderXL9555 io;
+    Button2         bootButton = Button2(0);    //BOOT BUTTON ( button)
 
     /**
      * @brief  Get the instance of the LilyGoLoRaPager class.
@@ -102,16 +115,32 @@ public:
     void setBootImage(uint8_t *image);
 
     /**
-    * @brief Begin the device.
-    *
-    * This function serves as the entry point for system initialization. It sets up the necessary components
-    * and configurations to start the system's operation. The 'disable_hw_init' parameter can be used to
-    * skip hardware initialization if set to a non - zero value.
-    *
-    * @param disable_hw_init Optional parameter to disable hardware initialization (default: 0).
-    * @return uint32_t A value indicating the result of the initialization process.
-    */
-    uint32_t begin(uint32_t disable_hw_init = 0);
+     * @brief Get the default begin() initialization options for this board.
+     * @return LilyGoDeviceInitOptions Options initialized from this board capability.
+     */
+    LilyGoDeviceInitOptions getDefaultInitOptions() const;
+
+    /**
+     * @brief Begin the device with the default initialization options.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    uint32_t begin();
+
+    /**
+     * @brief Begin the device with explicit initialization options.
+     * @param init_options Controls which supported devices begin() should initialize.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    uint32_t begin(const LilyGoDeviceInitOptions &init_options);
+
+    /**
+     * @brief Begin the device with a legacy skip-initialization bitmask.
+     * @deprecated Use begin(const LilyGoDeviceInitOptions&) instead. This overload will be removed in a future release.
+     * @param disable_hw_init Bitmask composed from NO_HW_* / NO_INIT_* macros.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    LILYGO_DEPRECATED("Use begin(const LilyGoDeviceInitOptions&) instead. The disable_hw_init bitmask overload will be removed in a future release.")
+    uint32_t begin(uint32_t disable_hw_init);
 
     /**
      * @brief Main loop function.
@@ -273,6 +302,13 @@ public:
      * @param color A pointer to the color data.
      */
     void pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color) override;
+    
+    /**
+     * @brief Check if the color data needs to be swapped.
+     * @note  Pass the query to lvgl whether a swap is needed.
+     * @return bool True if color data needs to be swapped, false otherwise.
+     */
+    bool needSwapColors() override;
 
     /**
      * @brief Control the power of a specific channel.
@@ -293,7 +329,7 @@ public:
      *
      * @return bool True if SD card installation is successful, false otherwise.
      */
-    bool installSD();
+    bool installSD(uint32_t spi_freq = 0);
 
     /**
      * @brief Uninstall the SD card.
@@ -341,6 +377,16 @@ public:
     int getKeyChar(char *c) override;
 
     /**
+     * @brief Enable the keyboard event buffer.
+     */
+    void enableKeyboard();
+
+    /**
+     * @brief Disable the keyboard event buffer.
+     */
+    void disableKeyboard();
+
+    /**
      * @brief Get the rotary message.
      *
      * This function retrieves the message related to the rotary encoder. It returns a value of type RotaryMsg_t
@@ -356,6 +402,37 @@ public:
      * This function clears the message related to the rotary encoder, resetting its state.
      */
     void clearRotaryMsg();
+
+    /**
+     * @brief Set rotary encoder step divider.
+     *
+     * Larger values require more physical encoder counts before one LVGL step is emitted,
+     * reducing sensitivity at runtime without rebuilding firmware.
+     *
+     * @param divider Number of raw encoder counts per output step. Zero is treated as one.
+     */
+    void setRotaryStepDivider(uint8_t divider);
+
+    /**
+     * @brief Get rotary encoder step divider.
+     *
+     * @return Number of raw encoder counts per output step.
+     */
+    uint8_t getRotaryStepDivider();
+
+    /**
+     * @brief Get the minimum rotary encoder step divider.
+     *
+     * @return Minimum supported step divider.
+     */
+    uint8_t getRotaryStepDividerMin();
+
+    /**
+     * @brief Get the maximum rotary encoder step divider.
+     *
+     * @return Maximum supported step divider.
+     */
+    uint8_t getRotaryStepDividerMax();
 
     /**
      * @brief Enable the rotary encoder.
@@ -375,12 +452,12 @@ public:
      * @brief Attach keyboard feedback.
      *
      * This function enables or disables the keyboard feedback feature. The 'enable' parameter indicates whether
-     * to enable or disable the feedback, and the 'effects' parameter specifies the feedback effects (default: 70).
+     * to enable or disable the feedback, and the 'effects' parameter specifies the feedback effects (default: 1).
      *
      * @param enable True to enable the keyboard feedback, false to disable it.
-     * @param effects The feedback effects setting (default: 70).
+     * @param effects The feedback effects setting (default: 1).
      */
-    void attachKeyboardFeedback(bool enable, uint8_t effects = 70);
+    void attachKeyboardFeedback(bool enable, uint8_t effects = 1);
 
     /**
      * @brief Set the feedback callback function.
@@ -419,7 +496,8 @@ public:
      * If you need to enable NFC after calling this method, you must call the NFC initialization method again.
      *
      *
-     * @param wakeup_src The wake-up sources (default: boot button and rotary button).
+     * @param wakeup_src The wake-up source (default: boot button). The boot button is
+     * the only supported physical wake-up source.
      */
     void lightSleep(WakeupSource_t wakeup_src = WAKEUP_SRC_BOOT_BUTTON);
 
@@ -430,11 +508,10 @@ public:
      * that can wake the device from sleep.
      *
      * Set to wake up by boot button, deep sleep is about 860 uA , see examples/sleep/WakeUpFromBootButton
-     * Set to wake up by boot button and rotary center button, deep sleep is about 860 uA , see examples/sleep/WakeUpFromBootButton
-     *
      * @param wakeup_src The wake-up sources (default: boot button).
      * @param off_rtc_backup_domain Reserved parameter, no effect.
-     * @param sleep_second If When wakeup_src = WAKEUP_SRC_TIMER, sleep_second is used to set the sleep time in seconds.
+     * @param sleep_second Timer duration in seconds when WAKEUP_SRC_TIMER is selected.
+     * Timer wake-up may be used alone or combined with the boot button.
      */
     void sleep(WakeupSource_t wakeup_src = WAKEUP_SRC_BOOT_BUTTON,
                bool off_rtc_backup_domain = false,
@@ -483,6 +560,13 @@ public:
     uint32_t getDeviceProbe();
 
     /**
+     * @brief Return the runtime LoRa hardware detection result.
+     *
+     * @return true if LoRa hardware is present or runtime detection is disabled.
+     */
+    bool isLoRaHardwarePresent() const;
+
+    /**
      * @brief Get the device name.
      *
      * This function returns a pointer to a string representing the device name.
@@ -490,6 +574,13 @@ public:
      * @return const char* A pointer to the device name string.
      */
     const char *getName();
+
+    /**
+     * @brief Get the static device capability descriptor.
+     *
+     * @return const LilyGoDeviceCapability& Reference to the board capability descriptor.
+     */
+    const LilyGoDeviceCapability &getCapability() const;
 
     /**
      * @brief Check if the device has an encoder.
@@ -547,6 +638,90 @@ public:
         return 16;
     };
 
+    /**
+     * @brief Check if the device supports OTG (On-The-Go) functionality.
+     *
+     * This function checks whether the device has OTG capability.
+     *
+     * @return bool True if the device supports OTG, false otherwise.
+     */
+    bool hasOTG() override;
+
+    /**
+     * @brief Check if the device has a battery gauge.
+     *
+     * This function checks whether the device is equipped with a battery gauge IC for monitoring battery status.
+     *
+     * @return bool True if the device has a battery gauge, false otherwise.
+     */
+    bool hasGauge() override;
+
+    bool readPowerSnapshot(LilyGoPowerSnapshot &snapshot) override;
+
+    /**
+     * @brief Shutdown the device.
+     *
+     * This function performs a complete shutdown of the device. The device will remain in shutdown state
+     * until a wake-up event occurs (Only PWR Button pressed one second).
+     *
+     * @return bool Returns false if the device does not allow turning off; otherwise,
+     * returns nothing and the device will power off.
+     */
+    bool shutdown() override;
+
+    /**
+     * @brief Check if OTG output is currently enabled.
+     *
+     * This function checks whether the OTG power output is currently active.
+     *
+     * @return bool True if OTG output is enabled, false otherwise.
+     */
+    bool isOTGEnabled() override;
+
+    /**
+     * @brief Enable OTG power output.
+     *
+     * This function enables the OTG (On-The-Go) power output, allowing the device to supply power to
+     * connected USB peripherals.
+     *
+     * @return bool True if OTG was enabled successfully, false otherwise.
+     */
+    bool enableOTG() override;
+
+    /**
+     * @brief Disable OTG power output.
+     *
+     * This function disables the OTG (On-The-Go) power output, stopping power supply to connected USB peripherals.
+     *
+     * @return bool True if OTG was disabled successfully, false otherwise.
+     */
+    bool disableOTG() override;
+
+    /**
+     * @brief Get the battery voltage.
+     *
+     * This function retrieves the current battery voltage reading from the gauge IC.
+     *
+     * @return float The battery voltage in mv.
+     */
+    float getBattVoltage() override;
+
+    /**
+    * @brief Get the battery percentage.
+    *
+    * @return float The battery level as a percentage (0-100).
+    */
+    float getBatteryPercent() override;
+
+    /**
+     * @brief Get the battery temperature.
+     *
+     * This function retrieves the current battery temperature reading from the gauge IC.
+     *
+     * @return float The battery temperature in degrees Celsius.
+     */
+    float getTemperature() override;
+
 private:
     /**
      * @brief Check the wake-up pins based on the wake-up source.
@@ -575,36 +750,46 @@ private:
      */
     bool initPMU();
 
+    /**
+     * @brief  Convert charge level to current.
+     * @note   This function converts a given charge level to its corresponding current value.
+     * @param  level: The charge level to convert.
+     * @retval The corresponding current value.
+     */
+    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override
+    {
+        return pmic.getConfig().chargeCurrentStep * level;
+    }
 
-    uint32_t devices_probe;
+    /**
+     * @brief  Convert charge current to level.
+     * @note   This function converts a given charge current to its corresponding charge level.
+     * @retval The corresponding charge level.
+     */
+    uint16_t getChargeCurrentToLevelImpl() override
+    {
+        uint16_t current = getChargeCurrent();
+        uint16_t step = pmic.getConfig().chargeCurrentStep;
+        return current / step;
+    }
+
     uint8_t _effects;
     static EventGroupHandle_t _event;
     bool _feedback_enable = false;
-    uint8_t _feedback_effects = 70;
+    uint8_t _feedback_effects = 1;
     custom_feedback_t _custom_feedback = nullptr;
     void *_custom_feedback_args = nullptr;
     uint8_t *_boot_images_addr;
+    bool _enable_keyboard = true;
+    uint32_t _gauge_last_update = 0;
+    uint32_t _gauge_update_timestamp = 0;
+    uint32_t _gauge_update_interval = 1000;
 };
 
 extern RfalNfcClass NFCReader;
 extern LilyGoLoRaPager &instance;
 
-#if    defined(ARDUINO_LILYGO_LORA_SX1262)
-extern SX1262 radio;
-#define USING_RADIO_NAME        "SX1262"
-#elif  defined(ARDUINO_LILYGO_LORA_SX1280)
-extern SX1280 radio;
-#define USING_RADIO_NAME        "SX1280"
-#elif  defined(ARDUINO_LILYGO_LORA_CC1101)
-extern CC1101 radio;
-#define USING_RADIO_NAME        "CC1101"
-#elif  defined(ARDUINO_LILYGO_LORA_LR1121)
-extern LR1121 radio;
-#define USING_RADIO_NAME        "LR1121"
-#elif  defined(ARDUINO_LILYGO_LORA_SI4432)
-extern Si4432 radio;
-#define USING_RADIO_NAME        "SI4432"
-#endif
+LILYGO_DECLARE_RADIO();
 
 #ifndef RADIOLIB_EXCLUDE_NRF24
 extern nRF24 nrf24;

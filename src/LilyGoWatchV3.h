@@ -1,51 +1,133 @@
 /**
- * @file      LilyGoWatchS3.h
+ * @file      LilyGoWatchV3.h
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
- * @copyright Copyright (c) 2023  Shenzhen XinYuan Electronic Technology Co., Ltd
- * @date      2023-04-28
+ * @copyright Copyright (c) 2026  Shenzhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-06-05
  *
  */
 #pragma once
 
-#ifdef ARDUINO_T_WATCH_S3
+#ifdef ARDUINO_TWATCH_2020_V3
 
 #include <Arduino.h>
 #include <FFat.h>
 #include <FS.h>
 #include <Wire.h>
 #include <TouchDrvFocalTech.hpp>
-#include <HapticDrivers.hpp>
 #include <RtcDrv.hpp>
-#include <RadioLib.h>
-#include "gps/GPS.h"
 #include "audio/AudioDevice.h"
 #include "display/LilyGoDispInterface.h"
 #include "core/LilyGoEventManage.h"
+#include "core/LilyGoPowerManageInf.h"
 #include "core/LilyGoTypedef.h"
 #include "display/BrightnessController.h"
-#include "core/LilyGoPowerManageInf.h"
 #include "sensor/BMASensorHelper.h"
 
-#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY,SPI)
-#include "radio/LilyGoRadioHelper.h"
+// Arduino-ESP32 upstream uses the shared "twatch" variant for 2019/2020
+// revisions and does not expose the 2020 V3-only pins. Define the revision
+// defaults here so the library remains compatible with the upstream variant.
+#ifndef DISP_WIDTH
+#define DISP_WIDTH      (240)
+#endif
+#ifndef DISP_HEIGHT
+#define DISP_HEIGHT     (240)
+#endif
+#ifndef DISP_MOSI
+#define DISP_MOSI       (19)
+#endif
+#ifndef DISP_MISO
+#define DISP_MISO       (-1)
+#endif
+#ifndef DISP_SCK
+#define DISP_SCK        (18)
+#endif
+#ifndef DISP_RST
+#define DISP_RST        (-1)
+#endif
+#ifndef DISP_CS
+#define DISP_CS         (5)
+#endif
+#ifndef DISP_DC
+#define DISP_DC         (27)
+#endif
+#ifndef DISP_BL
+#define DISP_BL         (15)
+#endif
+#ifndef TP_RST
+#define TP_RST          (14)
+#endif
+#ifndef PMU_INT
+#ifdef APX20X_INT
+#define PMU_INT         APX20X_INT
+#else
+#define PMU_INT         (35)
+#endif
+#endif
+#ifndef SENSOR_INT
+#ifdef BMA42X_INT1
+#define SENSOR_INT      BMA42X_INT1
+#else
+#define SENSOR_INT      (39)
+#endif
+#endif
+#ifndef MIC_SCK
+#define MIC_SCK         (0)
+#endif
+#ifndef MIC_DAT
+#define MIC_DAT         (2)
+#endif
+#ifndef I2S_BCLK
+#define I2S_BCLK        (26)
+#endif
+#ifndef I2S_WCLK
+#define I2S_WCLK        (25)
+#endif
+#ifndef I2S_DOUT
+#define I2S_DOUT        (33)
+#endif
+#ifndef IR_SEND
+#define IR_SEND         (13)
+#endif
+#ifndef USER_BUTTON
+#define USER_BUTTON     (36)
+#endif
+#ifndef MOTOR_PIN
+#define MOTOR_PIN       (4)
+#endif
 
-class LilyGoWatch2022;
-extern LilyGoWatch2022 &instance;
+#ifndef USING_PCM_AMPLIFIER
+#define USING_PCM_AMPLIFIER
+#endif
+#ifndef USING_PDM_MICROPHONE
+#define USING_PDM_MICROPHONE
+#endif
+#ifndef USING_PMU_MANAGE
+#define USING_PMU_MANAGE
+#endif
+#ifndef USING_INPUT_DEV_TOUCHPAD
+#define USING_INPUT_DEV_TOUCHPAD
+#endif
+#ifndef USING_IR_REMOTE
+#define USING_IR_REMOTE
+#endif
+#ifndef USING_BMA423_SENSOR
+#define USING_BMA423_SENSOR
+#endif
 
-class LilyGoWatch2022 : public LilyGo_Display,
+
+class LilyGoWatchV3 : public LilyGo_Display,
     public LilyGoDispSPI,
     public LilyGoEventManage,
-    public BrightnessController<LilyGoWatch2022, 0, 255, 5>,
     public LilyGoPowerManageInf,
+    public BrightnessController<LilyGoWatchV3, 0, 255, 5>,
     public BMASensorHelper
 {
 private:
-    LilyGoWatch2022();
-    ~LilyGoWatch2022();
-    LilyGoWatch2022(const LilyGoWatch2022 &) = delete;
-    LilyGoWatch2022 &operator=(const LilyGoWatch2022 &) = delete;
-
+    LilyGoWatchV3();
+    ~LilyGoWatchV3();
+    LilyGoWatchV3(const LilyGoWatchV3 &) = delete;
+    LilyGoWatchV3 &operator=(const LilyGoWatchV3 &) = delete;
 
 public:
     AudioInputDev _audioInput;
@@ -67,23 +149,19 @@ public:
     {
         return &_audioInput;
     }
-
-
 public:
-    GPS gps;
     TouchDrvFT6X36 touch;
     SensorPCF8563 rtc;
-    HapticDriver_DRV2605 drv;
-    PmicAXP2101 pmic;
+    PmicAXP202 pmic;
 
     /**
-     * @brief  Get the instance of the LilyGoWatch2022 class.
+     * @brief  Get the instance of the LilyGoWatchV3 class.
      * @note   This function returns a pointer to the singleton instance of the class.
-     * @retval Pointer to the LilyGoWatch2022 instance.
+     * @retval Pointer to the LilyGoWatchV3 instance.
      */
-    static LilyGoWatch2022 *getInstance()
+    static LilyGoWatchV3 *getInstance()
     {
-        static LilyGoWatch2022 _instance;
+        static LilyGoWatchV3 _instance;
         return &_instance;
     }
 
@@ -132,29 +210,6 @@ public:
      */
     void loop();
 
-    /**
-     * @brief Initialize the LoRa module.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * This function attempts to initialize the LoRa module. It returns 'true' if the initialization is successful,
-     * and 'false' otherwise.
-     *
-     * @return bool True if LoRa initialization is successful, false otherwise.
-     */
-    bool initLoRa();
-
-    /**
-     * @brief Initialize the driver.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
-     */
-    bool initDrv();
-
-    /**
-     * @brief Initialize the GPS module.
-     * @note  Already called in begin, it is only necessary to call when begin specifies not to initialize this device.
-     * @return bool True if initialization is successful, false otherwise.
-     */
-    bool initGPS();
 
     /**
      * @brief Initialize the touch screen.
@@ -243,7 +298,6 @@ public:
      */
     void pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color) override;
 
-
     /**
     * @brief Check if the color data needs to be swapped.
     * @note  Pass the query to lvgl whether a swap is needed.
@@ -321,6 +375,7 @@ public:
 
     /**
      * @brief Put the device into sleep mode.
+     * @ On an ESP32, only one wake-up method can be used; unlike the ESP32S3, multiple combinations are not possible.
      * @param wakeup_src Wake-up source (default: power key). Timer wake-up may be
      * used alone or combined with the supported physical sources.
      * @param off_rtc_backup_domain The parameter is retained but has no effect.
@@ -415,11 +470,7 @@ public:
      * returns nothing and the device will power off.
      */
     bool shutdown() override;
-
 private:
-    static void gpsProbeCallback(bool success, const char *model, void *user_data);
-    void calibrateBatteryIfNeeded(bool gps_present);
-
     /**
      * @brief Clear the specified event bits.
      *
@@ -464,39 +515,26 @@ private:
      */
     bool initPMU();
 
-    /**
-     * @brief  Rewrite battery parameters , Determining if it's a T-Watch Plus by checking if GPS is present.
-     * @note   This function only needs to be written once.
-     * @param  batteryCapacity: The capacity of the battery in mAh.
-     * @retval True indicates successful write; otherwise, write failed.
-     */
-    bool calibrationPMU(uint16_t batteryCapacity);
+    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override
+    {
+        return pmic.getConfig().chargeCurrentStep * level;
+    }
 
-    /**
-     * @brief  Convert charge level to current.
-     * @note   This function converts a given charge level to its corresponding current value.
-     * @param  level: The charge level to convert.
-     * @retval The corresponding current value.
-     */
-    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override;
-
-    /**
-    * @brief  Convert charge current to level.
-    * @note   This function converts a given charge current to its corresponding charge level.
-    * @retval The corresponding charge level.
-    */
-    uint16_t getChargeCurrentToLevelImpl() override;
+    uint16_t getChargeCurrentToLevelImpl() override
+    {
+        uint16_t current = getChargeCurrent();
+        uint16_t step = pmic.getConfig().chargeCurrentStep;
+        return current / step;
+    }
 
     static EventGroupHandle_t _event;
     uint8_t _effects;
     uint32_t devices_probe;
     uint8_t *_boot_images_addr;
-    bool _is_watch_plus;
 };
 
-extern LilyGoWatch2022 &instance;
+extern LilyGoWatchV3 &instance;
 
-LILYGO_DECLARE_RADIO();
 
 #define DEVICE_MAX_BRIGHTNESS_LEVEL 255
 #define DEVICE_MIN_BRIGHTNESS_LEVEL 0
@@ -506,4 +544,10 @@ LILYGO_DECLARE_RADIO();
 #define DEVICE_CHARGE_STEPS         1
 #define DEVICE_CHARGE_CURRENT_RECOMMEND 125
 
+#define USING_RADIO_NAME "None"
+
 #endif
+
+
+
+

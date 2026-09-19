@@ -13,30 +13,27 @@
 #include <Arduino.h>
 #include <driver/spi_master.h>
 #include <SPI.h>
-#include <SensorPCF85063.hpp>
-#include <SensorDRV2605.hpp>
-#include <SensorBHI260AP.hpp>
-#include <TouchDrvCSTXXX.hpp>
+#include <ImuDrv.hpp>
+#include <GaugeDrv.hpp>
+#include <IoExpanderDrv.hpp>
+#include <HapticDrivers.hpp>
+#include <FingerNavigationDrv.hpp>
+#include <RtcDrv.hpp>
+#include <TouchDrv.hpp>
 #include <RadioLib.h>
 #include <SD.h>
-#include "GPS.h"
-#include "PDM.h"
-#if  ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-#include <ESP_I2S.h>
-#endif
-#ifdef USING_XL9555_EXPANDS
-#include <ExtensionIOXL9555.hpp>
-#endif
-#ifdef USING_ST25R3916
-#include "nfc_include.h"
-#endif
-#include "LilyGoDispInterface.h"
-#include "LilyGoEventManage.h"
-#include "LilyGoTypedef.h"
-#include "LilyGoPowerManage.h"
-#include "BrightnessController.h"
+#include "gps/GPS.h"
+#include "audio/AudioDevice.h"
+#include "display/LilyGoDispInterface.h"
+#include "core/LilyGoEventManage.h"
+#include "core/LilyGoTypedef.h"
+#include "display/BrightnessController.h"
+#include "core/LilyGoPowerManageInf.h"
+#include <Button2.h>
+#include "nfc/nfc_include.h"
 
 #define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY)
+#include "radio/LilyGoRadioHelper.h"
 
 #ifndef EXPANDS_LORA_RF_SW
 #define EXPANDS_LORA_RF_SW      (11)
@@ -53,56 +50,52 @@
 | [Real-Time Clock PCF85063A](https://www.nxp.com/products/PCF85063A)                              | 0x51          |
 */
 
-static uint8_t BATTER_PARAMS[] = {
-    0x01, 0xf5, 0x40, 0x00, 0x1b, 0x1e, 0x28, 0x0f, 0x0c, 0x1e, 0x32, 0x02, 0x14, 0x05, 0x0a, 0x04,
-    0x74, 0xfc, 0xf4, 0x0d, 0x43, 0x10, 0x52, 0xfb, 0xa6, 0x01, 0xea, 0x04, 0x64, 0x06, 0x52, 0x06,
-    0x18, 0x0a, 0xe7, 0x0f, 0x9f, 0x0f, 0x51, 0x09, 0xf7, 0x0e, 0x89, 0x0e, 0x71, 0x04, 0x58, 0x04,
-    0x43, 0x09, 0x32, 0x0e, 0x1c, 0x0e, 0x14, 0x09, 0x04, 0x0d, 0xe9, 0x0d, 0xde, 0x03, 0xc8, 0x03,
-    0xb3, 0x08, 0x9d, 0x0d, 0x79, 0x0d, 0x3a, 0x07, 0xf5, 0x9e, 0x56, 0x47, 0x36, 0x20, 0x24, 0x17,
-    0xc5, 0x98, 0x7e, 0x66, 0x4e, 0x44, 0x38, 0x1a, 0x12, 0x0a, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
-    0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
-    0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xfb, 0x00, 0x00, 0xf6, 0x00, 0x00, 0xf6, 0x00, 0xf6,
-};
+class LilyGoUltra;
+extern LilyGoUltra &instance;
 
 class LilyGoUltra: public LilyGo_Display,
     public LilyGoDispQSPI,
     public LilyGoEventManage,
-    public LilyGoPowerManage,
-    public BrightnessController<LilyGoUltra, 0, 255, 5>
+    public BrightnessController<LilyGoUltra, 0, 255, 5>,
+    public LilyGoPowerManageInf
 {
 private:
     LilyGoUltra();
     ~LilyGoUltra();
     LilyGoUltra(const LilyGoUltra &) = delete;
     LilyGoUltra &operator=(const LilyGoUltra &) = delete;
+
+
 public:
-    XPowersAXP2101 pmu;
+    AudioInputDev _audioInput;
+    AudioOutputDev _audioOutput;
+
+    /**
+     * @brief Get the instance of the AudioOutputDev class.
+     * @note  This function returns a pointer to the AudioOutputDev instance.
+     */
+    AudioOutputIf *getAudioOutput()
+    {
+        return &_audioOutput;
+    }
+    /**
+     * @brief Get the instance of the AudioInputDev class.
+     * @note  This function returns a pointer to the AudioInputDev instance.
+     */
+    AudioInputIf *getAudioInput()
+    {
+        return &_audioInput;
+    }
+
+public:
     GPS gps;
     SensorBHI260AP sensor;
     SensorPCF85063 rtc;
     TouchDrvCST92xx touch;
-    SensorDRV2605 drv;
-
-#ifdef USING_PDM_MICROPHONE
-#if  ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5,0,0)
-    PDM mic;
-#else
-    I2SClass mic;
-#endif
-#endif
-
-#ifdef USING_PCM_AMPLIFIER
-#if  ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5,0,0)
-    Player player;
-#else
-    I2SClass player;
-#endif
-#endif
-
-#ifdef USING_XL9555_EXPANDS
-    ExtensionIOXL9555 io;
-#endif
-
+    HapticDriver_DRV2605 drv;
+    PmicAXP2101 pmic;
+    IoExpanderXL9555 io;
+    Button2 bootButton = Button2(0);    //BOOT BUTTON ( button)
 
     /**
      * @brief  Get the instance of the LilyGoUltra class.
@@ -135,7 +128,7 @@ public:
      * It is important to note that this function must be called before the begin function;
      * otherwise, the settings will be ineffective.
      *
-     * * In actual use, although enabling DMA will bring a significant increase in frame rate,
+     * In actual use, although enabling DMA will bring a significant increase in frame rate,
      * the display effect is not as good as disabling DMA. Therefore, DMA transmission is disabled by default.
      *
      * @param enableDMA A boolean value indicating whether to enable Direct Memory Access (DMA).
@@ -148,16 +141,32 @@ public:
     void setDisplayParams(bool enableDMA, bool enableTearingEffect);
 
     /**
-     * @brief Begin the device.
-     *
-     * This function initializes the system and starts its operation. The 'disable_hw_init' parameter can be used
-     * to disable hardware initialization if set to a non - zero value. It returns a 32-bit unsigned integer
-     * which might represent the result of the initialization process.
-     *
-     * @param disable_hw_init Optional parameter to disable hardware initialization (default: 0).
-     * @return uint32_t A value indicating the result of the initialization.
+     * @brief Get the default begin() initialization options for this board.
+     * @return LilyGoDeviceInitOptions Options initialized from this board capability.
      */
-    uint32_t begin(uint32_t disable_hw_init = 0);
+    LilyGoDeviceInitOptions getDefaultInitOptions() const;
+
+    /**
+     * @brief Begin the device with the default initialization options.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    uint32_t begin();
+
+    /**
+     * @brief Begin the device with explicit initialization options.
+     * @param init_options Controls which supported devices begin() should initialize.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    uint32_t begin(const LilyGoDeviceInitOptions &init_options);
+
+    /**
+     * @brief Begin the device with a legacy skip-initialization bitmask.
+     * @deprecated Use begin(const LilyGoDeviceInitOptions&) instead. This overload will be removed in a future release.
+     * @param disable_hw_init Bitmask composed from NO_HW_* / NO_INIT_* macros.
+     * @return uint32_t Hardware probe mask collected during initialization.
+     */
+    LILYGO_DEPRECATED("Use begin(const LilyGoDeviceInitOptions&) instead. The disable_hw_init bitmask overload will be removed in a future release.")
+    uint32_t begin(uint32_t disable_hw_init);
 
     /**
      * @brief Main loop function.
@@ -348,6 +357,13 @@ public:
     void pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color) override;
 
     /**
+    * @brief Check if the color data needs to be swapped.
+    * @note  Pass the query to lvgl whether a swap is needed.
+    * @return bool True if color data needs to be swapped, false otherwise.
+    */
+    bool needSwapColors() override;
+
+    /**
      * @brief Check if the touch screen is touched.
      *
      * This function checks whether the touch screen is currently being touched. It returns 'true' if touched,
@@ -400,7 +416,7 @@ public:
      *
      * @return bool True if SD card installation is successful, false otherwise.
      */
-    bool installSD();
+    bool installSD(uint32_t spi_freq = 0);
 
     /**
      * @brief Uninstall the SD card.
@@ -427,10 +443,10 @@ public:
      * Light sleep will turn off Haptic, GPS, Speaker, NFC , WiFi , Bluetooth .
      * If you need to enable NFC after calling this method, you must call the NFC initialization method again.
      *
-     * @param wakeup_src The wake-up sources (default: power key, boot button, and touch panel).
+     * @param wakeup_src The wake-up source (default: touch panel). Supported physical
+     * wake-up sources are power key, boot button, and touch panel.
      */
-    void lightSleep(WakeupSource_t wakeup_src =
-                        (WakeupSource_t)(WAKEUP_SRC_POWER_KEY | WAKEUP_SRC_BOOT_BUTTON | WAKEUP_SRC_TOUCH_PANEL));
+    void lightSleep(WakeupSource_t wakeup_src = WAKEUP_SRC_TOUCH_PANEL);
 
     /**
      * @brief Put the device into sleep mode.
@@ -439,8 +455,10 @@ public:
      * that can wake the device from sleep, and the 'off_rtc_backup_domain' parameter indicates whether to turn
      * off the RTC backup domain.
      *
-     * @param wakeup_src The wake-up sources (default: power key, boot button).
+     * @param wakeup_src The wake-up sources (default: power key and boot button).
+     * Timer wake-up may be used alone or combined with the supported physical sources.
      * @param off_rtc_backup_domain Whether to turn off the RTC backup domain (default: true).
+     * @param sleep_second Timer duration in seconds when WAKEUP_SRC_TIMER is selected.
      */
     void sleep(WakeupSource_t wakeup_src =
                    (WakeupSource_t)(WAKEUP_SRC_POWER_KEY | WAKEUP_SRC_BOOT_BUTTON ),
@@ -511,6 +529,13 @@ public:
      */
     uint32_t getDeviceProbe();
 
+    /**
+     * @brief Get the static device capability descriptor.
+     *
+     * @return const LilyGoDeviceCapability& Reference to the board capability descriptor.
+     */
+    const LilyGoDeviceCapability &getCapability() const;
+
 
     /**
      * @brief Get the device display is enable DMA.
@@ -561,6 +586,19 @@ public:
     * * @param to_usb If True, the RF switch is set to a USB LoRa interface; if false, it is set to the built-in LoRa antenna.
     */
     void setRFSwitch(bool to_usb);
+
+
+
+    /**
+    * @brief Shutdown the device.
+    *
+    * This function performs a complete shutdown of the device. The device will remain in shutdown state
+    * until a wake-up event occurs (Only PWR Button pressed one second).
+    *
+    * @return bool Returns false if the device does not allow turning off; otherwise,
+    * returns nothing and the device will power off.
+    */
+    bool shutdown() override;
 
 private:
     /**
@@ -625,6 +663,24 @@ private:
      */
     bool initPMU(bool batteryCalibration = false);
 
+    static void gpsProbeCallback(bool success, const char *model, void *user_data);
+
+
+    /**
+    * @brief  Convert charge level to current.
+    * @note   This function converts a given charge level to its corresponding current value.
+    * @param  level: The charge level to convert.
+    * @retval The corresponding current value.
+    */
+    uint16_t getChargeLevelToCurrentImpl(uint8_t level) override;
+
+    /**
+    * @brief  Convert charge current to level.
+    * @note   This function converts a given charge current to its corresponding charge level.
+    * @retval The corresponding charge level.
+    */
+    uint16_t getChargeCurrentToLevelImpl() override;
+
 
     static EventGroupHandle_t _event;
     uint8_t _effects;
@@ -638,24 +694,8 @@ private:
 extern RfalNfcClass NFCReader;
 #endif
 
-extern LilyGoUltra &instance;
 
-#if    defined(ARDUINO_LILYGO_LORA_SX1262)
-extern SX1262 radio;
-#define USING_RADIO_NAME        "SX1262"
-#elif  defined(ARDUINO_LILYGO_LORA_SX1280)
-extern SX1280 radio;
-#define USING_RADIO_NAME        "SX1280"
-#elif  defined(ARDUINO_LILYGO_LORA_CC1101)
-extern CC1101 radio;
-#define USING_RADIO_NAME        "CC1101"
-#elif  defined(ARDUINO_LILYGO_LORA_LR1121)
-extern LR1121 radio;
-#define USING_RADIO_NAME        "LR1121"
-#elif  defined(ARDUINO_LILYGO_LORA_SI4432)
-extern Si4432 radio;
-#define USING_RADIO_NAME        "SI4432"
-#endif
+LILYGO_DECLARE_RADIO();
 
 #define DEVICE_MAX_BRIGHTNESS_LEVEL 255
 #define DEVICE_MIN_BRIGHTNESS_LEVEL 0
@@ -666,18 +706,3 @@ extern Si4432 radio;
 #define DEVICE_CHARGE_CURRENT_RECOMMEND 512
 
 #endif // ARDUINO_T_WATCH_S3_ULTRA
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
