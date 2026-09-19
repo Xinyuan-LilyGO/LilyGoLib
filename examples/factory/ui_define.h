@@ -15,16 +15,85 @@
 #define RTC_DATA_ATTR
 #endif
 #include <lvgl.h>
+#include <LVGL_Compat.h>
+#ifndef ARDUINO
+/* Arduino-compatible clock helper for native SDL builds. */
+static inline uint32_t millis(void) { return lv_tick_get(); }
+#endif
 #include <stdio.h>
-#include <iostream>
 #include <vector>
 #include <time.h>
 #include <string.h>
 #include "hal_interface.h"
 
-using namespace std;
+#if !defined(EXCLUDE_BLE_SCANNER)
+#include <string>
+using std::string;
+#endif
+using std::vector;
 
 #define DEFAULT_OPA          100
+
+/* ── Theme color presets ── */
+typedef struct {
+    uint32_t accent;       /* Main accent color */
+    uint32_t accent_dim;   /* Pressed state */
+    uint32_t card_bg;      /* Card background */
+    uint32_t track;        /* Slider/progress track */
+    const char *name;      /* Display name */
+} ui_theme_preset_t;
+
+static const ui_theme_preset_t ui_theme_presets[] = {
+    { 0x00D4AA, 0x009977, 0x1A1A1A, 0x333333, "Mint"     },  /* 0: Current default */
+    { 0x0088FF, 0x0066CC, 0x1A1A2E, 0x333344, "Ocean"    },  /* 1: Blue */
+    { 0xFF6B35, 0xCC5522, 0x2A1A1A, 0x443333, "Sunset"   },  /* 2: Orange */
+    { 0xAA55FF, 0x8833CC, 0x1E1A2A, 0x3A3344, "Violet"   },  /* 3: Purple */
+    { 0xFF3366, 0xCC2255, 0x2A1A20, 0x443338, "Cherry"   },  /* 4: Pink/Red */
+    { 0x88CC00, 0x669900, 0x1A2A1A, 0x334433, "Lime"     },  /* 5: Green */
+    { 0xFFB800, 0xCC9200, 0x2A2A1A, 0x444433, "Amber"    },  /* 6: Gold */
+    { 0xFFFFFF, 0xCCCCCC, 0x2A2A2A, 0x555555, "Mono"     },  /* 7: Monochrome */
+};
+#define UI_THEME_PRESET_COUNT (sizeof(ui_theme_presets) / sizeof(ui_theme_presets[0]))
+
+/* ── Active color palette (runtime mutable) ── */
+extern uint32_t ui_active_accent;
+extern uint32_t ui_active_accent_dim;
+extern uint32_t ui_active_card_bg;
+extern uint32_t ui_active_track;
+
+#define UI_COLOR_BG           lv_color_black()
+#define UI_COLOR_CARD_BG      lv_color_hex(ui_active_card_bg)
+#define UI_COLOR_CARD_FOCUS   lv_color_hex(0x2A2A2A)
+#define UI_COLOR_ACCENT       lv_color_hex(ui_active_accent)
+#define UI_COLOR_ACCENT_DIM   lv_color_hex(ui_active_accent_dim)
+#define UI_COLOR_ACCENT_FOCUS_BORDER lv_color_black()
+#define UI_COLOR_ACCENT_FOCUS_OUTLINE lv_color_white()
+#define UI_COLOR_WARNING      lv_color_hex(0xFF6B35)
+#define UI_COLOR_TEXT_PRIMARY  lv_color_white()
+#define UI_COLOR_TEXT_SECONDARY lv_color_hex(0x888888)
+#define UI_COLOR_DIVIDER      lv_color_hex(0x333333)
+#define UI_COLOR_TRACK        lv_color_hex(ui_active_track)
+#define UI_COLOR_KNOB         lv_color_white()
+
+/* ── Shared styles ── */
+typedef struct {
+    lv_style_t card;
+    lv_style_t card_item;
+    lv_style_t accent_btn;
+    lv_style_t accent_focus_ring;
+    lv_style_t focus_glow;
+    lv_style_t text_secondary;
+    lv_style_t accent_text;   /* Text + shadow color that follows theme accent */
+    lv_style_t accent_shadow; /* Shadow-only style for glow effects */
+    lv_style_t divider;
+    lv_style_t slider_track;
+    lv_style_t slider_knob;
+    lv_style_t switch_on;
+    lv_style_t switch_off;
+} ui_styles_t;
+
+extern ui_styles_t ui_styles;
+void ui_styles_init(void);
 
 typedef void (*app_func_t)(lv_obj_t *parent);
 
@@ -76,6 +145,9 @@ void set_default_group(lv_group_t *group);
 lv_obj_t *ui_create_process_bar(lv_obj_t *parent, const char *title);
 
 void theme_init();
+void ui_styles_refresh(void);
+void ui_theme_apply(void);
+void ui_add_accent_focus_style(lv_obj_t *obj);
 
 void disable_input_devices();
 void enable_input_devices();
@@ -89,22 +161,46 @@ lv_obj_t *create_floating_button(lv_event_cb_t event_cb, void* user_data);
 lv_obj_t *create_menu(lv_obj_t *parent, lv_event_cb_t event_cb);
 lv_obj_t *create_radius_button(lv_obj_t *parent, const void *image, lv_event_cb_t event_cb, void* user_data);
 
-#if LVGL_VERSION_MAJOR == 9
-#define LV_MENU_ROOT_BACK_BTN_ENABLED   LV_MENU_ROOT_BACK_BUTTON_ENABLED
-#define lv_menu_back_btn_is_root        lv_menu_back_button_is_root
-#define lv_menu_set_mode_root_back_btn  lv_menu_set_mode_root_back_button
-#define lv_mem_alloc                    lv_malloc
-#define lv_mem_free                     lv_free
-#define LV_IMG_CF_ALPHA_8BIT            LV_COLOR_FORMAT_L8
-#define lv_point_t                      lv_point_precise_t
-#else
-#define lv_timer_get_user_data(x)       (x->user_data)
-#define lv_indev_get_type(x)            (x->driver->type)
-#endif
+/* ── New card-style UI components ── */
+lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t back_cb);
+void ui_enable_edge_swipe_back(lv_obj_t *root, lv_obj_t *back_target,
+                               lv_event_code_t back_event = LV_EVENT_CLICKED);
+void ui_destroy_app_page(lv_obj_t *content);
+void ui_app_page_enable_nav_auto_hide(lv_obj_t *content, uint32_t timeout_ms);
+void ui_app_page_disable_nav_auto_hide(lv_obj_t *content);
+lv_obj_t *ui_create_card(lv_obj_t *parent, const char *title);
+lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *title, lv_obj_t *widget);
+lv_obj_t *ui_create_card_slider(lv_obj_t *card, const char *icon, const char *title,
+                                 int32_t min, int32_t max, int32_t val, lv_event_cb_t cb);
+void ui_prepare_slider_for_encoder(lv_obj_t *slider);
+void ui_style_textarea(lv_obj_t *textarea);
+void ui_prepare_textarea_for_encoder(lv_obj_t *textarea);
+typedef struct {
+    lv_obj_t *lifted_obj;
+    lv_obj_t *original_parent;
+    int32_t original_index;
+} ui_soft_keyboard_lift_t;
+bool ui_soft_keyboard_should_open(void);
+void ui_soft_keyboard_show(lv_obj_t *keyboard, lv_obj_t *textarea,
+                           lv_obj_t *lift_obj, ui_soft_keyboard_lift_t *lift);
+void ui_soft_keyboard_hide(lv_obj_t *keyboard, ui_soft_keyboard_lift_t *lift);
+void ui_soft_keyboard_restore(ui_soft_keyboard_lift_t *lift);
+lv_obj_t *ui_create_card_switch(lv_obj_t *card, const char *icon, const char *title,
+                                 bool checked, lv_event_cb_t cb);
+lv_obj_t *ui_create_card_dropdown(lv_obj_t *card, const char *icon, const char *title,
+                                   const char *options, uint8_t sel, lv_event_cb_t cb);
+lv_obj_t *ui_create_card_button(lv_obj_t *card, const char *icon, const char *title,
+                                 const char *btn_text, lv_event_cb_t cb);
+lv_obj_t *ui_create_card_info(lv_obj_t *card, const char *icon, const char *title,
+                               const char *value);
+lv_obj_t *ui_create_status_bar(lv_obj_t *parent);
+void ui_status_bar_update(void);
 
-#if LVGL_VERSION_MAJOR == 8
-
-#endif
+bool is_screen_small(void);
+void ui_set_font_size_pref(uint8_t pref);
+uint8_t ui_get_font_size_pref(void);
+void ui_apply_theme_preset(uint8_t preset_idx);
+void update_page_indicator(void);
 
 #ifndef M_PI
 #define M_PI		3.14159265358979323846

@@ -8,6 +8,7 @@
  */
 
 #ifndef ARDUINO
+#include <LilyGoLog.h>
 #include <stdio.h>
 #include "lvgl.h"
 #include <unistd.h>
@@ -35,6 +36,7 @@ static void lv_log_print_g_cb(lv_log_level_t level, const char * buf)
 {
     LV_UNUSED(level);
     LV_UNUSED(buf);
+    LILYGO_LOG_PRINTF("%s", buf);
 }
 #endif
 
@@ -80,7 +82,7 @@ extern "C" int main(void)
     lv_init();
 
     hal_setup();
-    printf("hello lvgl\n");
+    LILYGO_LOG_PRINTF("hello lvgl\n");
     //****************** */
     hw_init();
     setupGui();

@@ -6,87 +6,168 @@
  * @date      2025-01-05
  *
  */
+#include <LilyGoLog.h>
 #include "ui_define.h"
+#include <string.h>
 
-#ifdef USING_EXTERN_NRF2401
+#if !defined(EXCLUDE_NRF24)
 
 #define RADIO_FREQUENCY_LIST    "2400MHz\n""2424MHz\n""2450MHZ\n""2500MHz\n""2525MHz"
 #define RADIO_TX_POWER_LIST     "-18dBm\n""-12dBm\n""-6dBm\n""0dBm"
 #define RADIO_INTERVAL_LIST     "1000ms\n""2000ms\n""3000ms"
-#define RADIO_MODE_LIST         "Disable\n""TX Mode\n""RX Mode"
+#define RADIO_MODE_LIST         "Disable\n""Beacon TX\n""RX Capture"
 #define RADIO_CR_LIST           "1000kbp\n""2000kbp\n""250kbp"       //bit rate
+#define NRF24_ADDRESS_LIST      "01 23 45 67 89\n""E7 E7 E7 E7 E7\n""C2 C2 C2 C2 C2\n""A5 A5 A5 A5 A5\n""FF FF FF FF FF"
+#define NRF24_MAX_PAYLOAD       32
 
 static const float radio_freq_args_list[] = {2400.0, 2424.0, 2450, 2500.0, 2525.0};
-static const float radio_power_args_list[] = {-18, -12, -6, 0};
+static const uint8_t radio_power_args_list[] = {0, 1, 2, 3};
 static const uint16_t radio_interval_args_list[] = {1000, 2000, 3000};
 static const uint16_t radio_dr_args_list[] = {1000, 2000, 250};
+static const uint8_t nrf24_address_args_list[][5] = {
+    {0x01, 0x23, 0x45, 0x67, 0x89},
+    {0xE7, 0xE7, 0xE7, 0xE7, 0xE7},
+    {0xC2, 0xC2, 0xC2, 0xC2, 0xC2},
+    {0xA5, 0xA5, 0xA5, 0xA5, 0xA5},
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+};
 
-static lv_obj_t *menu = NULL;
+static lv_obj_t *page_container = NULL;
 static lv_obj_t *radio_msg_label = NULL;
 static radio_params_t radio_params_copy;
 static uint8_t radio_run_mode = RADIO_DISABLE;
 static lv_timer_t *timer = NULL;
+static lv_obj_t *nrf24_unavailable_msgbox = NULL;
+static uint8_t nrf24_address_index = 0;
+static uint8_t last_rx_payload[NRF24_MAX_PAYLOAD];
+static uint8_t last_rx_len = 0;
+static uint32_t beacon_count = 0;
+static uint32_t capture_count = 0;
+static uint32_t replay_count = 0;
 
 static void radio_timer_task(lv_timer_t *t);
 static void ui_set_msg_label(const char *msg);
+static void replay_last_packet(void);
 
 static void back_event_handler(lv_event_t *e)
 {
-    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
-    if (lv_menu_back_btn_is_root(menu, obj)) {
-        if (timer) {
-            lv_timer_del(timer);
-            timer = NULL;
-        }
-        // Disable Radio RX or TX
-        radio_run_mode = RADIO_DISABLE;
-        radio_params_copy.mode = RADIO_DISABLE;
-        hw_set_nrf24_params(radio_params_copy);
-
-        lv_obj_clean(menu);
-        lv_obj_del(menu);
-
-        menu_show();
+    if (timer) {
+        lv_timer_delete(timer);
+        timer = NULL;
     }
+    // Disable Radio RX or TX
+    radio_run_mode = RADIO_DISABLE;
+    radio_params_copy.mode = RADIO_DISABLE;
+    hw_set_nrf24_params(radio_params_copy);
+
+    if (page_container) {
+        ui_destroy_app_page(page_container);
+        page_container = NULL;
+    }
+
+    menu_show();
+}
+
+static void nrf24_unavailable_msgbox_cb(lv_event_t *e)
+{
+    (void)e;
+    if (nrf24_unavailable_msgbox) {
+        destroy_msgbox(nrf24_unavailable_msgbox);
+        nrf24_unavailable_msgbox = NULL;
+    }
+    menu_show();
+}
+
+static void show_nrf24_unavailable_msgbox(void)
+{
+    if (nrf24_unavailable_msgbox) return;
+
+    static const char *btns[] = {"OK", ""};
+    nrf24_unavailable_msgbox = create_msgbox(
+                                   lv_scr_act(),
+                                   "NRF24",
+                                   "NRF24 module was not detected.\nCheck power and SPI wiring.",
+                                   btns,
+                                   nrf24_unavailable_msgbox_cb,
+                                   NULL);
+}
+
+static void format_hex_payload(const uint8_t *data, size_t len, char *out, size_t out_len)
+{
+    if (!out || out_len == 0) {
+        return;
+    }
+    if (!data || len == 0) {
+        snprintf(out, out_len, "--");
+        return;
+    }
+
+    size_t pos = 0;
+    for (size_t i = 0; i < len && pos + 4 < out_len; ++i) {
+        int written = snprintf(out + pos, out_len - pos, "%s%02X", i ? " " : "", data[i]);
+        if (written <= 0) {
+            break;
+        }
+        if ((size_t)written >= out_len - pos) {
+            break;
+        }
+        pos += (size_t)written;
+    }
+}
+
+static void apply_nrf24_address(uint8_t index)
+{
+    if (index >= (sizeof(nrf24_address_args_list) / sizeof(nrf24_address_args_list[0]))) {
+        index = 0;
+    }
+    nrf24_address_index = index;
+    hw_set_nrf24_address(nrf24_address_args_list[index], sizeof(nrf24_address_args_list[index]));
+}
+
+static void sync_nrf24_address_index(void)
+{
+    uint8_t current[5] = {0};
+    hw_get_nrf24_address(current, sizeof(current));
+    for (uint8_t i = 0; i < (sizeof(nrf24_address_args_list) / sizeof(nrf24_address_args_list[0])); ++i) {
+        if (memcmp(current, nrf24_address_args_list[i], sizeof(current)) == 0) {
+            nrf24_address_index = i;
+            return;
+        }
+    }
+    apply_nrf24_address(0);
 }
 
 static void _ui_nrf24_obj_event(lv_event_t *e)
 {
     uint16_t selected = 0;
-    string opt;
     lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
     const char *flag = ( const char *)lv_event_get_user_data(e);
-    const char *prefix = "RX Mode";
-    char buf[64];
 
-    if (*flag != 'b') {
+    if (*flag != 'b' && *flag != 'r') {
         selected =  lv_dropdown_get_selected(obj);
     }
 
     switch (*flag) {
     case 'f':   //*frequency
         radio_params_copy.freq = radio_freq_args_list[selected];
-        printf("set freq:%.2f\n", radio_params_copy.freq);
+        LILYGO_LOG_PRINTF("set freq:%.2f\n", radio_params_copy.freq);
         break;
     case 't':   //*tx power
         radio_params_copy.power = radio_power_args_list[selected];
-        printf("set power:%u selected:%u\n", radio_params_copy.power, selected);
+        LILYGO_LOG_PRINTF("set power index:%u selected:%u\n", radio_params_copy.power, selected);
         break;
     case 'i':   //*interval
         radio_params_copy.interval = radio_interval_args_list[selected];
-        printf("set interval:%u\n", radio_params_copy.interval);
+        LILYGO_LOG_PRINTF("set interval:%u\n", radio_params_copy.interval);
         break;
     case 'm':   //*mode
-        lv_dropdown_get_selected_str(obj, buf, 64);
-        if (strncmp(buf, prefix, lv_strlen(prefix)) == 0) {
-            // lv_obj_clear_flag(radio_msg_label, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            // lv_obj_add_flag(radio_msg_label, LV_OBJ_FLAG_HIDDEN);
-        }
         radio_params_copy.mode = selected;
         break;
     case 'c':   //*data rate
         radio_params_copy.cr = radio_dr_args_list[selected];
+        break;
+    case 'a':   //*address
+        apply_nrf24_address(selected);
         break;
     case 'b':   //*btn
         hw_set_nrf24_params(radio_params_copy);
@@ -96,22 +177,28 @@ static void _ui_nrf24_obj_event(lv_event_t *e)
             if (timer) {
                 lv_timer_pause(timer);
             }
+            ui_set_msg_label("RADIO DISABLE");
             break;
         case RADIO_TX:
             if (timer) {
                 lv_timer_resume(timer);
                 lv_timer_set_period(timer, radio_params_copy.interval);
             }
+            ui_set_msg_label("Beacon TX running");
             break;
         case RADIO_RX:
             if (timer) {
                 lv_timer_resume(timer);
                 lv_timer_set_period(timer, 300);
             }
+            ui_set_msg_label("RX capture running");
             break;
         default:
             break;
         }
+        break;
+    case 'r':   //*replay
+        replay_last_packet();
         break;
     default:
         break;
@@ -119,10 +206,10 @@ static void _ui_nrf24_obj_event(lv_event_t *e)
 }
 
 
-static lv_obj_t *create_frequency_dropdown(lv_obj_t *parent)
+static lv_obj_t *create_frequency_dropdown(lv_obj_t *card)
 {
     static const char flag = 'f';
-    lv_obj_t *dd = lv_dropdown_create(parent);
+    lv_obj_t *dd = lv_dropdown_create(card);
     lv_dropdown_set_options(dd, RADIO_FREQUENCY_LIST);
     lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
 
@@ -134,15 +221,16 @@ static lv_obj_t *create_frequency_dropdown(lv_obj_t *parent)
         }
         index++;
     }
+    ui_create_card_item(card, LV_SYMBOL_WIFI, "Frequency", dd);
     return dd;
 }
 
 
 
-static lv_obj_t *create_tx_power_dropdown(lv_obj_t *parent)
+static lv_obj_t *create_tx_power_dropdown(lv_obj_t *card)
 {
     static const char flag = 't';
-    lv_obj_t *dd = lv_dropdown_create(parent);
+    lv_obj_t *dd = lv_dropdown_create(card);
     lv_dropdown_set_options(dd, RADIO_TX_POWER_LIST);
     lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
 
@@ -154,13 +242,14 @@ static lv_obj_t *create_tx_power_dropdown(lv_obj_t *parent)
         }
         index++;
     }
+    ui_create_card_item(card, LV_SYMBOL_WIFI, "TX Power", dd);
     return dd;
 }
 
-static lv_obj_t *create_tx_interval_dropdown(lv_obj_t *parent)
+static lv_obj_t *create_tx_interval_dropdown(lv_obj_t *card)
 {
     static const char flag = 'i';
-    lv_obj_t *dd = lv_dropdown_create(parent);
+    lv_obj_t *dd = lv_dropdown_create(card);
     lv_dropdown_set_options(dd, RADIO_INTERVAL_LIST);
     lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
 
@@ -172,13 +261,14 @@ static lv_obj_t *create_tx_interval_dropdown(lv_obj_t *parent)
         }
         index++;
     }
+    ui_create_card_item(card, LV_SYMBOL_LOOP, "Tx Interval", dd);
     return dd;
 }
 
-static lv_obj_t *create_mode_dropdown(lv_obj_t *parent)
+static lv_obj_t *create_mode_dropdown(lv_obj_t *card)
 {
     static const char flag = 'm';
-    lv_obj_t *dd = lv_dropdown_create(parent);
+    lv_obj_t *dd = lv_dropdown_create(card);
     lv_dropdown_set_options(dd, RADIO_MODE_LIST);
     lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
 
@@ -189,22 +279,23 @@ static lv_obj_t *create_mode_dropdown(lv_obj_t *parent)
         break;
     case RADIO_TX:
         lv_dropdown_set_selected(dd, 1);
-        ui_set_msg_label("RADIO TX");
+        ui_set_msg_label("Beacon TX");
         break;
     case RADIO_RX:
         lv_dropdown_set_selected(dd, 2);
-        ui_set_msg_label("RADIO RX");
+        ui_set_msg_label("RX Capture");
         break;
     default:
         break;
     }
+    ui_create_card_item(card, LV_SYMBOL_SETTINGS, "Mode", dd);
     return dd;
 }
 
-static lv_obj_t *create_dr_dropdown(lv_obj_t *parent)
+static lv_obj_t *create_dr_dropdown(lv_obj_t *card)
 {
     static const char flag = 'c';
-    lv_obj_t *dd = lv_dropdown_create(parent);
+    lv_obj_t *dd = lv_dropdown_create(card);
     lv_dropdown_set_options(dd, RADIO_CR_LIST);
     lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
 
@@ -216,18 +307,37 @@ static lv_obj_t *create_dr_dropdown(lv_obj_t *parent)
         }
         index++;
     }
+    ui_create_card_item(card, LV_SYMBOL_SETTINGS, "Bit rate", dd);
+    return dd;
+}
+
+static lv_obj_t *create_address_dropdown(lv_obj_t *card)
+{
+    static const char flag = 'a';
+    lv_obj_t *dd = lv_dropdown_create(card);
+    lv_dropdown_set_options(dd, NRF24_ADDRESS_LIST);
+    lv_dropdown_set_selected(dd, nrf24_address_index);
+    lv_obj_add_event_cb(dd, _ui_nrf24_obj_event, LV_EVENT_VALUE_CHANGED, (void *)&flag);
+    ui_create_card_item(card, LV_SYMBOL_LIST, "Address", dd);
     return dd;
 }
 
 
-static lv_obj_t *create_state_textarea(lv_obj_t *parent)
+static lv_obj_t *create_state_textarea(lv_obj_t *card)
 {
     //Rx Receiver msg box
-    radio_msg_label = lv_textarea_create(parent);
+    radio_msg_label = lv_textarea_create(card);
     lv_textarea_set_text_selection(radio_msg_label, false);
     lv_textarea_set_cursor_click_pos(radio_msg_label, false);
     lv_textarea_set_one_line(radio_msg_label, true);
     lv_obj_set_scrollbar_mode(radio_msg_label, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_bg_color(radio_msg_label, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_opa(radio_msg_label, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(radio_msg_label, lv_color_white(), 0);
+    lv_obj_set_style_border_color(radio_msg_label, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_border_width(radio_msg_label, 1, 0);
+    lv_obj_set_style_radius(radio_msg_label, 6, 0);
+    lv_obj_set_style_pad_all(radio_msg_label, 4, 0);
 
     lv_obj_add_event_cb(radio_msg_label, [](lv_event_t *e) {
         lv_event_code_t code = lv_event_get_code(e);
@@ -237,6 +347,7 @@ static lv_obj_t *create_state_textarea(lv_obj_t *parent)
         }
     }, LV_EVENT_ALL, NULL);
 
+    ui_create_card_item(card, LV_SYMBOL_WIFI, "State", radio_msg_label);
     return radio_msg_label;
 }
 
@@ -263,53 +374,109 @@ static void _msg_ta_cb(lv_event_t *e)
         if (code == LV_EVENT_CLICKED) {
             if (edited) {
                 lv_group_set_editing((lv_group_t *)lv_obj_get_group(ta), false);
-                printf("disable keyboard\n");
+                LILYGO_LOG_PRINTF("disable keyboard\n");
                 disable_keyboard();
                 const char *text = lv_textarea_get_text(ta);
                 if (text) {
                     radio_params_copy.syncWord = atoi(text);
-                    printf("syncword -> %s - DEC:%d\n", text, radio_params_copy.syncWord);
+                    LILYGO_LOG_PRINTF("syncword -> %s - DEC:%d\n", text, radio_params_copy.syncWord);
                 }
             }
         } else if (code == LV_EVENT_FOCUSED) {
             if (edited) {
-                printf("enable input keyboard \n");
+                LILYGO_LOG_PRINTF("enable input keyboard \n");
                 enable_keyboard();
             }
         }
     }
 }
 
+static void replay_last_packet(void)
+{
+#ifdef ARDUINO
+    char hex[NRF24_MAX_PAYLOAD * 3 + 4];
+    char msg[160];
+
+    if (last_rx_len == 0) {
+        ui_set_msg_label("No captured packet");
+        return;
+    }
+
+    radio_params_t tx_cfg = radio_params_copy;
+    tx_cfg.mode = RADIO_TX;
+    int16_t cfg_state = hw_set_nrf24_params(tx_cfg);
+    if (cfg_state != 0) {
+        snprintf(msg, sizeof(msg), "Replay config failed:%d", cfg_state);
+        ui_set_msg_label(msg);
+        return;
+    }
+
+    radio_tx_params_t tx_params = {};
+    tx_params.data = last_rx_payload;
+    tx_params.length = last_rx_len;
+    bool ok = hw_set_nrf24_tx(tx_params, false);
+    format_hex_payload(last_rx_payload, last_rx_len, hex, sizeof(hex));
+
+    if (ok && tx_params.state == 0) {
+        replay_count++;
+        snprintf(msg, sizeof(msg), "Replay #%lu len=%u %s",
+                 (unsigned long)replay_count,
+                 (unsigned)last_rx_len,
+                 hex);
+    } else {
+        snprintf(msg, sizeof(msg), "Replay failed:%d len=%u",
+                 tx_params.state,
+                 (unsigned)last_rx_len);
+    }
+    ui_set_msg_label(msg);
+
+    if (radio_run_mode == RADIO_RX) {
+        radio_params_t rx_cfg = radio_params_copy;
+        rx_cfg.mode = RADIO_RX;
+        hw_set_nrf24_params(rx_cfg);
+    } else if (radio_run_mode == RADIO_DISABLE) {
+        radio_params_t off_cfg = radio_params_copy;
+        off_cfg.mode = RADIO_DISABLE;
+        hw_set_nrf24_params(off_cfg);
+    }
+#else
+    ui_set_msg_label("Replay is hardware only");
+#endif
+}
 
 static void radio_timer_task(lv_timer_t *t)
 {
 #ifdef ARDUINO
     static radio_tx_params_t tx_params;
     static radio_rx_params_t rx_params;
-    char msg[128];
+    char msg[160];
+    char hex[NRF24_MAX_PAYLOAD * 3 + 4];
     bool rlst = false;
     static uint32_t last_sended = 0;
     int tick = lv_tick_get() / 1000;
-    static uint32_t tx_count = 0;
 
-    uint8_t tmp_buffer[30] = {0};
-    String str;
+    uint8_t tmp_buffer[NRF24_MAX_PAYLOAD] = {0};
+    char tx_payload[NRF24_MAX_PAYLOAD] = {0};
 
     switch (radio_run_mode) {
     case RADIO_DISABLE:
         break;
     case RADIO_TX:
-        // Discard the first byte
-        str = " Hello#" + String(tx_count++);
-        tx_params.data = (uint8_t*)str.c_str();
-        tx_params.length = str.length();
+        snprintf(tx_payload, sizeof(tx_payload), "LILYGO%04lu", (unsigned long)beacon_count++);
+        tx_params.data = (uint8_t*)tx_payload;
+        tx_params.length = strlen(tx_payload);
         rlst = hw_set_nrf24_tx(tx_params);
         if (!rlst && ((lv_tick_get() - last_sended) > radio_params_copy.interval)) {
-            printf("Clear ISR flag\n");
+            LILYGO_LOG_PRINTF("Clear ISR flag\n");
             hw_clear_nrf24_flag();
         }
         if (tx_params.state == 0) {
-            snprintf(msg, 128, "[%u]Tx PASS :%s", tick, str.c_str());
+            format_hex_payload((const uint8_t *)tx_payload, tx_params.length, hex, sizeof(hex));
+            snprintf(msg, sizeof(msg), "[%u] Beacon #%lu len=%u %s",
+                     tick,
+                     (unsigned long)beacon_count,
+                     (unsigned)tx_params.length,
+                     hex);
             ui_set_msg_label(msg);
             last_sended = lv_tick_get();
         }
@@ -318,11 +485,16 @@ static void radio_timer_task(lv_timer_t *t)
         rx_params.data = tmp_buffer;
         rx_params.length = sizeof(tmp_buffer);
         hw_get_nrf24_rx(rx_params);
-        if (rx_params.state == 0) {
-            String str = String((const char *)rx_params.data);
-            // Discard the last byte
-            str = str.substring(0, str.length() - 1);
-            snprintf(msg, 128, "[%u]Rx PASS :%s", tick, str.c_str());
+        if (rx_params.state == 0 && rx_params.length > 0) {
+            last_rx_len = rx_params.length > NRF24_MAX_PAYLOAD ? NRF24_MAX_PAYLOAD : rx_params.length;
+            memcpy(last_rx_payload, rx_params.data, last_rx_len);
+            capture_count++;
+            format_hex_payload(last_rx_payload, last_rx_len, hex, sizeof(hex));
+            snprintf(msg, sizeof(msg), "[%u] RX #%lu len=%u %s",
+                     tick,
+                     (unsigned long)capture_count,
+                     (unsigned)last_rx_len,
+                     hex);
             ui_set_msg_label(msg);
         }
         break;
@@ -335,67 +507,95 @@ static void radio_timer_task(lv_timer_t *t)
 void ui_nrf24_enter(lv_obj_t *parent)
 {
     static const char flag = 'b';
-
-    menu = create_menu(parent, back_event_handler);
-    lv_obj_t *main_page = lv_menu_page_create(menu, NULL);
+    static const char replay_flag = 'r';
 
     if (!hw_has_nrf24()) {
-
-        lv_obj_t *cont = lv_obj_create(main_page);
-        lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
-        lv_obj_center(cont);
-        lv_obj_set_style_border_opa(cont, LV_OPA_TRANSP, LV_PART_MAIN);
-
-        LV_IMG_DECLARE(img_cry);
-        lv_obj_t *img = lv_img_create(cont);
-        lv_img_set_src(img, &img_cry);
-        lv_obj_align(img, LV_ALIGN_TOP_MID, 0, lv_pct(10));
-
-        lv_obj_t *label = lv_label_create(cont);
-        lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
-        lv_label_set_text(label, "NRF2401 module not detected.");
-
-        lv_menu_set_page(menu, main_page);
-        lv_obj_align_to(label, img, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
-
-#ifdef USING_TOUCHPAD
-        quit_btn  = create_floating_button([](lv_event_t*e) {
-            lv_obj_send_event(lv_menu_get_main_header_back_button(menu), LV_EVENT_CLICKED, NULL);
-        }, NULL);
-#endif
-
+        show_nrf24_unavailable_msgbox();
         return;
     }
 
+    page_container = ui_create_app_page(parent, "NRF24", back_event_handler);
 
     hw_get_nrf24_params(radio_params_copy);
-    ui_create_option(main_page, "State:", NULL, create_state_textarea, NULL);
-    ui_create_option(main_page, "Mode:", NULL, create_mode_dropdown, NULL);
-    ui_create_option(main_page, "Frequency:", NULL, create_frequency_dropdown, NULL);
-    ui_create_option(main_page, "TX Power:", NULL, create_tx_power_dropdown, NULL);
-    ui_create_option(main_page, "Tx Interval:", NULL, create_tx_interval_dropdown, NULL);
-    ui_create_option(main_page, "Bit rate:", NULL, create_dr_dropdown, NULL);
+    sync_nrf24_address_index();
+    last_rx_len = 0;
+    beacon_count = 0;
+    capture_count = 0;
+    replay_count = 0;
+
+    lv_obj_t *card = ui_create_card(page_container, "State");
+    create_state_textarea(card);
+
+    card = ui_create_card(page_container, "Mode");
+    create_mode_dropdown(card);
+
+    card = ui_create_card(page_container, "Parameters");
+    create_frequency_dropdown(card);
+    create_tx_power_dropdown(card);
+    create_tx_interval_dropdown(card);
+    create_dr_dropdown(card);
+    create_address_dropdown(card);
 
     timer =  lv_timer_create(radio_timer_task, 1000, NULL);
     lv_timer_pause(timer);
 
-    lv_obj_t *cont = lv_menu_cont_create(main_page);
-    lv_obj_remove_style_all(cont);
-    lv_obj_set_size(cont, lv_pct(100), 80);
+    /* Action buttons */
+    lv_obj_t *btn_row = lv_obj_create(page_container);
+    lv_obj_set_size(btn_row, LV_PCT(100), 86);
+    lv_obj_set_style_border_width(btn_row, 0, 0);
+    lv_obj_set_style_bg_opa(btn_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(btn_row, 0, 0);
+    lv_obj_set_style_pad_column(btn_row, 12, 0);
+    lv_obj_set_style_pad_row(btn_row, 8, 0);
+    lv_obj_set_flex_flow(btn_row, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(btn_row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    int w =  lv_disp_get_hor_res(NULL) / 5;
-    lv_obj_t *quit_btn = create_radius_button(cont, LV_SYMBOL_LEFT, [](lv_event_t*e) {
-        lv_obj_send_event(lv_menu_get_main_header_back_button(menu), LV_EVENT_CLICKED, NULL);
-    }, NULL);
-    lv_obj_remove_flag(quit_btn, LV_OBJ_FLAG_FLOATING);
-    lv_obj_align(quit_btn, LV_ALIGN_BOTTOM_MID, -w, -20);
+    lv_obj_t *back_btn = lv_btn_create(btn_row);
+    lv_obj_set_size(back_btn, LV_PCT(30), 36);
+    lv_obj_set_style_bg_color(back_btn, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(back_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(back_btn, 8, 0);
+    lv_obj_set_style_border_width(back_btn, 1, 0);
+    lv_obj_set_style_border_color(back_btn, UI_COLOR_DIVIDER, 0);
+    {
+        lv_obj_t *l = lv_label_create(back_btn);
+        lv_label_set_text(l, LV_SYMBOL_LEFT " Back");
+        lv_obj_set_style_text_color(l, UI_COLOR_TEXT_PRIMARY, 0);
+        lv_obj_center(l);
+    }
+    lv_obj_add_event_cb(back_btn, [](lv_event_t *e) {
+        back_event_handler(e);
+    }, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t *ok_btn = create_radius_button(cont, LV_SYMBOL_OK, _ui_nrf24_obj_event,  (void *)&flag);
-    lv_obj_remove_flag(ok_btn, LV_OBJ_FLAG_FLOATING);
-    lv_obj_align(ok_btn, LV_ALIGN_BOTTOM_MID, w, -20);
+    lv_obj_t *ok_btn = lv_btn_create(btn_row);
+    lv_obj_set_size(ok_btn, LV_PCT(30), 36);
+    lv_obj_set_style_bg_color(ok_btn, UI_COLOR_ACCENT, 0);
+    lv_obj_set_style_bg_opa(ok_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(ok_btn, 8, 0);
+    lv_obj_set_style_border_width(ok_btn, 0, 0);
+    ui_add_accent_focus_style(ok_btn);
+    {
+        lv_obj_t *l = lv_label_create(ok_btn);
+        lv_label_set_text(l, LV_SYMBOL_OK " Start");
+        lv_obj_set_style_text_color(l, lv_color_white(), 0);
+        lv_obj_center(l);
+    }
+    lv_obj_add_event_cb(ok_btn, _ui_nrf24_obj_event, LV_EVENT_CLICKED, (void *)&flag);
 
-    lv_menu_set_page(menu, main_page);
-
+    lv_obj_t *replay_btn = lv_btn_create(btn_row);
+    lv_obj_set_size(replay_btn, LV_PCT(30), 36);
+    lv_obj_set_style_bg_color(replay_btn, lv_color_hex(0x2FB344), 0);
+    lv_obj_set_style_bg_opa(replay_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(replay_btn, 8, 0);
+    lv_obj_set_style_border_width(replay_btn, 0, 0);
+    ui_add_accent_focus_style(replay_btn);
+    {
+        lv_obj_t *l = lv_label_create(replay_btn);
+        lv_label_set_text(l, LV_SYMBOL_PLAY " Replay");
+        lv_obj_set_style_text_color(l, lv_color_white(), 0);
+        lv_obj_center(l);
+    }
+    lv_obj_add_event_cb(replay_btn, _ui_nrf24_obj_event, LV_EVENT_CLICKED, (void *)&replay_flag);
 }
 
 
@@ -411,5 +611,4 @@ app_t ui_nrf24_main = {
     .user_data = nullptr,
 };
 
-#endif /*USING_EXTERN_NRF2401*/
-
+#endif /* EXCLUDE_NRF24 */

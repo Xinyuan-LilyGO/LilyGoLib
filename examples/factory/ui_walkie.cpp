@@ -29,16 +29,29 @@
  *  - PCMFlow library (https://github.com/lbuque/PCMFlow)
  *  - PCMFlowG722 library (https://github.com/tanakamasayuki/PCMFlowG722)
  */
+#include <LilyGoLog.h>
 #include "ui_define.h"
 #include "esp_arduino_version.h"
 
-// Version marked, new version not compatible
-#if (ESP_ARDUINO_VERSION <= ESP_ARDUINO_VERSION_VAL(3,0,0)) && defined(ARDUINO_T_LORA_PAGER)
+#define WALKIE_EXCLUDE_ARDUINO_CORE4 \
+    (ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(4,0,0))
 
-#include <esp_now.h>
+#define WALKIE_USE_ESPNOW_CLASS \
+    (ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3,3,0))
+
+/*&& (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)) */
+#if !defined(EXCLUDE_WALKIE) && !WALKIE_EXCLUDE_ARDUINO_CORE4
+
 #include <esp_wifi.h>
 #include <PCMFlow.h>
 #include <PCMFlowG722.h>
+
+#if WALKIE_USE_ESPNOW_CLASS
+#include <ESP32_NOW.h>
+#include <new>
+#else
+#include <esp_now.h>
+#endif
 
 using namespace std;
 
@@ -131,18 +144,22 @@ static bool             s_started    = false;
 
 // LVGL
 static lv_timer_t      *s_timer      = NULL;
-static lv_obj_t        *s_menu       = NULL;
 static lv_obj_t        *s_page       = NULL;
 static lv_obj_t        *s_ptt_btn    = NULL;
 static lv_obj_t        *s_status_label = NULL;
 static lv_obj_t        *s_talker_label = NULL;
 static lv_obj_t        *s_contact_list = NULL;
+static lv_obj_t        *s_contact_count_label = NULL;
+static lv_obj_t        *s_peer_count_label = NULL;
+static lv_obj_t        *s_contacts_overlay = NULL;
+static lv_obj_t        *s_back_btn = NULL;
+static lv_obj_t        *s_pair_btn = NULL;
 
 // Mic "ripple" indicator (talk/receive visualisation)
 static lv_obj_t        *s_mic_icon   = NULL;
 static lv_obj_t        *s_ripple[2]  = {NULL, NULL};
-static constexpr int    kMicDia      = 72;   // centre mic circle diameter
-static constexpr int    kRippleGrow  = 64;   // how far the rings expand
+static constexpr int    kMicDia      = 64;   // centre mic circle diameter
+static constexpr int    kRippleGrow  = 36;   // how far the rings expand
 
 // Setup-page widgets
 static lv_obj_t        *s_nick_ta    = NULL;
@@ -151,12 +168,50 @@ static lv_obj_t        *s_chan_dd    = NULL;
 static lv_obj_t        *s_keyboard   = NULL;
 #endif
 
+static AudioInputIf    *audioInput   = NULL;
+static AudioOutputIf   *audioOutput  = NULL;
+static bool             s_espnow_ready = false;
+static bool             s_codec_ready = false;
+static bool             s_audio_flow_ready = false;
+static bool             s_audio_input_open = false;
+static bool             s_audio_output_open = false;
+static bool             s_showing_talk = false;
+
+#if WALKIE_USE_ESPNOW_CLASS
+class WalkieBroadcastPeer : public ESP_NOW_Peer {
+public:
+    explicit WalkieBroadcastPeer(uint8_t channel)
+        : ESP_NOW_Peer(ESP_NOW.BROADCAST_ADDR, channel, WIFI_IF_STA, nullptr) {}
+
+    ~WalkieBroadcastPeer()
+    {
+        remove();
+    }
+
+    bool begin()
+    {
+        if (!ESP_NOW.begin() || !add()) {
+            LILYGO_LOG_E("Failed to initialize ESP-NOW broadcast peer");
+            return false;
+        }
+        return true;
+    }
+
+    bool send_message(const uint8_t *data, size_t len)
+    {
+        return send(data, len) == len;
+    }
+};
+
+static WalkieBroadcastPeer *s_broadcast_peer = nullptr;
+#endif
+
 // ============================================================
-// ESP-NOW receive callback (called from the WiFi task context)
+// ESP-NOW compatibility layer
 // ============================================================
-static void on_esp_now_recv(const uint8_t *mac, const uint8_t *data, int len)
+static void on_esp_now_recv_common(const uint8_t *mac, const uint8_t *data, int len)
 {
-    if (!data) return;
+    if (!mac || !data) return;
 
     // Control packet: peer announcing its nickname.
     if (len == (int)sizeof(walkie_hello_t) &&
@@ -174,6 +229,7 @@ static void on_esp_now_recv(const uint8_t *mac, const uint8_t *data, int len)
     // Audio frame.
     if (len != (int)kFrameBytes) return;
     if (s_ptt_active) return;  // skip while transmitting
+    if (!s_rx_queue) return;
 
     memcpy(s_talk_mac, mac, 6);
     s_have_talker = true;
@@ -185,24 +241,69 @@ static void on_esp_now_recv(const uint8_t *mac, const uint8_t *data, int len)
     s_last_rx_ms = millis();
 }
 
-// ============================================================
-// ESP-NOW setup
-// ============================================================
+#if WALKIE_USE_ESPNOW_CLASS
+static void on_esp_now_new_peer(const esp_now_recv_info_t *info,
+                                const uint8_t *data, int len, void *arg)
+{
+    if (!info) return;
+    on_esp_now_recv_common(info->src_addr, data, len);
+}
+#elif (ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3,0,0))
+static void on_esp_now_recv(const esp_now_recv_info_t *info,
+                            const uint8_t *data, int len)
+{
+    if (!info) return;
+    on_esp_now_recv_common(info->src_addr, data, len);
+}
+#else
+static void on_esp_now_recv(const uint8_t *mac, const uint8_t *data, int len)
+{
+    on_esp_now_recv_common(mac, data, len);
+}
+#endif
+
 static bool setup_espnow(uint8_t channel, bool wifi_connected)
 {
     // When WiFi is connected we must not retune the radio: ESP-NOW simply
     // rides on the WiFi channel. Otherwise bring up a bare STA on `channel`.
     if (!wifi_connected) {
         WiFi.mode(WIFI_STA);
+#if WALKIE_USE_ESPNOW_CLASS
+        WiFi.setChannel(channel, WIFI_SECOND_CHAN_NONE);
+        uint32_t started_at = millis();
+        while (!WiFi.STA.started() && millis() - started_at < 1000) {
+            delay(10);
+        }
+#else
         esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+#endif
     }
 
+#if WALKIE_USE_ESPNOW_CLASS
+    if (s_broadcast_peer) {
+        delete s_broadcast_peer;
+        s_broadcast_peer = nullptr;
+    }
+    s_broadcast_peer = new (std::nothrow) WalkieBroadcastPeer(channel);
+    if (!s_broadcast_peer) {
+        LILYGO_LOG_E("WalkieBroadcastPeer allocation failed");
+        return false;
+    }
+    if (!s_broadcast_peer->begin()) {
+        delete s_broadcast_peer;
+        s_broadcast_peer = nullptr;
+        ESP_NOW.end();
+        return false;
+    }
+    ESP_NOW.onNewPeer(on_esp_now_new_peer, nullptr);
+#else
     if (esp_now_init() != ESP_OK) {
-        log_e("esp_now_init failed");
+        LILYGO_LOG_E("esp_now_init failed");
         return false;
     }
     if (esp_now_register_recv_cb(on_esp_now_recv) != ESP_OK) {
-        log_e("esp_now_register_recv_cb failed");
+        LILYGO_LOG_E("esp_now_register_recv_cb failed");
+        esp_now_deinit();
         return false;
     }
 
@@ -213,10 +314,41 @@ static bool setup_espnow(uint8_t channel, bool wifi_connected)
     memcpy(peer.peer_addr, s_broadcast_mac, 6);
 
     if (esp_now_add_peer(&peer) != ESP_OK) {
-        log_e("esp_now_add_peer failed");
+        LILYGO_LOG_E("esp_now_add_peer failed");
+        esp_now_unregister_recv_cb();
+        esp_now_deinit();
         return false;
     }
+#endif
+
+    s_espnow_ready = true;
     return true;
+}
+
+static void teardown_espnow()
+{
+    if (!s_espnow_ready) return;
+    s_espnow_ready = false;
+
+#if WALKIE_USE_ESPNOW_CLASS
+    if (s_broadcast_peer) {
+        delete s_broadcast_peer;
+        s_broadcast_peer = nullptr;
+    }
+    ESP_NOW.end();
+#else
+    esp_now_unregister_recv_cb();
+    esp_now_deinit();
+#endif
+}
+
+static bool walkie_espnow_send(const uint8_t *data, size_t len)
+{
+#if WALKIE_USE_ESPNOW_CLASS
+    return s_broadcast_peer && s_broadcast_peer->send_message(data, len);
+#else
+    return esp_now_send(s_broadcast_mac, data, len) == ESP_OK;
+#endif
 }
 
 // Broadcast our nickname so peers can list us / label our transmissions.
@@ -225,7 +357,7 @@ static void send_hello()
     walkie_hello_t hello = {};
     memcpy(hello.magic, kHelloMagic, sizeof(kHelloMagic));
     strncpy(hello.nickname, s_nickname, kNickMax - 1);
-    esp_now_send(s_broadcast_mac, (const uint8_t *)&hello, sizeof(hello));
+    walkie_espnow_send((const uint8_t *)&hello, sizeof(hello));
 }
 
 // ============================================================
@@ -245,13 +377,15 @@ static void walkie_tx_task(void *arg)
         while (s_ptt_active) {
             // Read 20ms PCM from microphone (blocks ~20ms)
             xSemaphoreTake(s_codec_mtx, portMAX_DELAY);
-            instance.codec.read((uint8_t *)pcm, sizeof(pcm));
+            if(audioInput){
+                audioInput->read((uint8_t *)pcm, sizeof(pcm));
+            }
             xSemaphoreGive(s_codec_mtx);
 
             // G.722 encode: 320 PCM samples -> 160 bytes
             size_t encoded = s_enc.encode(pcm, kFrameSamples, g722, sizeof(g722));
             if (encoded > 0) {
-                esp_now_send(s_broadcast_mac, g722, encoded);
+                walkie_espnow_send(g722, encoded);
             }
         }
 
@@ -284,8 +418,9 @@ static void walkie_rx_task(void *arg)
             size_t got = s_audio.readFrames(pcm, kFrameSamples);
             if (got == 0) break;
             xSemaphoreTake(s_codec_mtx, portMAX_DELAY);
-            instance.codec.write((uint8_t *)pcm,
-                                  got * (kBitsPerSample / 8));
+            if(audioOutput){
+                audioOutput->write((uint8_t *)pcm,got * (kBitsPerSample / 8));
+            }
             xSemaphoreGive(s_codec_mtx);
         }
     }
@@ -308,15 +443,51 @@ static const char *nickname_for(const uint8_t *mac)
     return c ? c->nickname : "Unknown";
 }
 
+static void update_contact_count_labels()
+{
+    unsigned count = (unsigned)s_contacts.size();
+    if (s_peer_count_label) {
+        lv_label_set_text_fmt(s_peer_count_label, LV_SYMBOL_CALL " Pair %u", count);
+    }
+    if (s_contact_count_label) {
+        lv_label_set_text_fmt(s_contact_count_label, "%u", count);
+    }
+}
+
+static void apply_walkie_scrollbar_style(lv_obj_t *obj)
+{
+    if (!obj) return;
+    lv_obj_set_style_bg_color(obj, UI_COLOR_ACCENT, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_60, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(obj, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(obj, 2, LV_PART_SCROLLBAR);
+}
+
+static void apply_walkie_action_theme()
+{
+    if (s_back_btn) {
+        lv_obj_set_style_bg_color(s_back_btn, UI_COLOR_CARD_BG, 0);
+        lv_obj_set_style_border_color(s_back_btn, UI_COLOR_TRACK, 0);
+    }
+    if (s_pair_btn) {
+        lv_obj_set_style_bg_color(s_pair_btn, UI_COLOR_ACCENT, 0);
+        lv_obj_set_style_bg_color(s_pair_btn, UI_COLOR_ACCENT_DIM,
+                                  LV_STATE_PRESSED);
+    }
+    apply_walkie_scrollbar_style(s_page);
+    apply_walkie_scrollbar_style(s_contact_list);
+}
+
 static void rebuild_contact_list()
 {
+    update_contact_count_labels();
     if (!s_contact_list) return;
     lv_obj_clean(s_contact_list);
 
     if (s_contacts.empty()) {
         lv_obj_t *empty = lv_label_create(s_contact_list);
         lv_label_set_text(empty, "Searching...");
-        lv_obj_set_style_text_color(empty, lv_color_hex(0xAAAAAA), 0);
+        lv_obj_set_style_text_color(empty, UI_COLOR_TEXT_SECONDARY, 0);
         return;
     }
 
@@ -324,7 +495,7 @@ static void rebuild_contact_list()
         lv_obj_t *row = lv_label_create(s_contact_list);
         lv_label_set_text_fmt(row, "%s %s", LV_SYMBOL_CALL, c.nickname);
         lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_style_text_color(row, lv_color_hex(0x2A2A2A), 0);
+        lv_obj_set_style_text_color(row, UI_COLOR_TEXT_PRIMARY, 0);
         lv_label_set_long_mode(row, LV_LABEL_LONG_DOT);
     }
 }
@@ -382,6 +553,8 @@ static void walkie_timer_cb(lv_timer_t *t)
     // --- Refresh the contact list ---
     if (update_contacts()) {
         rebuild_contact_list();
+    } else {
+        update_contact_count_labels();
     }
 
     walkie_state_t st = s_state;
@@ -402,28 +575,35 @@ static void walkie_timer_cb(lv_timer_t *t)
     switch (st) {
     case WALKIE_STATE_TRANSMIT:
         caption = "TALKING";
-        accent  = lv_color_hex(0xCC3333);   // red
+        accent  = UI_COLOR_ACCENT;
         break;
     case WALKIE_STATE_RECEIVE:
         caption = "RECEIVING";
-        accent  = lv_color_hex(0x33AA33);   // green
+        accent  = UI_COLOR_ACCENT_DIM;
         break;
     default:
         caption = "IDLE";
-        accent  = lv_color_hex(0x2A2A2A);
+        accent  = UI_COLOR_TEXT_SECONDARY;
         active  = false;
         break;
     }
 
     lv_label_set_text(s_status_label, caption);
     lv_obj_set_style_text_color(s_status_label,
-                                active ? accent : lv_color_hex(0x888888), 0);
+                                active ? accent : UI_COLOR_TEXT_SECONDARY, 0);
 
     // Mic button colour: lit with the accent while active, dark when idle.
     if (s_ptt_btn) {
         lv_obj_set_style_bg_color(s_ptt_btn,
-                                  active ? accent : lv_color_hex(0x2A2A2A), 0);
+                                  active ? accent : UI_COLOR_CARD_BG, 0);
+        lv_obj_set_style_border_color(s_ptt_btn, UI_COLOR_ACCENT, 0);
     }
+    if (s_mic_icon) {
+        lv_obj_set_style_image_recolor(s_mic_icon,
+                                       active ? lv_color_white() : UI_COLOR_ACCENT,
+                                       0);
+    }
+    apply_walkie_action_theme();
 
     // Ripple animation: two rings radiating outward and fading, 50% out of
     // phase with each other. Driven straight off this 100ms tick.
@@ -459,16 +639,63 @@ static void walkie_timer_cb(lv_timer_t *t)
     }
 }
 
+static void reset_talk_widgets()
+{
+    s_ptt_btn      = NULL;
+    s_status_label = NULL;
+    s_talker_label = NULL;
+    s_contact_list = NULL;
+    s_contact_count_label = NULL;
+    s_peer_count_label = NULL;
+    s_back_btn = NULL;
+    s_pair_btn = NULL;
+    s_mic_icon     = NULL;
+    s_ripple[0]    = NULL;
+    s_ripple[1]    = NULL;
+}
+
+static void reset_setup_widgets()
+{
+    s_nick_ta      = NULL;
+    s_chan_dd      = NULL;
+}
+
+static void delete_setup_keyboard()
+{
+#ifdef USING_TOUCHPAD
+    if (s_keyboard) {
+        lv_obj_delete(s_keyboard);
+        s_keyboard = NULL;
+    }
+#endif
+}
+
+static void delete_walkie_timer()
+{
+    if (s_timer) {
+        lv_timer_delete(s_timer);
+        s_timer = NULL;
+    }
+}
+
 // ============================================================
 // Talk-session teardown (idempotent)
 // ============================================================
-static void walkie_stop()
+static void walkie_release_resources()
 {
-    if (!s_started) return;
+    bool had_resources = s_started || s_espnow_ready || s_tx_task || s_rx_task ||
+                         s_rx_queue || s_hello_queue || s_codec_mtx ||
+                         s_audio_input_open || s_audio_output_open ||
+                         s_audio_flow_ready || s_codec_ready;
+    if (!had_resources) return;
+
     s_started = false;
 
     // Stop TX immediately
     s_ptt_active = false;
+
+    // Stop callbacks before deleting queues that callbacks write to.
+    teardown_espnow();
 
     // Delete FreeRTOS tasks
     if (s_tx_task) { vTaskDelete(s_tx_task); s_tx_task = NULL; }
@@ -480,20 +707,58 @@ static void walkie_stop()
     if (s_codec_mtx)   { vSemaphoreDelete(s_codec_mtx); s_codec_mtx = NULL; }
 
     // Stop audio codec
-    instance.codec.close();
+    if (s_audio_output_open && audioOutput) {
+        audioOutput->close();
+        s_audio_output_open = false;
+        s_audio_input_open = false;
+    } else if (s_audio_input_open && audioInput) {
+        audioInput->close();
+        s_audio_input_open = false;
+    }
 
     // Tear down PCMFlow pipeline (safe: the RX task that pumps it is gone).
-    s_audio.close();
+    if (s_audio_flow_ready) {
+        s_audio.close();
+        s_audio_flow_ready = false;
+    }
 
     // Release G.722 codec resources
-    s_enc.end();
-    s_dec.end();
-
-    // Cleanup ESP-NOW
-    esp_now_unregister_recv_cb();
-    esp_now_deinit();
+    if (s_codec_ready) {
+        s_enc.end();
+        s_dec.end();
+        s_codec_ready = false;
+    }
 
     s_contacts.clear();
+    s_state = WALKIE_STATE_IDLE;
+    s_have_talker = false;
+    s_announce_ms = 0;
+    memset(s_talk_mac, 0, sizeof(s_talk_mac));
+}
+
+static void walkie_stop()
+{
+    if (!s_started) return;
+    s_started = false;
+    walkie_release_resources();
+}
+
+static void build_setup_ui(lv_obj_t *parent);
+static void close_contacts_overlay();
+
+static void return_to_setup()
+{
+    delete_walkie_timer();
+    walkie_stop();
+    close_contacts_overlay();
+    reset_talk_widgets();
+    delete_setup_keyboard();
+    reset_setup_widgets();
+    s_showing_talk = false;
+
+    if (!s_page) return;
+    lv_obj_clean(s_page);
+    build_setup_ui(s_page);
 }
 
 // ============================================================
@@ -501,36 +766,29 @@ static void walkie_stop()
 // ============================================================
 static void back_event_handler(lv_event_t *e)
 {
-    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
-    if (!lv_menu_back_btn_is_root(s_menu, obj)) return;
+    if (s_showing_talk) {
+        return_to_setup();
+        return;
+    }
 
-    // Delete LVGL timer
-    if (s_timer) { lv_timer_del(s_timer); s_timer = NULL; }
-
+    delete_walkie_timer();
     walkie_stop();
+    walkie_release_resources();
+    close_contacts_overlay();
 
     // Leaving via the back button while still on the setup page: make sure the
     // keypad indev is disabled so menu navigation is not captured by it.
     disable_keyboard();
-
-#ifdef USING_TOUCHPAD
-    if (s_keyboard) { lv_obj_del(s_keyboard); s_keyboard = NULL; }
-#endif
+    delete_setup_keyboard();
 
     // Delete LVGL widgets
-    lv_obj_clean(s_menu);
-    lv_obj_del(s_menu);
-    s_menu         = NULL;
-    s_page         = NULL;
-    s_ptt_btn      = NULL;
-    s_status_label = NULL;
-    s_talker_label = NULL;
-    s_contact_list = NULL;
-    s_mic_icon     = NULL;
-    s_ripple[0]    = NULL;
-    s_ripple[1]    = NULL;
-    s_nick_ta      = NULL;
-    s_chan_dd      = NULL;
+    if (s_page) {
+        ui_destroy_app_page(s_page);
+        s_page = NULL;
+    }
+    reset_talk_widgets();
+    reset_setup_widgets();
+    s_showing_talk = false;
 
     menu_show();
 }
@@ -542,8 +800,11 @@ static void ptt_btn_event_cb(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
 
-    if (code == LV_EVENT_PRESSED) {
+    if (code == LV_EVENT_PRESSED && s_tx_task) {
         s_ptt_active = true;
+        if (s_mic_icon) {
+            lv_obj_set_style_image_recolor(s_mic_icon, lv_color_white(), 0);
+        }
         xTaskNotifyGive(s_tx_task);
     } else if (code == LV_EVENT_RELEASED ||
                code == LV_EVENT_CLICKED) {
@@ -551,56 +812,177 @@ static void ptt_btn_event_cb(lv_event_t *e)
     }
 }
 
+static void close_contacts_overlay()
+{
+    if (s_contacts_overlay) {
+        lv_obj_delete(s_contacts_overlay);
+        s_contacts_overlay = NULL;
+    }
+    s_contact_list = NULL;
+    s_contact_count_label = NULL;
+}
+
+static void contacts_close_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    close_contacts_overlay();
+}
+
+static lv_obj_t *create_action_button(lv_obj_t *parent, int w, int h,
+                                      const char *text, lv_event_cb_t cb,
+                                      bool primary, lv_obj_t **btn_out)
+{
+    ui_styles_init();
+
+    lv_obj_t *btn = lv_btn_create(parent);
+    lv_obj_set_size(btn, w, h);
+    if (primary) {
+        lv_obj_add_style(btn, &ui_styles.accent_btn, 0);
+    }
+    lv_obj_set_style_border_width(btn, primary ? 0 : 1, 0);
+    if (!primary) {
+        lv_obj_set_style_border_color(btn, UI_COLOR_TRACK, 0);
+    }
+    lv_obj_set_style_radius(btn, 8, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    ui_add_accent_focus_style(btn);
+    if (cb) {
+        lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
+    }
+    if (btn_out) {
+        *btn_out = btn;
+    }
+
+    lv_obj_t *label = lv_label_create(btn);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, primary ? lv_color_white() : UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_center(label);
+    return label;
+}
+
+static void peers_btn_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+    close_contacts_overlay();
+
+    int scr_w = lv_disp_get_hor_res(NULL);
+    int scr_h = lv_disp_get_ver_res(NULL);
+    int panel_w = scr_w - 48;
+    int panel_h = scr_h - 52;
+    if (panel_w > 320) panel_w = 320;
+    if (panel_h > 170) panel_h = 170;
+    if (panel_w < 220) panel_w = scr_w - 16;
+    if (panel_h < 130) panel_h = scr_h - 32;
+
+    s_contacts_overlay = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(s_contacts_overlay, lv_pct(100), lv_pct(100));
+    lv_obj_set_style_bg_color(s_contacts_overlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_contacts_overlay, LV_OPA_60, 0);
+    lv_obj_set_style_border_width(s_contacts_overlay, 0, 0);
+    lv_obj_set_style_radius(s_contacts_overlay, 0, 0);
+    lv_obj_set_style_pad_all(s_contacts_overlay, 0, 0);
+    lv_obj_remove_flag(s_contacts_overlay, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *panel = lv_obj_create(s_contacts_overlay);
+    lv_obj_set_size(panel, panel_w, panel_h);
+    lv_obj_set_style_bg_color(panel, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(panel, 1, 0);
+    lv_obj_set_style_border_color(panel, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_radius(panel, 8, 0);
+    lv_obj_set_style_pad_all(panel, 8, 0);
+    lv_obj_set_style_pad_row(panel, 6, 0);
+    lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+    lv_obj_align(panel, LV_ALIGN_CENTER, 0, 0);
+    apply_walkie_scrollbar_style(panel);
+
+    lv_obj_t *title_row = lv_obj_create(panel);
+    lv_obj_set_size(title_row, lv_pct(100), 28);
+    lv_obj_set_style_bg_opa(title_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(title_row, 0, 0);
+    lv_obj_set_style_pad_all(title_row, 0, 0);
+    lv_obj_set_style_pad_column(title_row, 8, 0);
+    lv_obj_set_flex_flow(title_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(title_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(title_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title = lv_label_create(title_row);
+    lv_label_set_text(title, LV_SYMBOL_CALL " Peers");
+    lv_obj_set_style_text_color(title, UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_12, 0);
+    lv_obj_set_flex_grow(title, 1);
+
+    s_contact_count_label = lv_label_create(title_row);
+    lv_obj_set_style_text_color(s_contact_count_label, UI_COLOR_ACCENT, 0);
+    lv_obj_set_style_text_font(s_contact_count_label, &lv_font_montserrat_12, 0);
+
+    lv_obj_t *close_btn = lv_btn_create(title_row);
+    lv_obj_set_size(close_btn, 28, 28);
+    lv_obj_set_style_bg_opa(close_btn, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(close_btn, 1, 0);
+    lv_obj_set_style_border_color(close_btn, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_radius(close_btn, 8, 0);
+    lv_obj_set_style_pad_all(close_btn, 0, 0);
+    ui_add_accent_focus_style(close_btn);
+    lv_obj_add_event_cb(close_btn, contacts_close_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *close_label = lv_label_create(close_btn);
+    lv_label_set_text(close_label, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_color(close_label, UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_center(close_label);
+
+    s_contact_list = lv_obj_create(panel);
+    lv_obj_set_width(s_contact_list, lv_pct(100));
+    lv_obj_set_flex_grow(s_contact_list, 1);
+    lv_obj_set_style_pad_all(s_contact_list, 4, 0);
+    lv_obj_set_style_pad_row(s_contact_list, 4, 0);
+    lv_obj_set_style_border_width(s_contact_list, 0, 0);
+    lv_obj_set_style_bg_opa(s_contact_list, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(s_contact_list, LV_FLEX_FLOW_COLUMN);
+    apply_walkie_scrollbar_style(s_contact_list);
+    rebuild_contact_list();
+
+    lv_group_t *g = lv_group_get_default();
+    if (g) {
+        lv_group_add_obj(g, close_btn);
+        lv_group_focus_obj(close_btn);
+    }
+}
+
+static void setup_btn_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    return_to_setup();
+}
+
 // ============================================================
-// Talk page: contact list (left) + PTT/status panel (right)
+// Talk page: primary PTT surface, with contacts on demand
 // ============================================================
 static void build_walkie_ui(lv_obj_t *parent)
 {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_color(cont, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cont, 0, 0);
-    lv_obj_set_style_pad_all(cont, 4, 0);
-    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(cont, 2, 0);
+    lv_obj_set_style_pad_row(cont, 4, 0);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    apply_walkie_scrollbar_style(parent);
 
-    // ---- Left: contacts ----
-    lv_obj_t *left = lv_obj_create(cont);
-    lv_obj_set_size(left, lv_pct(38), lv_pct(100));
-    lv_obj_set_style_pad_all(left, 4, 0);
-    lv_obj_set_style_border_width(left, 1, 0);
-    lv_obj_set_style_border_color(left, lv_color_hex(0xDDDDDD), 0);
-    lv_obj_set_style_radius(left, 6, 0);
-    lv_obj_set_flex_flow(left, LV_FLEX_FLOW_COLUMN);
+    // Status label
+    s_status_label = lv_label_create(cont);
+    lv_label_set_text(s_status_label, "IDLE");
+    lv_obj_set_size(s_status_label, lv_pct(100), 18);
+    lv_label_set_long_mode(s_status_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(s_status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(s_status_label, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(s_status_label, &lv_font_montserrat_12, 0);
 
-    lv_obj_t *title = lv_label_create(left);
-    lv_label_set_text(title, "Contacts");
-    lv_obj_set_style_text_color(title, lv_color_hex(0x5f5f5f), 0);
-
-    s_contact_list = lv_obj_create(left);
-    lv_obj_set_width(s_contact_list, lv_pct(100));
-    lv_obj_set_flex_grow(s_contact_list, 1);
-    lv_obj_set_style_pad_all(s_contact_list, 2, 0);
-    lv_obj_set_style_pad_row(s_contact_list, 4, 0);
-    lv_obj_set_style_border_width(s_contact_list, 0, 0);
-    lv_obj_set_flex_flow(s_contact_list, LV_FLEX_FLOW_COLUMN);
-    rebuild_contact_list();
-
-    // ---- Right: mic indicator + PTT ----
-    // No layout manager here: the mic stage is centred in the panel, and the
-    // captions are pinned to the top/bottom edges so the expanding ripple
-    // rings never sit on top of the text.
-    lv_obj_t *right = lv_obj_create(cont);
-    lv_obj_set_flex_grow(right, 1);
-    lv_obj_set_height(right, lv_pct(100));
-    lv_obj_set_style_pad_all(right, 4, 0);
-    lv_obj_set_style_border_width(right, 0, 0);
-    lv_obj_clear_flag(right, LV_OBJ_FLAG_SCROLLABLE);
-
-    // "Stage" with no layout so the ripple rings can be stacked behind the
-    // mic button and centred on top of each other. Centred in `right`.
     int stage = kMicDia + kRippleGrow;
-    lv_obj_t *mic_stage = lv_obj_create(right);
+    lv_obj_t *mic_stage = lv_obj_create(cont);
     lv_obj_set_size(mic_stage, stage, stage);
     lv_obj_set_style_bg_opa(mic_stage, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(mic_stage, 0, 0);
@@ -609,45 +991,74 @@ static void build_walkie_ui(lv_obj_t *parent)
     lv_obj_remove_flag(mic_stage, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_center(mic_stage);
 
-    // Ripple rings (created first so they render behind the mic button).
+    // Ripple rings
     for (int i = 0; i < 2; i++) {
         s_ripple[i] = lv_obj_create(mic_stage);
         lv_obj_set_size(s_ripple[i], kMicDia, kMicDia);
         lv_obj_set_style_radius(s_ripple[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_width(s_ripple[i], 0, 0);
-        lv_obj_set_style_bg_color(s_ripple[i], lv_color_hex(0xCC3333), 0);
+        lv_obj_set_style_bg_color(s_ripple[i], UI_COLOR_ACCENT, 0);
         lv_obj_set_style_bg_opa(s_ripple[i], LV_OPA_TRANSP, 0);
         lv_obj_remove_flag(s_ripple[i], LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_remove_flag(s_ripple[i], LV_OBJ_FLAG_CLICKABLE);
         lv_obj_center(s_ripple[i]);
     }
 
-    // Centre mic button (the PTT control).
+    // PTT button
     s_ptt_btn = lv_btn_create(mic_stage);
     lv_obj_set_size(s_ptt_btn, kMicDia, kMicDia);
     lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(s_ptt_btn, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE,
+                            LV_STATE_PRESSED | LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(s_ptt_btn, LV_RADIUS_CIRCLE,
+                            LV_STATE_PRESSED | LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_transform_width(s_ptt_btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(s_ptt_btn, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(s_ptt_btn, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(s_ptt_btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_ptt_btn, 2, 0);
+    lv_obj_set_style_border_color(s_ptt_btn, UI_COLOR_ACCENT, 0);
     lv_obj_center(s_ptt_btn);
     lv_obj_add_event_cb(s_ptt_btn, ptt_btn_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_flag(s_ptt_btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    ui_add_accent_focus_style(s_ptt_btn);
 
     s_mic_icon = lv_image_create(s_ptt_btn);
     lv_image_set_src(s_mic_icon, &img_microphone);
     lv_obj_center(s_mic_icon);
-    lv_obj_set_style_image_recolor(s_mic_icon, lv_color_white(), 0);
+    lv_obj_set_style_image_recolor(s_mic_icon, UI_COLOR_ACCENT, 0);
     lv_obj_set_style_image_recolor_opa(s_mic_icon, LV_OPA_COVER, 0);
 
-    // Caption pinned to the top (IDLE / TALKING / RECEIVING). Created after the
-    // stage so it renders above the rings.
-    s_status_label = lv_label_create(right);
-    lv_label_set_text(s_status_label, "IDLE");
-    lv_obj_set_style_text_color(s_status_label, lv_color_hex(0x888888), 0);
-    lv_obj_align(s_status_label, LV_ALIGN_TOP_MID, 0, 2);
-
-    // Talker line pinned to the bottom.
-    s_talker_label = lv_label_create(right);
+    // Talker label
+    s_talker_label = lv_label_create(cont);
     lv_label_set_text(s_talker_label, "");
-    lv_obj_set_style_text_color(s_talker_label, lv_color_hex(0x5f5f5f), 0);
-    lv_obj_align(s_talker_label, LV_ALIGN_BOTTOM_MID, 0, -2);
+    lv_obj_set_size(s_talker_label, lv_pct(100), 18);
+    lv_label_set_long_mode(s_talker_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(s_talker_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(s_talker_label, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(s_talker_label, &lv_font_montserrat_12, 0);
+
+    lv_obj_t *actions = lv_obj_create(cont);
+    lv_obj_set_size(actions, lv_pct(100), 30);
+    lv_obj_set_style_bg_opa(actions, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(actions, 0, 0);
+    lv_obj_set_style_pad_all(actions, 0, 0);
+    lv_obj_set_style_pad_column(actions, 8, 0);
+    lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(actions, LV_OBJ_FLAG_SCROLLABLE);
+
+    create_action_button(actions, 96, 30, LV_SYMBOL_LEFT " Back",
+                         setup_btn_cb, false, &s_back_btn);
+    s_peer_count_label = create_action_button(actions, 112, 30,
+                                             LV_SYMBOL_CALL " Pair 0",
+                                             peers_btn_cb, true, &s_pair_btn);
+
+    apply_walkie_action_theme();
+    update_contact_count_labels();
 }
 
 // ============================================================
@@ -665,20 +1076,26 @@ static bool start_session()
     fmt.sampleRate    = kSampleRate;
     fmt.channels      = kChannels;
     fmt.bitsPerSample = kBitsPerSample;
-    if (!s_enc.begin(fmt) || !s_dec.begin(fmt)) {
-        log_e("G.722 codec init failed");
+    bool enc_ready = s_enc.begin(fmt);
+    bool dec_ready = enc_ready && s_dec.begin(fmt);
+    if (!enc_ready || !dec_ready) {
+        LILYGO_LOG_E("G.722 codec init failed");
+        if (enc_ready) {
+            s_enc.end();
+        }
         return false;
     }
+    s_codec_ready = true;
 
     // --- Configure PCMFlow playback pipeline ---
     s_audio.setOutputFormat(fmt);
     s_audio.setBufferFrames(kAudioBufferFrames);
     s_audio.setInputSource(s_dec);
+    s_audio_flow_ready = true;
 
     // --- Init ESP-NOW on the chosen channel ---
     if (!setup_espnow(s_channel, wifi_connected)) {
-        s_enc.end();
-        s_dec.end();
+        walkie_release_resources();
         return false;
     }
 
@@ -687,24 +1104,42 @@ static bool start_session()
     s_hello_queue = xQueueCreate(kHelloQueueLen, sizeof(walkie_peer_t));
     s_codec_mtx   = xSemaphoreCreateMutex();
     if (!s_rx_queue || !s_hello_queue || !s_codec_mtx) {
-        if (s_rx_queue)    { vQueueDelete(s_rx_queue);    s_rx_queue    = NULL; }
-        if (s_hello_queue) { vQueueDelete(s_hello_queue); s_hello_queue = NULL; }
-        if (s_codec_mtx)   { vSemaphoreDelete(s_codec_mtx); s_codec_mtx = NULL; }
-        s_enc.end(); s_dec.end();
-        esp_now_unregister_recv_cb();
-        esp_now_deinit();
+        walkie_release_resources();
         return false;
     }
 
-    // --- Create tasks ---
-    xTaskCreate(walkie_tx_task, "wlk_tx", kTaskStack,
-                NULL, kTaskPrio, &s_tx_task);
-    xTaskCreate(walkie_rx_task, "wlk_rx", kTaskStack,
-                NULL, kTaskPrio, &s_rx_task);
-
     // --- Open audio codec (mono, 16kHz, 16-bit) ---
-    instance.codec.open(kBitsPerSample, kChannels, kSampleRate);
-    instance.codec.setVolume(85);
+    if (audioInput) {
+        if (!audioInput->open(kBitsPerSample, kChannels, kSampleRate)) {
+            LILYGO_LOG_E("Failed to open audio input");
+            walkie_release_resources();
+            return false;
+        }
+        s_audio_input_open = true;
+    }
+
+    if (audioOutput) {
+        if(!audioOutput->open(kBitsPerSample, kChannels, kSampleRate)){
+            LILYGO_LOG_E("Failed to open audio output");
+            walkie_release_resources();
+            return false;
+        }else{
+            LILYGO_LOG_I("Audio output opened: %dHz, %d-bit, %d channels",
+                  kSampleRate, kBitsPerSample, kChannels);
+            audioOutput->setVolume(85);
+            s_audio_output_open = true;
+        }
+    }
+
+    // --- Create tasks ---
+    if (xTaskCreate(walkie_tx_task, "wlk_tx", kTaskStack,
+                    NULL, kTaskPrio, &s_tx_task) != pdPASS ||
+        xTaskCreate(walkie_rx_task, "wlk_rx", kTaskStack,
+                    NULL, kTaskPrio, &s_rx_task) != pdPASS) {
+        LILYGO_LOG_E("Failed to create walkie tasks");
+        walkie_release_resources();
+        return false;
+    }
 
     s_started     = true;
     s_announce_ms = 0;     // announce immediately on the first timer tick
@@ -731,9 +1166,7 @@ static void start_btn_cb(lv_event_t *e)
     // Make sure the keypad indev is back off before we leave the setup page.
     disable_keyboard();
 
-#ifdef USING_TOUCHPAD
-    if (s_keyboard) { lv_obj_del(s_keyboard); s_keyboard = NULL; }
-#endif
+    delete_setup_keyboard();
 
     if (!start_session()) {
         show_error_and_back(s_page, "Failed to start session.");
@@ -742,8 +1175,8 @@ static void start_btn_cb(lv_event_t *e)
 
     // Swap the setup content for the talk page.
     lv_obj_clean(s_page);
-    s_nick_ta = NULL;
-    s_chan_dd = NULL;
+    reset_setup_widgets();
+    s_showing_talk = true;
     build_walkie_ui(s_page);
 
     // Start UI updates (status + handshake + contact list).
@@ -811,60 +1244,74 @@ static void build_setup_ui(lv_obj_t *parent)
 
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_color(cont, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cont, 0, 0);
-    lv_obj_set_style_pad_all(cont, 8, 0);
+    lv_obj_set_style_pad_all(cont, 4, 0);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(cont, LV_FLEX_ALIGN_CENTER, 0);
-    lv_obj_set_style_pad_row(cont, 6, 0);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(cont, 8, 0);
+    apply_walkie_scrollbar_style(parent);
+    apply_walkie_scrollbar_style(cont);
 
-    // ---- Nickname ----
-    lv_obj_t *nick_info = lv_label_create(cont);
-    lv_label_set_text(nick_info, "DEVICE NICKNAME");
-    lv_obj_set_style_text_color(nick_info, lv_color_hex(0x5f5f5f), 0);
+    int scr_w = lv_disp_get_hor_res(NULL);
+    bool stacked = scr_w < 420;
 
-    s_nick_ta = lv_textarea_create(cont);
-    lv_obj_set_width(s_nick_ta, lv_pct(90));
-    lv_obj_set_height(s_nick_ta, 40);
+    lv_obj_t *settings_card = ui_create_card(cont, "Session");
+    lv_obj_set_width(settings_card, lv_pct(100));
+
+    s_nick_ta = lv_textarea_create(lv_obj_create(settings_card));
+    lv_obj_set_width(s_nick_ta, stacked ? 112 : 160);
+    lv_obj_set_height(s_nick_ta, 32);
     lv_textarea_set_one_line(s_nick_ta, true);
     lv_textarea_set_max_length(s_nick_ta, kNickMax - 1);
     lv_textarea_set_text(s_nick_ta, s_nickname);
     lv_obj_add_event_cb(s_nick_ta, nick_ta_event_cb, LV_EVENT_ALL, NULL);
+    ui_create_card_item(settings_card, LV_SYMBOL_EDIT, "Name", s_nick_ta);
 
-    // ---- ESP-NOW channel ----
-    lv_obj_t *chan_info = lv_label_create(cont);
-    lv_obj_set_style_text_color(chan_info, lv_color_hex(0x5f5f5f), 0);
-
-    s_chan_dd = lv_dropdown_create(cont);
-    lv_obj_set_width(s_chan_dd, lv_pct(90));
+    s_chan_dd = lv_dropdown_create(lv_obj_create(settings_card));
+    lv_obj_set_width(s_chan_dd, 96);
+    lv_obj_set_height(s_chan_dd, 32);
     lv_dropdown_set_options(s_chan_dd,
                             "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14");
     lv_dropdown_set_selected(s_chan_dd,
                              s_channel >= 1 ? s_channel - 1 : 0);
-
     if (wifi_connected) {
-        // Lock the channel to WiFi's.
-        lv_label_set_text_fmt(chan_info, "ESP-NOW Channel (WiFi: %u)",
-                              (unsigned)s_channel);
         lv_obj_add_state(s_chan_dd, LV_STATE_DISABLED);
-    } else {
-        lv_label_set_text(chan_info, "ESP-NOW Channel");
     }
+    ui_create_card_item(settings_card, LV_SYMBOL_WIFI,
+                        wifi_connected ? "WiFi Ch" : "Channel", s_chan_dd);
 
-    // ---- Start ----
-    lv_obj_t *start_btn = lv_btn_create(cont);
-    lv_obj_set_width(start_btn, lv_pct(90));
-    lv_obj_set_style_bg_color(start_btn, lv_color_hex(0x2A2A2A), 0);
-    lv_obj_set_style_radius(start_btn, 12, 0);
+    // ---- Start button ----
+    lv_obj_t *start_row = lv_obj_create(settings_card);
+    lv_obj_set_size(start_row, lv_pct(100), 36);
+    lv_obj_set_style_bg_opa(start_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(start_row, 0, 0);
+    lv_obj_set_style_pad_all(start_row, 0, 0);
+    lv_obj_set_style_margin_top(start_row, 8, 0);
+    lv_obj_set_flex_flow(start_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(start_row, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(start_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *start_btn = lv_btn_create(start_row);
+    lv_obj_set_width(start_btn, scr_w / 3);
+    lv_obj_set_height(start_btn, 36);
+    lv_obj_add_style(start_btn, &ui_styles.accent_btn, 0);
+    lv_obj_set_style_radius(start_btn, 8, 0);
+    lv_obj_set_style_border_width(start_btn, 0, 0);
+    ui_add_accent_focus_style(start_btn);
     lv_obj_add_event_cb(start_btn, start_btn_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *start_label = lv_label_create(start_btn);
-    lv_label_set_text(start_label, "Start");
+    lv_label_set_text(start_label, LV_SYMBOL_PLAY " Start");
     lv_obj_center(start_label);
     lv_obj_set_style_text_color(start_label, lv_color_white(), 0);
 
 #ifdef USING_TOUCHPAD
     s_keyboard = lv_keyboard_create(lv_scr_act());
+    lv_obj_set_style_bg_color(s_keyboard, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(s_keyboard, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(s_keyboard, lv_color_white(), 0);
     lv_obj_add_flag(s_keyboard, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(s_keyboard, [](lv_event_t *e) {
         lv_keyboard_set_textarea(s_keyboard, NULL);
@@ -878,7 +1325,7 @@ static void build_setup_ui(lv_obj_t *parent)
 }
 
 // ============================================================
-// Error dialog + return to menu
+// Error dialog
 // ============================================================
 static void err_ok_cb(lv_event_t *e)
 {
@@ -886,7 +1333,9 @@ static void err_ok_cb(lv_event_t *e)
         destroy_msgbox(s_err_mbox);
         s_err_mbox = NULL;
     }
-    menu_show();
+    if (!s_page) {
+        menu_show();
+    }
 }
 
 static void show_error_and_back(lv_obj_t *parent, const char *msg)
@@ -902,17 +1351,20 @@ static void show_error_and_back(lv_obj_t *parent, const char *msg)
 // ============================================================
 void ui_walkie_enter(lv_obj_t *parent)
 {
-    // --- Check audio codec ---
-    if (!(hw_get_device_online() & HW_CODEC_ONLINE)) {
-        show_error_and_back(parent, "Audio codec not available.");
+    audioOutput = instance.getAudioOutput();
+    if (!audioOutput) {
+        LILYGO_LOG_PRINTLN("Audio output not initialized");
+        return;
+    }
+    audioInput = instance.getAudioInput();
+    if (!audioInput) {
+        LILYGO_LOG_PRINTLN("Audio input not initialized");
         return;
     }
 
     // --- Build the setup page; the talk session starts on "Start" ---
-    s_menu = create_menu(parent, back_event_handler);
-    s_page = lv_menu_page_create(s_menu, NULL);
+    s_page = ui_create_app_page(parent, "Walkie Talkie", back_event_handler);
     build_setup_ui(s_page);
-    lv_menu_set_page(s_menu, s_page);
 }
 
 void ui_walkie_exit(lv_obj_t *parent)

@@ -10,12 +10,20 @@
 #pragma once
 #include <stdio.h>
 #include <stdint.h>
-#include <string>
-#include <iostream>
+#include <time.h>
 #include <vector>
 #include "event_define.h"
 
-using namespace std;
+using std::vector;
+
+#define GPS_MODEL_MAX_LEN                 24
+#define WIFI_SSID_MAX_LEN                 64
+#define WIFI_PASSWORD_MAX_LEN             128
+#define AUDIO_FILE_NAME_MAX_LEN           128
+#define NETWORK_AUDIO_NAME_MAX_LEN        48
+#define NETWORK_AUDIO_URL_MAX_LEN         192
+#define POWER_LABEL_MAX_LEN               32
+
 typedef enum {
     MEDIA_VOLUME_UP,
     MEDIA_VOLUME_DOWN,
@@ -30,11 +38,20 @@ typedef enum {
     KEYBOARD_TYPE_2,
 } keyboard_type_t;
 
+typedef enum {
+    SENSOR_TYPE_IMU,
+    SENSOR_TYPE_ACCEL
+} sensor_type_t;
+
 
 /* Radio frequency constants */
-// #define RADIO_FIXED_FREQUENCY  920.0
-// #define RADIO_FIXED_FREQUENCY_STRING "920MHZ"
-#define RADIO_DEFAULT_FREQUENCY  868.0
+#define RADIO_FIXED_FREQUENCY  920.0
+#define RADIO_FIXED_FREQUENCY_STRING "920MHZ"
+#define RADIO_DEFAULT_FREQUENCY  RADIO_FIXED_FREQUENCY
+#define RADIO_DEFAULT_TX_POWER 13
+
+// #define RADIO_DEFAULT_FREQUENCY  868.0
+// #define RADIO_DEFAULT_TX_POWER 22
 
 // Check if not compiling for Arduino environment
 // If not, define the wl_status_t enumeration
@@ -92,19 +109,60 @@ typedef enum {
 #define HW_NRF24_ONLINE             (_BV(14))
 #define HW_SI473X_ONLINE            (_BV(15))
 #define HW_BME280_ONLINE            (_BV(16))
-#define HW_QMC5883P_ONLINE          (_BV(17))
-#define HW_BMA423_ONLINE            (_BV(18))
-#define HW_QMI8658_ONLINE           (_BV(19))
-#define HW_LED_INDIC_ONLINE         (_BV(20))
+#define NO_HW_MAG                   (_BV(17))
+#define HW_QMI8658_ONLINE           (_BV(18))
+#define HW_LED_INDIC_ONLINE         (_BV(19))
+#define HW_SD_UNAVAILABLE           (_BV(22))
 
 #else
 // If compiling for Arduino, include the WiFi library
 #include <WiFi.h>
+#if defined(USING_ST25R3916) || defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA)
+#include <nfc/LilyGoNfcService.h>
+#endif
 #endif
 
 
 // Define the GMT offset in seconds (for 8 hours ahead)
 #define GMT_OFFSET_SECOND       (8*3600)
+
+#define GPS_SIGNAL_MAX_SATELLITES      96
+#define GPS_SIGNAL_MAX_CONSTELLATIONS  5
+
+typedef enum {
+    GPS_SAT_SYSTEM_UNKNOWN = 0,
+    GPS_SAT_SYSTEM_GPS,
+    GPS_SAT_SYSTEM_GLONASS,
+    GPS_SAT_SYSTEM_BEIDOU,
+    GPS_SAT_SYSTEM_GALILEO,
+    GPS_SAT_SYSTEM_QZSS
+} gps_satellite_system_t;
+
+typedef enum {
+    GPS_ANTENNA_UNKNOWN = 0,
+    GPS_ANTENNA_OK,
+    GPS_ANTENNA_OPEN,
+    GPS_ANTENNA_SHORT
+} gps_antenna_state_t;
+
+typedef struct {
+    gps_satellite_system_t system;
+    uint16_t prn;
+    int16_t elevation;
+    int16_t azimuth;
+    int16_t cn0;
+    bool has_cn0;
+    bool used;
+} gps_signal_satellite_t;
+
+typedef struct {
+    gps_satellite_system_t system;
+    uint16_t visible;
+    uint16_t tracking;
+    uint16_t used;
+    int16_t max_cn0;
+    int16_t avg_cn0;
+} gps_signal_constellation_t;
 
 /**
  * @brief Structure to hold GPS parameters.
@@ -114,15 +172,28 @@ typedef enum {
  * number of satellites, and PPS status.
  */
 typedef struct  {
-    string model;
+    char model[GPS_MODEL_MAX_LEN];
     double lat;
     double lng;
     struct tm datetime;
     double speed;
+    double altitude;
+    bool location_valid;
+    bool datetime_valid;
+    bool speed_valid;
+    bool altitude_valid;
     uint32_t rx_size;
     uint16_t satellite;
     bool pps;
-    bool enable_debug;
+    bool nmea_to_serial;
+    gps_antenna_state_t antenna_state;
+    uint32_t antenna_age;
+    uint16_t signal_satellite_count;
+    uint16_t constellation_count;
+    gps_signal_satellite_t signal_satellites[GPS_SIGNAL_MAX_SATELLITES];
+    gps_signal_constellation_t constellations[GPS_SIGNAL_MAX_CONSTELLATIONS];
+    uint32_t ttff_ms;
+    bool ttff_valid;
 } gps_params_t;
 
 /**
@@ -167,7 +238,7 @@ typedef struct {
     uint8_t authmode;
     int8_t  rssi;
     int32_t channel;
-    string ssid;
+    char ssid[WIFI_SSID_MAX_LEN];
 } wifi_scan_params_t;
 
 /**
@@ -176,8 +247,8 @@ typedef struct {
  * This structure stores the SSID and password required for a WiFi connection.
  */
 typedef struct {
-    string ssid;
-    string password;
+    char ssid[WIFI_SSID_MAX_LEN];
+    char password[WIFI_PASSWORD_MAX_LEN];
 } wifi_conn_params_t;
 
 /**
@@ -189,19 +260,24 @@ typedef enum {
     AUDIO_SOURCE_SDCARD,
 } audio_source_type_t;
 
+typedef enum {
+    MIC_INPUT_SOURCE_INTERNAL = 0,
+    MIC_INPUT_SOURCE_JACK = 1,
+} mic_input_source_t;
+
 /**
  * @brief  Structure to hold audio parameters.
  * @note   This structure is used to specify the audio source and filename.
  */
 typedef struct {
     audio_source_type_t source_type;
-    string file_name;
+    char file_name[AUDIO_FILE_NAME_MAX_LEN];
 } AudioParams_t;
 
-typedef enum {
-    MONITOR_PMU,
-    MONITOR_PPM,
-} monitor_params_type_t;
+typedef struct {
+    char name[NETWORK_AUDIO_NAME_MAX_LEN];
+    char url[NETWORK_AUDIO_URL_MAX_LEN];
+} NetworkAudioStreamParams_t;
 
 /**
  * @brief Structure to hold monitor parameters.
@@ -213,8 +289,9 @@ typedef enum {
  * time to empty, and time to full.
  */
 typedef struct {
-    monitor_params_type_t type;
-    string   charge_state;      // string
+    bool     has_gauge;
+    bool     charging;          // true while charging is active
+    char     charge_state[POWER_LABEL_MAX_LEN];
     uint16_t sys_voltage;       // mv
     uint16_t battery_voltage;   // mv
     uint16_t usb_voltage;       // mv
@@ -224,13 +301,68 @@ typedef struct {
     uint16_t fullChargeCapacity;// mAh
     uint16_t designCapacity;    //mAh
     int16_t  instantaneousCurrent;   // mA
+    float    instantaneousPower;   // W
     int16_t  standbyCurrent;     // mA
     int16_t  averagePower;      //mW
     int16_t  maxLoadCurrent;    //mA
     uint16_t timeToEmpty;       // minute
     uint16_t timeToFull;        // minute
-    string ntc_state;
+    char ntc_state[POWER_LABEL_MAX_LEN];
 } monitor_params_t;
+
+typedef enum {
+    POWER_MONITOR_SRC_NONE = 0,
+    POWER_MONITOR_SRC_PMU,
+    POWER_MONITOR_SRC_EXTERNAL_GAUGE,
+    POWER_MONITOR_SRC_INTERNAL_GAUGE,
+    POWER_MONITOR_SRC_ESTIMATED,
+    POWER_MONITOR_SRC_ADC,
+} power_monitor_source_t;
+
+typedef struct {
+    bool valid;
+    float value;
+    power_monitor_source_t source;
+} power_monitor_metric_t;
+
+typedef struct {
+    uint32_t online_mask;
+    char pmic_name[POWER_LABEL_MAX_LEN];
+    char gauge_name[POWER_LABEL_MAX_LEN];
+    bool pmu_present;
+    bool external_gauge_present;
+    bool fuel_gauge_present;
+    bool battery_present_valid;
+    bool battery_present;
+    bool vbus_present_valid;
+    bool vbus_present;
+    bool charging;
+    bool charge_done;
+    bool charge_fault;
+    bool charge_enabled_valid;
+    bool charge_enabled;
+    bool otg_supported;
+    bool otg_enabled;
+    char charge_state[POWER_LABEL_MAX_LEN];
+    char ntc_state[POWER_LABEL_MAX_LEN];
+    power_monitor_metric_t vbus_mv;
+    power_monitor_metric_t vbus_ma;
+    power_monitor_metric_t sys_mv;
+    power_monitor_metric_t battery_mv;
+    power_monitor_metric_t battery_ma;
+    power_monitor_metric_t battery_percent;
+    power_monitor_metric_t temperature_c;
+    power_monitor_metric_t battery_temperature_c;
+    power_monitor_metric_t instantaneous_power_w;
+    power_monitor_metric_t average_power_mw;
+    power_monitor_metric_t remaining_capacity_mah;
+    power_monitor_metric_t full_charge_capacity_mah;
+    power_monitor_metric_t design_capacity_mah;
+    power_monitor_metric_t standby_current_ma;
+    power_monitor_metric_t max_load_current_ma;
+    power_monitor_metric_t time_to_empty_min;
+    power_monitor_metric_t time_to_full_min;
+} power_monitor_snapshot_t;
 
 /**
  * @brief Structure to hold user setting parameters.
@@ -245,7 +377,13 @@ typedef struct {
     uint8_t disp_timeout_second;
     uint16_t charger_current;
     uint8_t charger_enable;
+    uint8_t theme_preset_idx;
 } user_setting_params_t;
+
+typedef enum {
+    AUDIO_JACK_MODE_CTIA = 0,
+    AUDIO_JACK_MODE_OMTP = 1,
+} audio_jack_mode_t;
 
 /**
  * @brief Structure to hold audio parameters.
@@ -255,7 +393,10 @@ typedef struct {
 typedef struct {
     enum app_event event;
     const char *filename ;
+    const char *url;
     audio_source_type_t source_type;
+    uint16_t frequency_hz;
+    uint16_t duration_ms;
 } audio_params_t;
 
 /**
@@ -295,7 +436,76 @@ typedef struct {
     float pitch ;
     float heading;
     uint8_t orientation;
+    uint8_t reverse ;
+    bool accel_valid;
+    float accel_x;
+    float accel_y;
+    float accel_z;
+    float accel_magnitude;
+    uint32_t accel_sequence;
 } imu_params_t;
+
+typedef enum {
+    BMA_ACTIVITY_STATIONARY,
+    BMA_ACTIVITY_WALKING,
+    BMA_ACTIVITY_RUNNING,
+    BMA_ACTIVITY_UNKNOWN,
+} bma_activity_t;
+
+typedef enum {
+    BMA_SENSOR_EVENT_NONE,
+    BMA_SENSOR_EVENT_STEP,
+    BMA_SENSOR_EVENT_SINGLE_TAP,
+    BMA_SENSOR_EVENT_DOUBLE_TAP,
+    BMA_SENSOR_EVENT_TRIPLE_TAP,
+    BMA_SENSOR_EVENT_ACTIVITY,
+    BMA_SENSOR_EVENT_TILT,
+    BMA_SENSOR_EVENT_ANY_MOTION,
+    BMA_SENSOR_EVENT_NO_MOTION,
+    BMA_SENSOR_EVENT_DATA_READY,
+} bma_sensor_event_t;
+
+typedef struct {
+    bool valid;
+    bool accel_valid;
+    float accel_x;
+    float accel_y;
+    float accel_z;
+    float magnitude;
+    float peak_magnitude;
+    uint8_t orientation;
+    uint8_t reverse;
+    uint32_t step_count;
+    uint32_t step_events;
+    uint32_t single_taps;
+    uint32_t double_taps;
+    uint32_t triple_taps;
+    uint32_t activity_events;
+    uint32_t tilt_events;
+    uint32_t motion_events;
+    uint32_t no_motion_events;
+    bma_activity_t activity;
+    bma_sensor_event_t last_event;
+} bma_sensor_snapshot_t;
+
+typedef struct {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+    bool valid;
+} mag_calibration_t;
+
+typedef struct {
+    int16_t raw_x;
+    int16_t raw_y;
+    int16_t raw_z;
+    float field_x;
+    float field_y;
+    float field_z;
+    float heading_degrees;
+    float strength_ut;
+    bool overflow;
+} mag_data_t;
 
 typedef enum {
     HW_TRACKBALL_DIR_NONE,
@@ -305,20 +515,16 @@ typedef enum {
     HW_TRACKBALL_DIR_RIGHT
 } hw_trackball_dir;
 
-// FFT Configuration
-#define FFT_SIZE 512
-#define SAMPLE_RATE 16000
-#define FREQ_BANDS 16
+using TrackballEventCallback = void(*)(int8_t delta_x, int8_t delta_y);
+using ButtonEventCallback = void(*)(uint8_t idx, uint8_t state);
 
-/**
- * @brief Structure to hold FFT data.
- *
- * This structure stores the FFT data for the left and right audio channels.
- */
-typedef struct {
-    float left_bands[FREQ_BANDS];
-    float right_bands[FREQ_BANDS];
-} FFTData;
+typedef enum : uint8_t {
+    HW_POINTER_BUTTON_LEFT = 0x01,
+    HW_POINTER_BUTTON_RIGHT = 0x02,
+    HW_POINTER_BUTTON_MIDDLE = 0x04,
+} hw_pointer_button_t;
+
+using PointerButtonEventCallback = void(*)(uint8_t button_mask);
 
 /**
  * @brief Initialize the hardware.
@@ -360,16 +566,18 @@ bool hw_get_mac(uint8_t *mac);
 /**
  * @brief Get the current WiFi SSID.
  *
- * @param param A reference to a string where the SSID will be stored.
+ * @param param Buffer where the SSID will be stored.
+ * @param param_size Buffer size in bytes.
  */
-void hw_get_wifi_ssid(string &param);
+void hw_get_wifi_ssid(char *param, size_t param_size);
 
 /**
  * @brief Get the current date and time as a string.
  *
- * @param param A reference to a string where the date and time will be stored.
+ * @param param Buffer where the date and time will be stored.
+ * @param param_size Buffer size in bytes.
  */
-void hw_get_date_time(string &param);
+void hw_get_date_time(char *param, size_t param_size);
 
 /**
  * @brief Get the current date and time as a struct tm.
@@ -377,6 +585,58 @@ void hw_get_date_time(string &param);
  * @param timeinfo A reference to a struct tm where the date and time will be stored.
  */
 void hw_get_date_time(struct tm &timeinfo);
+
+/**
+ * @brief Set the current device time.
+ *
+ * On Arduino builds this updates the system clock and writes the RTC when it is present.
+ *
+ * @param timeinfo Local date/time to apply.
+ * @return True if the time was accepted and applied.
+ */
+bool hw_set_date_time(const struct tm &timeinfo);
+
+/**
+ * @brief Write the current system time to the hardware RTC when it is online.
+ *
+ * @return True if a hardware RTC is online and the write command was issued.
+ */
+bool hw_write_rtc_from_system_time();
+
+/**
+ * @brief Get the persisted fixed timezone offset in seconds.
+ *
+ * @return GMT offset in seconds.
+ */
+int32_t hw_get_timezone_offset();
+
+/**
+ * @brief Get the persisted daylight saving offset in seconds.
+ *
+ * @return Daylight saving offset in seconds.
+ */
+int32_t hw_get_daylight_offset();
+
+/**
+ * @brief Persist and apply the fixed timezone offset used for NTP sync.
+ *
+ * @param gmt_offset_sec GMT offset in seconds.
+ * @param daylight_offset_sec Daylight saving offset in seconds.
+ */
+void hw_set_timezone_offset(int32_t gmt_offset_sec, int32_t daylight_offset_sec);
+
+/**
+ * @brief Sync the system clock from NTP using a fixed timezone offset.
+ *
+ * @param gmt_offset_sec GMT offset in seconds.
+ * @param daylight_offset_sec Daylight saving offset in seconds.
+ * @param server1 Primary NTP server.
+ * @param server2 Secondary NTP server.
+ * @param wait_ms Maximum wait time for SNTP to produce a local time.
+ * @return True if a local time was obtained.
+ */
+bool hw_sync_time_from_ntp(int32_t gmt_offset_sec, int32_t daylight_offset_sec,
+                           const char *server1, const char *server2, uint32_t wait_ms);
 
 /**
  * @brief Get the current WiFi status.
@@ -388,9 +648,10 @@ wl_status_t hw_get_wifi_status();
 /**
  * @brief Get the current IP address.
  *
- * @param param A reference to a string where the IP address will be stored.
+ * @param param Buffer where the IP address will be stored.
+ * @param param_size Buffer size in bytes.
  */
-void hw_get_ip_address(string &param);
+void hw_get_ip_address(char *param, size_t param_size);
 
 /**
  * @brief Get the current WiFi RSSI.
@@ -416,9 +677,10 @@ float hw_get_sd_size();
 /**
  * @brief Get the Arduino version.
  *
- * @param param A reference to a string where the Arduino version will be stored.
+ * @param param Buffer where the Arduino version will be stored.
+ * @param param_size Buffer size in bytes.
  */
-void hw_get_arduino_version(string &param);
+void hw_get_arduino_version(char *param, size_t param_size);
 
 /**
  * @brief Get the GPS information.
@@ -426,6 +688,11 @@ void hw_get_arduino_version(string &param);
  * @param param A reference to a gps_params_t structure where the GPS information will be stored.
  */
 bool hw_get_gps_info(gps_params_t &param);
+
+/**
+ * @brief Enable or disable raw GNSS NMEA output on Serial.
+ */
+void hw_set_gps_nmea_serial(bool enable);
 
 /**
  * @brief Attach the PPS signal to the GPS.
@@ -445,11 +712,25 @@ void hw_gps_detach_pps();
 uint32_t hw_get_device_online();
 
 /**
+ * @brief Get the runtime LoRa hardware presence result.
+ *
+ * @return true if LoRa hardware is present. Boards without runtime detection return their static radio capability.
+ */
+bool hw_has_lora_hardware();
+
+/**
  * @brief Set the display backlight level.
  *
  * @param level The backlight level to be set.
  */
 void hw_set_disp_backlight(uint8_t level);
+
+/**
+ * @brief  Enable or disable the display blacklight.
+ * @param  enable: true to enable, false to disable.
+ * @retval None
+ */
+void hw_disp_enable_backlight(bool enable);
 
 /**
  * @brief Get the current display backlight level.
@@ -464,6 +745,13 @@ uint8_t hw_get_disp_backlight();
  * @return True if the display is on, false otherwise.
  */
 bool hw_get_disp_is_on();
+
+/**
+ * @brief  Enable or disable the keyboard backlight.
+ * @param  enable: true to enable, false to disable.
+ * @retval None
+ */
+void hw_kb_enable_backlight(bool enable);
 
 /**
  * @brief Set the keyboard backlight level.
@@ -554,6 +842,14 @@ void hw_set_radio_default();
 void hw_set_radio_tx(radio_tx_params_t &params, bool continuous = true);
 
 /**
+ * @brief Check whether a non-blocking radio transmission is complete.
+ *
+ * @param state The final transmit state when the function returns true.
+ * @return true when TX has completed or failed, false when it is still running.
+ */
+bool hw_get_radio_tx_done(int16_t &state);
+
+/**
  * @brief Get the received radio data.
  *
  * @param params A reference to a radio_rx_params_t structure where the received data will be stored.
@@ -561,9 +857,88 @@ void hw_set_radio_tx(radio_tx_params_t &params, bool continuous = true);
 void hw_get_radio_rx(radio_rx_params_t &params);
 
 /**
- * @brief Mount the SD card.
+ * @brief Check if the radio supports spectral scan (SX126x only).
  */
-void hw_mount_sd();
+bool hw_has_spectral_scan();
+
+/**
+ * @brief Initialize spectral scan mode (uploads patch, configures FSK modem).
+ * @return 0 on success, negative on error.
+ */
+int16_t hw_radio_spectral_scan_init();
+
+/**
+ * @brief Start a spectral scan.
+ * @param numSamples Number of samples (e.g., 2048).
+ * @return 0 on success, negative on error.
+ */
+int16_t hw_radio_spectral_scan_start(uint16_t numSamples);
+
+/**
+ * @brief Check if spectral scan is complete.
+ * @return 0 if complete, negative if still running or error.
+ */
+int16_t hw_radio_spectral_scan_status();
+
+/**
+ * @brief Get spectral scan results.
+ * @param results Array of RADIOLIB_SX126X_SPECTRAL_SCAN_RES_SIZE (33) uint16_t values.
+ * @return 0 on success, negative on error.
+ */
+int16_t hw_radio_spectral_scan_result(uint16_t *results);
+
+/**
+ * @brief Abort spectral scan.
+ */
+void hw_radio_spectral_scan_abort();
+
+/**
+ * @brief Exit spectral scan mode (restore radio defaults).
+ */
+void hw_radio_spectral_scan_deinit();
+
+/*
+* @brief Check if the SD card is inserted.
+* @return True if the SD card is inserted, false otherwise.
+*/
+bool hw_is_sd_insert();
+
+/*
+* @brief Check whether this board has a physical SD card detect pin.
+* @return True if the board can detect SD card insertion without mounting.
+*/
+bool hw_has_sd_detect_pin();
+
+/*
+* @brief Check the physical SD card insertion state when a detect pin exists.
+* @return True if the SD card is physically inserted or already ready on boards without detect pin.
+*/
+bool hw_is_sd_card_inserted();
+
+/*
+* @brief Get the board default SD SPI frequency.
+* @return The default SD SPI frequency in Hz, or 0 if not supported.
+*/
+uint32_t hw_get_sd_default_spi_freq();
+
+/*
+* @brief Build the SD mount SPI frequency retry list. The board default is first.
+* @param freqs Output buffer for frequencies in Hz.
+* @param max_count Maximum number of entries in freqs.
+* @return Number of frequencies written.
+*/
+uint8_t hw_get_sd_mount_freq_list(uint32_t *freqs, uint8_t max_count);
+
+/**
+ * @brief Mount the SD card.
+ * @param spi_freq SD SPI frequency in Hz. Pass 0 to use the board default.
+ */
+bool hw_mount_sd(uint32_t spi_freq = 0);
+
+/**
+ * @brief Unmount the SD card and clear cached SD state.
+ */
+void hw_unmount_sd();
 
 /**
  * @brief Get the list of music files from the SD card.
@@ -572,6 +947,14 @@ void hw_mount_sd();
  */
 void hw_get_filesystem_music(vector < AudioParams_t >  &list);
 
+/**
+ * @brief Get network audio streams from SD config, or built-in defaults.
+ *
+ * Config path: /radio_streams.txt
+ * Format: Name|http://host/path
+ */
+void hw_get_network_audio_streams(vector < NetworkAudioStreamParams_t > &list);
+
 /*
 * @brief Start playing a music file from the SD card.
 *
@@ -579,6 +962,18 @@ void hw_get_filesystem_music(vector < AudioParams_t >  &list);
 * @param filename A pointer to the name of the music file to play.
 */
 void hw_set_sd_music_play(audio_source_type_t source_type, const char *filename);
+
+/**
+ * @brief Start playing an HTTP MP3/ICY audio stream.
+ */
+void hw_set_network_audio_stream_play(const char *name, const char *url);
+
+/**
+ * @brief Play the boot PCM WAV from FFat asynchronously.
+ *
+ * Expected file path in the uploaded FFat image: /boot.wav
+ */
+void hw_play_boot_sound_async();
 
 /**
  * @brief Pause the music playback.
@@ -611,14 +1006,114 @@ void hw_set_volume(uint8_t volume);
 uint8_t hw_get_volume();
 
 /**
+ * @brief Play a short beep through the audio output device.
+ *
+ * @param frequency_hz Tone frequency in Hz.
+ * @param duration_ms Tone duration in milliseconds.
+ */
+void hw_audio_beep(uint16_t frequency_hz, uint16_t duration_ms);
+
+/**
+ * @brief  Get the number of microphone input channels.
+ * @retval Number of channels (1 = mono, 2 = stereo)
+ */
+uint8_t hw_get_codec_input_channels();
+
+/**
+ * @brief  Get the current microphone gain.
+ * @retval Current gain
+ */
+float hw_get_mic_gain();
+
+/**
+ * @brief  Set the microphone gain.
+ * @param  gain: The gain value to set.
+ * @retval None
+ */
+void hw_set_mic_gain(float gain);
+
+/**
+ * @brief Check whether microphone input source selection is available.
+ *
+ * @return True when the board can switch between internal and 3.5mm jack microphone inputs.
+ */
+bool hw_has_mic_input_source_setting();
+
+/**
+ * @brief Set the microphone input source.
+ *
+ * @param source One of mic_input_source_t.
+ */
+void hw_set_mic_input_source(uint8_t source);
+
+/**
+ * @brief Get the current microphone input source.
+ *
+ * @return One of mic_input_source_t.
+ */
+uint8_t hw_get_mic_input_source();
+
+/**
+ * @brief Get the display name for the current microphone input source.
+ *
+ * @return Human-readable input source name.
+ */
+const char *hw_get_mic_input_source_name();
+
+/**
+ * @brief Re-apply the current microphone input source to the codec without changing settings.
+ *
+ * @return True if the codec register write succeeds.
+ */
+bool hw_apply_mic_input_source();
+
+/**
  * @brief Stop the music playback.
  */
 void hw_set_play_stop();
 
 /**
+ * @brief Request playback stop without waiting for the player task to exit.
+ */
+void hw_set_play_stop_async();
+
+/**
  * @brief Shutdown the hardware.
+ *
+ * Devices without a PMIC enter deep sleep to emulate power off.
  */
 void hw_shutdown();
+
+/**
+ * @brief Hardware behavior used for the primary power-off action.
+ */
+typedef enum {
+    HW_POWER_OFF_SHUTDOWN = 0,
+    HW_POWER_OFF_SHIP_MODE,
+    HW_POWER_OFF_DEEP_SLEEP,
+} hw_power_off_mode_t;
+
+/**
+ * @brief Get the power-off behavior supported by this device.
+ */
+hw_power_off_mode_t hw_get_power_off_mode();
+
+/**
+ * @brief Get the PMIC or charger name used by the device.
+ */
+const char *hw_get_power_controller_name();
+
+/**
+ * @brief Check whether the primary power-off action is currently available.
+ * @return False only when ship mode is blocked by external USB power.
+ */
+bool hw_can_shutdown();
+
+/*
+* @brief Check if the hardware adapter is connected.
+* @return True if the hardware adapter is connected, false otherwise.
+*/
+bool hw_adapter_is_connected();
 
 /**
  * @brief Put the hardware into sleep mode.
@@ -661,13 +1156,6 @@ void hw_set_charger(bool enable);
  */
 uint16_t hw_get_charger_current();
 
-/**
- * @brief Set the charger current.
- *
- * @param milliampere The charger current to be set in milliamperes.
- */
-void hw_set_charger_current(uint16_t milliampere);
-
 
 /**
  * @brief Get the monitor parameters.
@@ -675,6 +1163,11 @@ void hw_set_charger_current(uint16_t milliampere);
  * @param params A reference to a monitor_params_t structure where the monitor parameters will be stored.
  */
 void hw_get_monitor_params(monitor_params_t &params);
+
+/**
+ * @brief Get normalized power monitor parameters with per-field validity.
+ */
+void hw_get_power_monitor_snapshot(power_monitor_snapshot_t &snapshot);
 
 /**
  * @brief Register the IMU processing function.
@@ -694,77 +1187,21 @@ void hw_unregister_imu_process();
 void hw_get_imu_params(imu_params_t &params);
 
 /**
- * @brief Enable the BLE module.
- *
- * @param devName A pointer to the device name for BLE advertising.
+ * @brief Get cached BMA accelerometer runtime data.
  */
-void hw_enable_ble(const char *devName);
+void hw_get_bma_sensor_snapshot(bma_sensor_snapshot_t &snapshot);
 
 /**
- * @brief Disable the BLE module.
+ * @brief Reset cached BMA counters and peak values.
  */
-void hw_disable_ble();
+void hw_reset_bma_sensor_stats();
 
 /**
- * @brief Get the BLE message.
- *
- * @param buffer A pointer to a buffer where the BLE message will be stored.
- * @param buffer_size The size of the buffer.
- * @return The number of bytes read from the BLE message.
+ * @brief  Get the sensor type.
+ * @retval see sensor_type_t
  */
-size_t hw_get_ble_message(char *buffer, size_t buffer_size);
+sensor_type_t hw_get_sensor_type();
 
-/**
- * @brief Deinitialize the BLE module.
- */
-void hw_deinit_ble();
-
-
-/**
- * @brief Get the BLE keyboard name.
- *
- * @return A pointer to the BLE keyboard name string.
- */
-const char  *hw_get_ble_kb_name();
-
-/**
- * @brief Enable the BLE keyboard function.
- */
-void hw_set_ble_kb_enable();
-
-/**
- * @brief Disable the BLE keyboard function.
- */
-void hw_set_ble_kb_disable();
-
-/**
- * @brief Send a character via the BLE keyboard.
- *
- * @param c A pointer to the character to send.
- */
-void hw_set_ble_kb_char(const char *c);
-
-/**
- * @brief Send a key code via the BLE keyboard.
- *
- * @param key The key code to send.
- */
-void hw_set_ble_kb_key(uint8_t key);
-
-/**
- * @brief Release the keys on the BLE keyboard.
- */
-void hw_set_ble_kb_release();
-
-/**
- * @brief Check if the BLE keyboard is connected.
- *
- * @return True if connected, false otherwise.
- */
-bool hw_get_ble_kb_connected();
-
-
-void hw_set_ble_key(media_key_value_t key);
 
 /**
  * @brief Set the callback function for keyboard reading.
@@ -785,6 +1222,22 @@ void hw_set_keyboard_read_callback(void(*read)(int state, char &c));
  * vibration or a sound, depending on the hardware implementation.
  */
 void hw_feedback();
+
+/** Get the persisted DRV2605 ROM waveform effect (1-117). */
+uint8_t hw_get_haptic_effect();
+
+/** Set and persist the DRV2605 ROM waveform effect (1-117). */
+bool hw_set_haptic_effect(uint8_t effect);
+
+/**
+ * @brief Disable hardware feedback.
+ */
+void hw_disable_feedback();
+
+/**
+ * @brief Enable hardware feedback.
+ */
+void hw_enable_feedback();
 
 /**
  * @brief Show the WiFi connection process bar on the UI.
@@ -834,6 +1287,13 @@ void hw_get_user_setting(user_setting_params_t &param);
  */
 void hw_set_user_setting(user_setting_params_t &param);
 
+bool hw_get_nav_auto_hide_enabled(void);
+void hw_set_nav_auto_hide_enabled(bool enabled);
+bool hw_get_keyboard_navigation_enabled(void);
+void hw_set_keyboard_navigation_enabled(bool enabled);
+bool hw_get_touch_guide_dismissed(void);
+void hw_set_touch_guide_dismissed(bool dismissed);
+
 /**
  * @brief Get the display timeout in milliseconds.
  *
@@ -856,8 +1316,9 @@ void hw_low_power_loop();
  * This function increases the display brightness by the specified level.
  *
  * @param level The amount by which to increase the brightness.
+ * @param async If true, the brightness change will be applied asynchronously; otherwise, it will be applied synchronously.
  */
-void hw_inc_brightness(uint8_t level);
+void hw_inc_brightness(uint8_t level, bool async = false);
 
 /**
  * @brief Decrease the display brightness level.
@@ -865,8 +1326,9 @@ void hw_inc_brightness(uint8_t level);
  * This function decreases the display brightness by the specified level.
  *
  * @param level The amount by which to decrease the brightness.
+ * @param async If true, the brightness change will be applied asynchronously; otherwise, it will be applied synchronously.
  */
-void hw_dec_brightness(uint8_t level);
+void hw_dec_brightness(uint8_t level, bool async = false);
 
 /**
  * @brief Set the CPU frequency.
@@ -876,31 +1338,6 @@ void hw_dec_brightness(uint8_t level);
  * @param mhz The desired CPU frequency in megahertz.
  */
 void hw_set_cpu_freq(uint32_t mhz);
-
-/**
- * @brief Start the microphone.
- *
- * This function initializes and starts the microphone for audio input.
- *
- * @return True if the microphone is successfully started, false otherwise.
- */
-bool hw_set_mic_start();
-
-/**
- * @brief Stop the microphone.
- *
- * This function stops the microphone and releases any associated resources.
- */
-void hw_set_mic_stop();
-
-/**
- * @brief Get the FFT data.
- *
- * This function retrieves the FFT data and stores it in the provided FFTData structure.
- *
- * @param fft_data A pointer to an FFTData structure where the FFT data will be stored.
- */
-void hw_audio_get_fft_data(FFTData *fft_data);
 
 /**
  * @brief Disable all input devices.
@@ -947,10 +1384,87 @@ void hw_flush_keyboard();
 bool hw_has_keyboard();
 
 /**
+ * @brief Check if the rotary encoder is available.
+ *
+ * @return True if the rotary encoder is available, false otherwise.
+ */
+bool hw_has_encoder();
+
+/**
+ * @brief Set rotary encoder step divider.
+ *
+ * Larger values reduce sensitivity because more raw encoder counts are required
+ * before one LVGL encoder step is emitted.
+ *
+ * @param divider Number of raw encoder counts per output step.
+ */
+void hw_set_rotary_step_divider(uint8_t divider);
+
+/**
+ * @brief Save rotary encoder step divider to non-volatile storage.
+ *
+ * The value is also applied immediately.
+ *
+ * @param divider Number of raw encoder counts per output step.
+ */
+void hw_save_rotary_step_divider(uint8_t divider);
+
+/**
+ * @brief Get rotary encoder step divider.
+ *
+ * @return Number of raw encoder counts per output step.
+ */
+uint8_t hw_get_rotary_step_divider();
+
+/**
+ * @brief Get the minimum supported rotary encoder step divider.
+ *
+ * @return Minimum supported step divider.
+ */
+uint8_t hw_get_rotary_step_divider_min();
+
+/**
+ * @brief Get the maximum supported rotary encoder step divider.
+ *
+ * @return Maximum supported step divider.
+ */
+uint8_t hw_get_rotary_step_divider_max();
+
+/**
+ * @brief Check if the board supports audio jack mode switching.
+ *
+ * @return True when CTIA/TRRS switching is available.
+ */
+bool hw_has_audio_jack_mode_setting();
+
+/**
+ * @brief Apply and persist the audio jack mode.
+ *
+ * CTIA drives EXPANDS_AUDIO_JACK_SEL low. TRRS drives it high.
+ *
+ * @param mode One of audio_jack_mode_t.
+ */
+void hw_set_audio_jack_mode(uint8_t mode);
+
+/**
+ * @brief Get the current persisted audio jack mode.
+ *
+ * @return One of audio_jack_mode_t.
+ */
+uint8_t hw_get_audio_jack_mode();
+
+/**
  * @brief Check if the indicator LED is available.
  * @retval True if the indicator LED is available, false otherwise.
  */
 bool hw_has_indicator_led();
+
+/**
+ * @brief  Get the firmware version of the expansion module.
+ * @note   This function retrieves the firmware version from the expansion module.
+ * @retval The firmware version as a string.
+ */
+const char *hw_get_expands_fw_version();
 
 /**
  * @brief Check if the OTG function is available.
@@ -1061,6 +1575,22 @@ void hw_get_nrf24_params(radio_params_t &params);
 int16_t hw_set_nrf24_params(radio_params_t &params);
 
 /**
+ * @brief Set the NRF24 5-byte pipe address used for TX and RX.
+ *
+ * @param address Pointer to a 5-byte address.
+ * @param length Address buffer length. Values shorter than 5 are ignored.
+ */
+void hw_set_nrf24_address(const uint8_t *address, size_t length);
+
+/**
+ * @brief Get the NRF24 5-byte pipe address used for TX and RX.
+ *
+ * @param address Destination buffer.
+ * @param length Destination buffer length. Values shorter than 5 are ignored.
+ */
+void hw_get_nrf24_address(uint8_t *address, size_t length);
+
+/**
  * @brief Set the NRF24 listening mode.
  *
  * This function sets the NRF24 radio to listening mode.
@@ -1077,6 +1607,14 @@ void hw_set_nrf24_listening();
  * @return True if the operation was successful, false otherwise.
  */
 bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous = true);
+
+/**
+ * @brief Check whether a non-blocking NRF24 transmission is complete.
+ *
+ * @param state The final transmit state when the function returns true.
+ * @return true when TX has completed or failed, false when it is still running.
+ */
+bool hw_get_nrf24_tx_done(int16_t &state);
 
 /**
  * @brief Get the NRF24 reception parameters.
@@ -1172,6 +1710,7 @@ float radio_get_tx_power_from_index(uint8_t index);
  * @return True if the transmission was successful, false otherwise.
  */
 bool radio_transmit(const uint8_t *data, size_t length);
+int16_t radio_get_last_transmit_state();
 
 /**
  * @brief Get the radio frequency length.
@@ -1251,7 +1790,7 @@ void hw_si4735_set_power(bool powerOn);
  *
  * This function sets the volume of the Si4735.
  *
- * @param vol The volume level to set (0-100).
+ * @param vol The volume level to set (0-63).
  */
 void hw_si4735_set_volume(uint8_t vol);
 
@@ -1260,7 +1799,7 @@ void hw_si4735_set_volume(uint8_t vol);
  *
  * This function retrieves the current volume level of the Si4735.
  *
- * @return The current volume level (0-100).
+ * @return The current volume level (0-63).
  */
 uint8_t hw_si4735_get_volume(void);
 
@@ -1272,6 +1811,15 @@ uint8_t hw_si4735_get_volume(void);
  * @return The current RSSI level.
  */
 uint8_t hw_si4735_get_rssi();
+
+/**
+ * @brief Get the SNR of the Si4735.
+ *
+ * This function retrieves the current Signal-to-Noise Ratio.
+ *
+ * @return The current SNR in dB.
+ */
+uint8_t hw_si4735_get_snr();
 
 /**
  * @brief Get the frequency of the Si4735.
@@ -1307,7 +1855,7 @@ void hw_si4735_set_mode(Si4735Mode bandType);
  *
  * @return The number of steps updated.
  */
-uint16_t si4735_update_steps();
+uint16_t hw_si4735_update_steps();
 
 /**
  * @brief Set the AGC (Automatic Gain Control) state.
@@ -1316,7 +1864,7 @@ uint16_t si4735_update_steps();
  *
  * @param on True to enable AGC, false to disable it.
  */
-void si4735_set_agc(bool on);
+void hw_si4735_set_agc(bool on);
 
 /**
  * @brief Set the BFO (Beat Frequency Oscillator) state.
@@ -1325,35 +1873,49 @@ void si4735_set_agc(bool on);
  *
  * @param on True to enable BFO, false to disable it.
  */
-void si4735_set_bfo(bool on);
+void hw_si4735_set_bfo(bool on);
 
 /**
  * @brief Set the frequency up.
  *
  * This function increases the frequency of the Si4735.
  */
-void si4735_set_freq_up();
+void hw_si4735_set_freq_up();
 
 /**
  * @brief Set the frequency down.
  *
  * This function decreases the frequency of the Si4735.
  */
-void si4735_set_freq_down();
+void hw_si4735_set_freq_down();
 
 /**
  * @brief Set the band up.
  *
  * This function increases the band of the Si4735.
  */
-void si4735_band_up();
+void hw_si4735_band_up();
+
+/*
+* @brief Set the seek up.
+*
+* This function increases the seek frequency of the Si4735.
+*/
+void hw_si4735_seek_up();
+
+/*
+* @brief Set the seek down.
+*
+* This function decreases the seek frequency of the Si4735.
+*/
+void hw_si4735_seek_down();
 
 /**
  * @brief Set the band down.
  *
  * This function decreases the band of the Si4735.
  */
-void si4735_band_down();
+void hw_si4735_band_down();
 
 /**
  * @brief Get the current mode of the Si4735.
@@ -1380,7 +1942,17 @@ const char *hw_si4735_get_band_name();
  *
  * @return The current step.
  */
-uint16_t si4735_get_current_step();
+uint16_t hw_si4735_get_current_step();
+
+
+/**
+ * @brief  Set the frequency of the Si4735.
+ * @note   This function sets the frequency of the Si4735.
+ * @param  freq: The frequency to set (in kHz).
+ * @retval None
+ */
+void hw_si4735_set_freq(uint16_t freq);
+
 
 /**
  * @brief Enable or disable the magnetometer.
@@ -1400,15 +1972,60 @@ void hw_mag_enable(bool enable);
  */
 float hw_mag_get_polar();
 
+/**
+ * @brief Read magnetometer raw, field strength, and heading data.
+ *
+ * @param data A reference to a mag_data_t structure where data will be stored.
+ * @return true if a new sample was read.
+ */
+bool hw_mag_read(mag_data_t &data);
 
 /**
- * @brief Get the current magnetic field vector.
+ * @brief Apply a magnetometer calibration offset for the current runtime.
  *
- * This function retrieves the current magnetic field vector from the magnetometer.
+ * This does not persist the offset.
  *
- * @param x A reference to a float where the X component will be stored.
- * @param y A reference to a float where the Y component will be stored.
- * @param z A reference to a float where the Z component will be stored.
+ * @param cal Calibration offset.
+ */
+void hw_mag_apply_calibration(const mag_calibration_t &cal);
+
+/**
+ * @brief Save and apply magnetometer calibration to NVS.
+ *
+ * @param cal Calibration offset.
+ * @return true if saved.
+ */
+bool hw_mag_save_calibration(const mag_calibration_t &cal);
+
+/**
+ * @brief Load and apply magnetometer calibration from NVS.
+ *
+ * @param cal Optional output calibration pointer.
+ * @return true if a valid calibration was loaded.
+ */
+bool hw_mag_load_calibration(mag_calibration_t *cal = nullptr);
+
+/**
+ * @brief Get the active magnetometer calibration.
+ *
+ * @param cal Active calibration.
+ */
+void hw_mag_get_calibration(mag_calibration_t &cal);
+
+/**
+ * @brief Clear saved magnetometer calibration and reset runtime offset.
+ */
+void hw_mag_clear_calibration();
+
+
+/**
+ * @brief  Get the current environmental data.
+ * @note   This function retrieves the current temperature, humidity, pressure, and altitude from the BME sensor.
+ * @param  &temp: A reference to a float where the temperature will be stored.
+ * @param  &humi: A reference to a float where the humidity will be stored.
+ * @param  &press: A reference to a float where the pressure will be stored.
+ * @param  &alt: A reference to a float where the altitude will be stored.
+ * @retval None
  */
 void hw_bme_get_data(float &temp, float &humi, float &press, float &alt);
 
@@ -1419,7 +2036,28 @@ void hw_bme_get_data(float &temp, float &humi, float &press, float &alt);
  *
  * @param callback The callback function to set.
  */
-void hw_set_trackball_callback(void(*callback)(uint8_t dir));
+void hw_set_trackball_callback(TrackballEventCallback callback);
+
+/**
+ * @brief Check whether the board's pointer device was initialized.
+ *
+ * Directional GPIO trackballs and continuous XY sensors such as PAW350 are
+ * exposed through the same pointer interface.
+ *
+ * @return True when pointer movement events are available.
+ */
+bool hw_pointer_available();
+
+/**
+ * @brief Set a normalized pointer-button callback.
+ *
+ * The callback receives one of HW_POINTER_BUTTON_LEFT,
+ * HW_POINTER_BUTTON_RIGHT, or HW_POINTER_BUTTON_MIDDLE. Board-specific button
+ * layouts are mapped by the HAL.
+ *
+ * @param callback Callback to register, or NULL to unregister it.
+ */
+void hw_set_pointer_button_callback(PointerButtonEventCallback callback);
 
 /**
  * @brief Set the button callback.
@@ -1428,7 +2066,37 @@ void hw_set_trackball_callback(void(*callback)(uint8_t dir));
  *
  * @param callback The callback function to set.
  */
-void hw_set_button_callback(void (*callback)(uint8_t idx, uint8_t state));
+void hw_set_button_callback(ButtonEventCallback callback);
+
+/**
+ * @brief Check whether board-level button event monitoring is available.
+ *
+ * @return True when the device can report BUTTON_EVENT events.
+ */
+bool hw_has_button_monitor();
+
+/**
+ * @brief Check whether PMU power-key event monitoring is available.
+ *
+ * @return True when the device can report PMU power-key events.
+ */
+bool hw_has_pmu_button_monitor();
+
+/**
+ * @brief Get the latest board-level button event text.
+ *
+ * @param buffer Destination text buffer.
+ * @param size Destination buffer size.
+ */
+void hw_get_button_monitor_status(char *buffer, size_t size);
+
+/**
+ * @brief Get the latest PMU power-key event text.
+ *
+ * @param buffer Destination text buffer.
+ * @param size Destination buffer size.
+ */
+void hw_get_pmu_button_monitor_status(char *buffer, size_t size);
 
 
 /**
@@ -1439,6 +2107,32 @@ void hw_set_button_callback(void (*callback)(uint8_t idx, uint8_t state));
  * @return True if NFC discovery is successfully started, false otherwise.
  */
 bool hw_start_nfc_discovery();
+
+#if defined(ARDUINO) && defined(USING_ST25R3916)
+/**
+ * @brief Start NFC card emulation.
+ *
+ * This function starts NFC card emulation with an NDEF template.
+ *
+ * @param config NFC emulation configuration.
+ * @return True if NFC emulation is successfully started, false otherwise.
+ */
+bool hw_start_nfc_emulation(const LilyGoNfcEmulationConfig &config);
+#endif
+
+/**
+ * @brief Run NFC service loop.
+ *
+ * This function should be called from the main loop while NFC is available.
+ */
+void hw_loop_nfc();
+
+/**
+ * @brief Stop NFC service.
+ *
+ * This function stops reader discovery or card emulation.
+ */
+void hw_stop_nfc();
 
 /**
  * @brief Stop NFC discovery.
@@ -1491,80 +2185,697 @@ const char *hw_get_chip_id_string();
 */
 void hw_set_usb_rf_switch(bool to_usb);
 
-/**
- * @brief  Set the audio 3D effect.
- * @note   This function enables or disables the 3D audio effect.
- * @param  enable: True to enable the 3D audio effect, false to disable it.
- * @retval None
- */
-void hw_set_audio_effect_3d(bool enable);
 
-/**
- * @brief  Set the audio effect to AB class.
- * @note   This function enables or disables the AB class audio effect.
- * @param  enable: True to enable the AB class audio effect, false to disable it.
- * @retval None
+/*
+ * Factory capability map.
+ *
+ * Upstream Arduino-ESP32 variants are the source of truth for released boards.
+ * This layer adds factory-specific compatibility aliases and derives UI
+ * EXCLUDE_* switches from explicit capabilities.
  */
-void hw_set_audio_effect_ab_class(bool enable);
 
+#if defined(ARDUINO_LILYGO_LORA_SX1262) || defined(ARDUINO_LILYGO_LORA_SX1280) || \
+    defined(ARDUINO_LILYGO_LORA_CC1101) || defined(ARDUINO_LILYGO_LORA_LR1121) || \
+    defined(ARDUINO_LILYGO_LORA_SI4432)
+#define FACTORY_HAS_RADIO_MODULE       1
+#else
+#define FACTORY_HAS_RADIO_MODULE       0
+#endif
 
 #if defined(ARDUINO_T_LORA_PAGER)
-#define USING_BLE_KEYBOARD
-#define  FLOAT_BUTTON_WIDTH  40
-#define  FLOAT_BUTTON_HEIGHT 40
-#ifndef USING_BHI260_SENSOR
-#define USING_BHI260_SENSOR
-#endif
-
-#ifndef RADIOLIB_EXCLUDE_NRF24
-#define USING_EXTERN_NRF2401
-#endif
-
-#ifndef USING_ST25R3916
-#define USING_ST25R3916
-#endif
-
-#define MAIN_FONT   &lv_font_montserrat_16
-
-#define NFC_TIPS_STRING "Place the NFC card close to the center of the arrow on the back. It will vibrate when the card is detected; otherwise, it will not display anything if it cannot be resolved."
-
-#define DEVICE_KEYBOARD_TYPE    KEYBOARD_TYPE_1
+#define FLOAT_BUTTON_WIDTH             40
+#define FLOAT_BUTTON_HEIGHT            40
+#define MAIN_FONT                      &lv_font_montserrat_16
+#define NFC_TIPS_STRING                "Place the NFC card close to the center of the arrow on the back. It will vibrate when the card is detected; otherwise, it will not display anything if it cannot be resolved."
+#define DEVICE_KEYBOARD_TYPE           KEYBOARD_TYPE_1
+#define DISP_BACKLIGHT_DELAY_MS        50
 
 #elif defined(ARDUINO_T_WATCH_S3_ULTRA)
+#define FLOAT_BUTTON_WIDTH             60
+#define FLOAT_BUTTON_HEIGHT            60
+#define MAIN_FONT                      &lv_font_montserrat_22
+#define NFC_TIPS_STRING                "Hold the NFC card close to the front of the screen. It will vibrate when the card is detected; otherwise, it will not display anything if it cannot be resolved."
+#define DISP_BACKLIGHT_DELAY_MS        5
 
+#elif defined(ARDUINO_T_WATCH_S3)
+#define FLOAT_BUTTON_WIDTH             40
+#define FLOAT_BUTTON_HEIGHT            40
+#define MAIN_FONT                      &lv_font_montserrat_12
+#define NFC_TIPS_STRING                "No NFC devices"
+#define DISP_BACKLIGHT_DELAY_MS        5
+
+#elif defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3)
+#define FLOAT_BUTTON_WIDTH             40
+#define FLOAT_BUTTON_HEIGHT            40
+#define MAIN_FONT                      &lv_font_montserrat_12
+#define NFC_TIPS_STRING                "No NFC devices"
+#define DISP_BACKLIGHT_DELAY_MS        5
+
+#elif defined(ARDUINO_T_DECK_V2)
+#define FLOAT_BUTTON_WIDTH             40
+#define FLOAT_BUTTON_HEIGHT            40
+#define MAIN_FONT                      &lv_font_montserrat_18
+#define NFC_TIPS_STRING                "No NFC devices"
+#define DEVICE_KEYBOARD_TYPE           KEYBOARD_TYPE_2
+#define DISP_BACKLIGHT_DELAY_MS        50
+#define HAS_EFFECT_BUTTONS
+#endif
+
+#ifndef FLOAT_BUTTON_WIDTH
+#define FLOAT_BUTTON_WIDTH             40
+#endif
+#ifndef FLOAT_BUTTON_HEIGHT
+#define FLOAT_BUTTON_HEIGHT            40
+#endif
+#ifndef MAIN_FONT
+#define MAIN_FONT                      &lv_font_montserrat_16
+#endif
+#ifndef NFC_TIPS_STRING
+#define NFC_TIPS_STRING                "No NFC devices"
+#endif
+#ifndef DEVICE_KEYBOARD_TYPE
+#define DEVICE_KEYBOARD_TYPE           KEYBOARD_TYPE_NONE
+#endif
+#ifndef DISP_BACKLIGHT_DELAY_MS
+#define DISP_BACKLIGHT_DELAY_MS        50
+#endif
+
+#ifndef FACTORY_HAS_AUDIO_CODEC
+#if defined(USING_AUDIO_CODEC) || defined(USING_ES7210)
+#define FACTORY_HAS_AUDIO_CODEC        1
+#else
+#define FACTORY_HAS_AUDIO_CODEC        0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_AUDIO_OUT
+#if defined(USING_AUDIO_CODEC) || defined(USING_PCM_AMPLIFIER) || defined(ARDUINO_TWATCH_2020_V3) || \
+    defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK)
+#define FACTORY_HAS_AUDIO_OUT          1
+#else
+#define FACTORY_HAS_AUDIO_OUT          0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_AUDIO_IN
+#if defined(USING_AUDIO_CODEC) || defined(USING_PDM_MICROPHONE) || defined(ARDUINO_TWATCH_2020_V3) || \
+    defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK)
+#define FACTORY_HAS_AUDIO_IN           1
+#else
+#define FACTORY_HAS_AUDIO_IN           0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_MICROPHONE
+#define FACTORY_HAS_MICROPHONE         FACTORY_HAS_AUDIO_IN
+#endif
+
+#ifndef FACTORY_HAS_RTC
+#if defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || \
+    defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
+    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_RTC                1
+#else
+#define FACTORY_HAS_RTC                0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_POWER_MANAGE
+#if defined(USING_PMU_MANAGE) || defined(USING_PPM_MANAGE) || defined(ARDUINO_TWATCH_BASE) || \
+    defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
+    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_POWER_MANAGE       1
+#else
+#define FACTORY_HAS_POWER_MANAGE       0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_BQ_GAUGE
+#if defined(ARDUINO_T_LORA_PAGER) || defined(GAUGE_CHIP_BQ27220) || \
+    (defined(USING_BQ_GAUGE) && !defined(ARDUINO_T_DECK_V2))
+#define FACTORY_HAS_BQ_GAUGE           1
+#else
+#define FACTORY_HAS_BQ_GAUGE           0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_AXP2602_GUAGE
+#if defined(USING_AXP2602_GUAGE) || defined(T_DECK_V2_REV06) || defined(T_DECK_V2_REV07)
+#define FACTORY_HAS_AXP2602_GUAGE      1
+#else
+#define FACTORY_HAS_AXP2602_GUAGE      0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_GAUGE
+#if FACTORY_HAS_BQ_GAUGE || FACTORY_HAS_AXP2602_GUAGE
+#define FACTORY_HAS_GAUGE              1
+#else
+#define FACTORY_HAS_GAUGE              0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_TOUCH_INPUT
+#if defined(USING_TOUCHPAD) || defined(USING_INPUT_DEV_TOUCHPAD) || defined(HAS_TOUCHSCREEN) || \
+    defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || \
+    defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_TOUCH_INPUT        1
+#else
+#define FACTORY_HAS_TOUCH_INPUT        0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_TOUCHSCREEN
+#if defined(HAS_TOUCHSCREEN)
+#define FACTORY_HAS_TOUCHSCREEN        1
+#else
+#define FACTORY_HAS_TOUCHSCREEN        0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_KEYBOARD
+#if defined(USING_INPUT_DEV_KEYBOARD) || defined(USING_TDECK_KEYBOARD) || \
+    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_KEYBOARD           1
+#else
+#define FACTORY_HAS_KEYBOARD           0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_ROTARY
+#if defined(USING_INPUT_DEV_ROTARY) || defined(ARDUINO_T_LORA_PAGER)
+#define FACTORY_HAS_ROTARY             1
+#else
+#define FACTORY_HAS_ROTARY             0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_TRACKBALL
+#if defined(USING_TRACKBALL) || defined(USING_TRACKBALL_V2) || defined(USING_TDECK_TRACKBALL)
+#define FACTORY_HAS_TRACKBALL          1
+#else
+#define FACTORY_HAS_TRACKBALL          0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_SD
+#if defined(HAS_SD_CARD_SOCKET) || defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
+    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_SD                 1
+#else
+#define FACTORY_HAS_SD                 0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_GPS
+#if defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK)
+#define FACTORY_HAS_GPS                1
+#else
+#define FACTORY_HAS_GPS                0
+#endif
+#endif
+
+#ifndef FACTORY_GPS_RUNTIME_PROBE
+#if defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_DECK)
+#define FACTORY_GPS_RUNTIME_PROBE      1
+#else
+#define FACTORY_GPS_RUNTIME_PROBE      0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_RADIO
+#if FACTORY_HAS_RADIO_MODULE
+#define FACTORY_HAS_RADIO              1
+#else
+#define FACTORY_HAS_RADIO              0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_LORAWAN
+#if (defined(ARDUINO_LILYGO_LORA_LR1121) && !defined(EXCLUDE_LORAWAN_LR1121)) || \
+    (defined(ARDUINO_LILYGO_LORA_SX1262) && !defined(EXCLUDE_LORAWAN_SX1262))
+#define FACTORY_HAS_LORAWAN            1
+#else
+#define FACTORY_HAS_LORAWAN            0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_CC1101_TOOL
+#if defined(ARDUINO_LILYGO_LORA_CC1101)
+#define FACTORY_HAS_CC1101_TOOL        1
+#else
+#define FACTORY_HAS_CC1101_TOOL        0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_NRF24
+#if defined(ARDUINO_T_LORA_PAGER) && !defined(RADIOLIB_EXCLUDE_NRF24)
+#define FACTORY_HAS_NRF24              1
+#else
+#define FACTORY_HAS_NRF24              0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_NFC
+#if defined(USING_ST25R3916) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER)
+#define FACTORY_HAS_NFC                1
+#else
+#define FACTORY_HAS_NFC                0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_MOTION_SENSOR
+#if defined(USING_BHI260_SENSOR) || defined(USING_BMA423_SENSOR) || defined(USING_QMI8658_SENSOR) || \
+    defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || \
+    defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_MOTION_SENSOR      1
+#else
+#define FACTORY_HAS_MOTION_SENSOR      0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_BHI260
+#if defined(USING_BHI260_SENSOR) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_BHI260             1
+#else
+#define FACTORY_HAS_BHI260             0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_BMA423
+#if defined(USING_BMA423_SENSOR) || defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || \
+    defined(ARDUINO_T_WATCH_S3)
+#define FACTORY_HAS_BMA423             1
+#else
+#define FACTORY_HAS_BMA423             0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_QMI8658
+#if defined(USING_QMI8658_SENSOR)
+#define FACTORY_HAS_QMI8658            1
+#else
+#define FACTORY_HAS_QMI8658            0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_ENV_SENSOR
+#if defined(USING_BME280)
+#define FACTORY_HAS_ENV_SENSOR         1
+#else
+#define FACTORY_HAS_ENV_SENSOR         0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_COMPASS
+#if defined(USING_MAG_COMPASS) || defined(USING_MAG_QMC5883) || defined(USING_MAG_QMC6309)
+#define FACTORY_HAS_COMPASS            1
+#else
+#define FACTORY_HAS_COMPASS            0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_I2C
+#if defined(HAS_I2C_INTERFACE) || defined(SDA) || defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || \
+    defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK)
+#define FACTORY_HAS_I2C                1
+#else
+#define FACTORY_HAS_I2C                0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_SPI
+#if defined(HAS_SPI_INTERFACE) || FACTORY_HAS_RADIO || FACTORY_HAS_SD || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_SPI                1
+#else
+#define FACTORY_HAS_SPI                0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_IR_TX
+#if defined(USING_IR_REMOTE) || defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || \
+    defined(USING_IR_TRANSMITTER)
+#define FACTORY_HAS_IR_TX              1
+#else
+#define FACTORY_HAS_IR_TX              0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_IR_RX
+#if defined(USING_IR_RECEIVER)
+#define FACTORY_HAS_IR_RX              1
+#else
+#define FACTORY_HAS_IR_RX              0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_SI4735
+#if defined(USING_SI473X_RADIO)
+#define FACTORY_HAS_SI4735             1
+#else
+#define FACTORY_HAS_SI4735             0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_EXPANDER
+#if defined(USING_XL9555_EXPANDS) || defined(USING_MCU_EXPANDS) || defined(USING_TCA8418_EXPANDS)
+#define FACTORY_HAS_EXPANDER           1
+#else
+#define FACTORY_HAS_EXPANDER           0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_USB_RF_SWITCH
+#if defined(HAS_USB_RF_SWITCH) || defined(ARDUINO_T_WATCH_S3_ULTRA)
+#define FACTORY_HAS_USB_RF_SWITCH      1
+#else
+#define FACTORY_HAS_USB_RF_SWITCH      0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_LED_INDICATOR
+#if defined(USING_LED_INDICATOR)
+#define FACTORY_HAS_LED_INDICATOR      1
+#else
+#define FACTORY_HAS_LED_INDICATOR      0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_USB_MSC
+#if FACTORY_HAS_SD && (defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK))
+#define FACTORY_HAS_USB_MSC            1
+#else
+#define FACTORY_HAS_USB_MSC            0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_HAPTIC_DRV
+#if defined(USING_DRV2605) || defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || \
+    defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_HAPTIC_DRV         1
+#else
+#define FACTORY_HAS_HAPTIC_DRV         0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_NES
+#if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
+#define FACTORY_HAS_NES                1
+#else
+#define FACTORY_HAS_NES                0
+#endif
+#endif
+
+#if FACTORY_HAS_TOUCH_INPUT
+#ifndef USING_TOUCHPAD
 #define USING_TOUCHPAD
-#define FLOAT_BUTTON_WIDTH  60
-#define FLOAT_BUTTON_HEIGHT 60
-#define USING_BLE_KEYBOARD
+#endif
+#ifndef USING_INPUT_DEV_TOUCHPAD
+#define USING_INPUT_DEV_TOUCHPAD
+#endif
+#endif
+
+#if FACTORY_HAS_BHI260
 #ifndef USING_BHI260_SENSOR
 #define USING_BHI260_SENSOR
 #endif
+#endif
+
+#if FACTORY_HAS_BMA423
+#ifndef USING_BMA423_SENSOR
+#define USING_BMA423_SENSOR
+#endif
+#endif
+
+#if FACTORY_HAS_NFC
 #ifndef USING_ST25R3916
 #define USING_ST25R3916
 #endif
+#endif
 
+#if FACTORY_HAS_NRF24
+#ifndef USING_EXTERN_NRF2401
+#define USING_EXTERN_NRF2401
+#endif
+#endif
+
+#if FACTORY_HAS_SD
+#ifndef HAS_SD_CARD_SOCKET
+#define HAS_SD_CARD_SOCKET
+#endif
+#endif
+
+#if FACTORY_HAS_I2C
+#ifndef HAS_I2C_INTERFACE
+#define HAS_I2C_INTERFACE
+#endif
+#endif
+
+#if FACTORY_HAS_SPI
+#ifndef HAS_SPI_INTERFACE
+#define HAS_SPI_INTERFACE
+#endif
+#endif
+
+#if FACTORY_HAS_IR_TX
+#ifndef USING_IR_REMOTE
+#define USING_IR_REMOTE
+#endif
+#endif
+
+#if FACTORY_HAS_IR_RX
+#ifndef USING_IR_RECEIVER
+#define USING_IR_RECEIVER
+#endif
+#endif
+
+#if FACTORY_HAS_IR_TX && FACTORY_HAS_IR_RX
+#ifndef HAS_IR_RX_TX
+#define HAS_IR_RX_TX
+#endif
+#endif
+
+#if FACTORY_HAS_BQ_GAUGE
+#ifndef USING_BQ_GAUGE
+#define USING_BQ_GAUGE
+#endif
+#endif
+
+#if FACTORY_HAS_AXP2602_GUAGE
+#ifndef USING_AXP2602_GUAGE
+#define USING_AXP2602_GUAGE
+#endif
+#endif
+
+#if defined(ARDUINO_T_DECK_V2) && defined(GAUGE_CHIP_AXP2602)
+#error "T-Deck V2 uses USING_AXP2602_GUAGE; do not define GAUGE_CHIP_AXP2602."
+#endif
+
+#if defined(ARDUINO_T_DECK_V2) && defined(USING_BQ_GAUGE) && defined(USING_AXP2602_GUAGE)
+#error "T-Deck V2 uses an AXP2602 gauge; do not define USING_BQ_GAUGE for this board."
+#endif
+
+#if FACTORY_HAS_COMPASS
+#ifndef USING_MAG_COMPASS
+#define USING_MAG_COMPASS
+#endif
+#endif
+
+#if FACTORY_HAS_USB_RF_SWITCH
 #ifndef HAS_USB_RF_SWITCH
 #define HAS_USB_RF_SWITCH
 #endif
-
-#define NFC_TIPS_STRING "Hold the NFC card close to the front of the screen. It will vibrate when the card is detected; otherwise, it will not display anything if it cannot be resolved."
-
-#define MAIN_FONT   &lv_font_montserrat_22
-
-#elif defined(ARDUINO_T_WATCH_S3)
-#define USING_TOUCHPAD
-#define FLOAT_BUTTON_WIDTH  40
-#define FLOAT_BUTTON_HEIGHT 40
-#ifndef USING_BMA423_SENSOR
-#define USING_BMA423_SENSOR
-#define USING_BLE_KEYBOARD
 #endif
 
-#define NFC_TIPS_STRING "No NFC devices"
-
-#define MAIN_FONT   &lv_font_montserrat_12
-
-
-
+#if !FACTORY_HAS_RADIO
+#ifndef USING_RADIO_NAME
+#define USING_RADIO_NAME               "None"
+#endif
 #endif
 
+#if !FACTORY_HAS_AUDIO_OUT
+#ifndef EXCLUDE_AUDIO_PLAYER
+#define EXCLUDE_AUDIO_PLAYER
+#endif
+#endif
+
+#if !FACTORY_HAS_AUDIO_IN
+#ifndef EXCLUDE_AUDIO_RECORDER
+#define EXCLUDE_AUDIO_RECORDER
+#endif
+#endif
+
+#if !FACTORY_HAS_MICROPHONE
+#ifndef EXCLUDE_MICROPHONE
+#define EXCLUDE_MICROPHONE
+#endif
+#endif
+
+#if !FACTORY_HAS_SD
+#ifndef EXCLUDE_SD_APPS
+#define EXCLUDE_SD_APPS
+#endif
+#ifndef EXCLUDE_SD_MANAGER
+#define EXCLUDE_SD_MANAGER
+#endif
+#endif
+
+#if !FACTORY_HAS_GPS
+#ifndef EXCLUDE_GPS
+#define EXCLUDE_GPS
+#endif
+#endif
+
+#if !FACTORY_HAS_RADIO
+#ifndef EXCLUDE_LORA
+#define EXCLUDE_LORA
+#endif
+#endif
+
+#if !FACTORY_HAS_LORAWAN
+#ifndef EXCLUDE_LORAWAN
+#define EXCLUDE_LORAWAN
+#endif
+#endif
+
+#if !FACTORY_HAS_CC1101_TOOL
+#ifndef EXCLUDE_CC1101_TOOL
+#define EXCLUDE_CC1101_TOOL
+#endif
+#endif
+
+#if !FACTORY_HAS_NFC
+#ifndef EXCLUDE_NFC
+#define EXCLUDE_NFC
+#endif
+#ifndef EXCLUDE_NFC_EMULATION
+#define EXCLUDE_NFC_EMULATION
+#endif
+#endif
+
+#if !FACTORY_HAS_IR_TX
+#ifndef EXCLUDE_IR_REMOTE
+#define EXCLUDE_IR_REMOTE
+#endif
+#endif
+
+#if !FACTORY_HAS_IR_RX || !FACTORY_HAS_SD
+#ifndef EXCLUDE_IR_RECORDER
+#define EXCLUDE_IR_RECORDER
+#endif
+#endif
+
+#if !FACTORY_HAS_IR_TX || !FACTORY_HAS_SD
+#ifndef EXCLUDE_IR_PLAYER
+#define EXCLUDE_IR_PLAYER
+#endif
+#endif
+
+#if !FACTORY_HAS_IR_TX || !FACTORY_HAS_IR_RX || !FACTORY_HAS_SD
+#ifndef EXCLUDE_IR_UNIVERSAL
+#define EXCLUDE_IR_UNIVERSAL
+#endif
+#endif
+
+#if !FACTORY_HAS_AUDIO_CODEC
+#ifndef EXCLUDE_I2S_TEST
+#define EXCLUDE_I2S_TEST
+#endif
+#endif
+
+#if !FACTORY_HAS_NRF24 || !FACTORY_HAS_SPI
+#ifndef EXCLUDE_NRF24
+#define EXCLUDE_NRF24
+#endif
+#endif
+
+#if !FACTORY_HAS_SI4735
+#ifndef EXCLUDE_SI4735_RADIO_WF
+#define EXCLUDE_SI4735_RADIO_WF
+#endif
+#endif
+
+#if !FACTORY_HAS_COMPASS
+#ifndef EXCLUDE_COMPASS
+#define EXCLUDE_COMPASS
+#endif
+#endif
+
+#if !FACTORY_HAS_KEYBOARD
+#ifndef EXCLUDE_KEYBOARD
+#define EXCLUDE_KEYBOARD
+#endif
+#endif
+
+#if !FACTORY_HAS_TRACKBALL
+#ifndef EXCLUDE_TRACKBALL
+#define EXCLUDE_TRACKBALL
+#endif
+#endif
+
+#if !FACTORY_HAS_KEYBOARD && !FACTORY_HAS_TRACKBALL
+#ifndef EXCLUDE_BLE_HID
+#define EXCLUDE_BLE_HID
+#endif
+#endif
+
+#if !FACTORY_HAS_MOTION_SENSOR
+#ifndef EXCLUDE_IMU
+#define EXCLUDE_IMU
+#endif
+#endif
+
+#if !FACTORY_HAS_MOTION_SENSOR || !FACTORY_HAS_SD
+#ifndef EXCLUDE_SENSOR_LOGGER
+#define EXCLUDE_SENSOR_LOGGER
+#endif
+#endif
+
+#if !FACTORY_HAS_GPS || !FACTORY_HAS_SD
+#ifndef EXCLUDE_TRACK_LOGGER
+#define EXCLUDE_TRACK_LOGGER
+#endif
+#endif
+
+#if !FACTORY_HAS_I2C
+#ifndef EXCLUDE_INA219
+#define EXCLUDE_INA219
+#endif
+#ifndef EXCLUDE_THERMAL
+#define EXCLUDE_THERMAL
+#endif
+#endif
+
+#if !FACTORY_HAS_HAPTIC_DRV
+#ifndef EXCLUDE_DRV2605
+#define EXCLUDE_DRV2605
+#endif
+#endif
+
+#if !FACTORY_HAS_USB_MSC
+#ifndef EXCLUDE_USB_DISK
+#define EXCLUDE_USB_DISK
+#endif
+#ifndef EXCLUDE_BAD_USB
+#define EXCLUDE_BAD_USB
+#endif
+#endif
+
+#if !FACTORY_HAS_NES
+#ifndef EXCLUDE_NES
+#define EXCLUDE_NES
+#endif
+#endif
+
+#if defined(ARDUINO_T_DECK)
+#ifndef EXCLUDE_WALKIE
+#define EXCLUDE_WALKIE
+#endif
+#endif
