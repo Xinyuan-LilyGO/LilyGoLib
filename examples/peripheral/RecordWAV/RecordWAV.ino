@@ -14,6 +14,9 @@
 uint8_t *wav_buffer;
 size_t wav_size;
 
+AudioInputIf *inputDev = instance.getAudioInput();
+AudioOutputIf *outputDev = instance.getAudioOutput();
+
 void setup()
 {
     Serial.begin(115200);
@@ -25,19 +28,34 @@ void setup()
     lv_obj_t *label1 = lv_label_create(lv_screen_active());
     lv_label_set_text(label1, "RecordWAV");
     lv_obj_center(label1);
+    lv_task_handler();
 
     Serial.println("Start Record");
 
-    // Record 5 seconds of audio data
+    int after_seconds = 5;
 
-#ifdef USING_AUDIO_CODEC
-    // T-LoRa-Pager uses Codec
-    instance.codec.setGain(50.0);
-    instance.codec.recordWAV(5, &wav_buffer, &wav_size);
-#else
-    // T-Watch-S3 / T-Watch-S3-Ultra Use PDM Microphone
-    wav_buffer = instance.mic.recordWAV(5, &wav_size);
-#endif
+    uint32_t start_time = millis();
+    while (after_seconds--) {
+        // if (millis() - start_time >= (5 - after_seconds) * 1000) {
+        lv_label_set_text_fmt(label1, "After %d seconds will start recording...\n", 5 - after_seconds);
+        Serial.printf("After %d seconds will start recording...\n", 5 - after_seconds);
+        // }
+        lv_task_handler();
+        delay(1000);
+    }
+    // Record 5 seconds of audio data
+    // inputDev->recordWAV(5, &wav_buffer, &wav_size, 16000, 2);
+    instance.codec.recordWAV(5, &wav_buffer, &wav_size, 16000, 2);
+
+
+    while (wav_size == 0) {
+        lv_label_set_text_fmt(label1, "Recording failed...");
+        lv_task_handler();
+        delay(1000);
+    }
+
+
+    Serial.printf("WAV buffer size: %u bytes\n", wav_size);
 
     Serial.println("Record finish...");
 
@@ -48,25 +66,17 @@ void setup()
     // T-Watch-S3 , T-Watch-S3-Plus , T-Watch-Ultra brightness level is 0 ~ 255
     instance.setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
 
-    // Turn on the audio power, the default is off
-    instance.powerControl(POWER_SPEAK, true);
+    // outputDev->setVolume(100);
+    instance.codec.setVolume(100);
 
-#ifdef USING_AUDIO_CODEC
-    instance.codec.setVolume(20);
-#endif
+    lv_label_set_text_fmt(label1, "Wav size: %u bytes\nPlaying...", wav_size);
 }
 
 void loop()
 {
     lv_task_handler();
 
-#ifdef USING_AUDIO_CODEC
-    // T-LoRa-Pager uses Codec
-    instance.codec.playWAV((uint8_t*)wav_buffer, wav_size);
-#else
-    // T-Watch-S3 / T-Watch-S3-Ultra Use Player
-    instance.player.playWAV(wav_buffer, wav_size);
-#endif
-
+    // outputDev->playWAV((uint8_t *)wav_buffer, wav_size);
+    instance.codec.playWAV((uint8_t *)wav_buffer, wav_size);
     delay(3000);
 }

@@ -11,17 +11,12 @@
 #include <LV_Helper.h>
 #include "wav_hex.h"
 
+AudioOutputIf *outputDev = instance.getAudioOutput();
+
 static void event_handler(lv_event_t *e)
 {
     Serial.println("Play WAV...");
-#ifdef USING_AUDIO_CODEC
-    // T-LoRa-Pager uses Codec
-    instance.codec.setVolume(20);
-    instance.codec.playWAV((uint8_t*)wav_hex, wav_hex_len);
-#else
-    // T-Watch-S3 / T-Watch-S3-Ultra Use Player
-    instance.player.playWAV((uint8_t*)wav_hex, wav_hex_len);
-#endif
+    outputDev->playWAV((uint8_t*)wav_hex, wav_hex_len);
 }
 
 void setup()
@@ -42,15 +37,12 @@ void setup()
     // T-Watch-S3 , T-Watch-S3-Plus , T-Watch-Ultra brightness level is 0 ~ 255
     instance.setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
 
-    // Turn on the audio power, the default is off
-    instance.powerControl(POWER_SPEAK, true);
-
     lv_obj_t *btn1 = lv_button_create(lv_screen_active());
     lv_obj_add_event_cb(btn1, event_handler, LV_EVENT_CLICKED, NULL);
     lv_obj_align(btn1, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t *label = lv_label_create(btn1);
-    lv_label_set_text(label, "Plya WAV");
+    lv_label_set_text(label, "Play WAV");
     lv_obj_center(label);
 
     // Create intput device group , only T-LoRa-Pager need.

@@ -63,11 +63,11 @@ void setup(void)
     lv_label_set_text(label, "Set Rotation");
     lv_obj_center(label);
 
-    instance.onEvent([](DeviceEvent_t event, void *params, void * user_data) {
-        if (instance.getPMUEventType(params) == PMU_EVENT_KEY_CLICKED) {
+    instance.onEvent(POWER_EVENT, [](const DeviceEvent &event, void *user_data) {
+        if (instance.getPMUEventType(event) == PMU_EVENT_KEY_CLICKED) {
             setRotation();
         }
-    }, POWER_EVENT, NULL);
+    });
 
     // Set brightness to MAX
     // T-LoRa-Pager brightness level is 0 ~ 16
