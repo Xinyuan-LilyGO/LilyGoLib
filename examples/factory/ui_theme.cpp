@@ -8,6 +8,9 @@
  */
 
 #include <lvgl.h>
+#if LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 6
+#include <lvgl_private.h>
+#endif
 #include "ui_define.h"
 
 ui_styles_t ui_styles;
