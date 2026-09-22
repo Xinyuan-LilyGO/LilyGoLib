@@ -12,7 +12,7 @@
 
 #include <math.h>
 
-#if defined(ARDUINO) && __has_include(<Wire.h>) && __has_include(<Adafruit_INA219.h>)
+#if FACTORY_HAS_INA219_DEPS
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 #define INA219_APP_HAS_DRIVER 1

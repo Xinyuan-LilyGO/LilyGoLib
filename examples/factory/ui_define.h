@@ -26,6 +26,34 @@ static inline uint32_t millis(void) { return lv_tick_get(); }
 #include <string.h>
 #include "hal_interface.h"
 
+#if defined(LILYGO_FACTORY_ENABLE_WALKIE) && LILYGO_FACTORY_ENABLE_WALKIE
+#define FACTORY_HAS_WALKIE_DEPS 1
+#elif defined(ARDUINO) && __has_include(<PCMFlow.h>) && __has_include(<PCMFlowG722.h>)
+#define FACTORY_HAS_WALKIE_DEPS 1
+#else
+#define FACTORY_HAS_WALKIE_DEPS 0
+#endif
+
+#if !FACTORY_HAS_WALKIE_DEPS
+#ifndef EXCLUDE_WALKIE
+#define EXCLUDE_WALKIE
+#endif
+#endif
+
+#if defined(LILYGO_FACTORY_ENABLE_INA219) && LILYGO_FACTORY_ENABLE_INA219
+#define FACTORY_HAS_INA219_DEPS 1
+#elif defined(ARDUINO) && __has_include(<Wire.h>) && __has_include(<Adafruit_INA219.h>)
+#define FACTORY_HAS_INA219_DEPS 1
+#else
+#define FACTORY_HAS_INA219_DEPS 0
+#endif
+
+#if !FACTORY_HAS_INA219_DEPS
+#ifndef EXCLUDE_INA219
+#define EXCLUDE_INA219
+#endif
+#endif
+
 #if !defined(EXCLUDE_BLE_SCANNER)
 #include <string>
 using std::string;
