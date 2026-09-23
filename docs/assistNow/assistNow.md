@@ -4,11 +4,11 @@
 
 <h1 align = "center">🌟u-blox AssistNow Usage Guide🌟</h1>
 
-### [中文](./assistNow_CN.md)
+[中文](./assistNow_CN.md)
 
-### Available devices
+## Supported Devices
 
-| Devices              |     |
+| Device               | Supported |
 | -------------------- | --- |
 | [T-Deck Plus][1]     | ✅   |
 | [T-Deck Pro][2]      | ✅   |
@@ -21,83 +21,83 @@
 [2]: https://lilygo.cc/products/t-deck-pro
 [3]: https://lilygo.cc/products/t-lora-pager
 [4]: https://lilygo.cc/products/t-watch-s3-plus
-[5]: https://lilygo.cc/products
+[5]: https://lilygo.cc/products/t-watch-ultra
 [6]: https://lilygo.cc/products/t-beam-supreme
 
-> \[!IMPORTANT]
-> * This document is only for devices using the **u-blox M10 series**, other devices cannot use the document
-> * The devices listed above can all use this method to write ephemeris data. Devices not listed do not support
+> [!IMPORTANT]
+>
+> * This guide applies only to the supported devices listed above that use a **u-blox M10-series** GNSS receiver.
+> * Do not use this procedure with devices that are not listed.
 
+## Step 1: Enable GNSS Passthrough
 
-
-### Step1: Flash the GPS loopback firmware to the device. If it is a device in LilyGoLib, in the factory firmware, in the GPS interface, switch the **NMEA to Serial** switch to Enabled
+Flash the appropriate GPS loopback firmware to the device. On a supported device running the LilyGoLib factory firmware, open the GPS screen and set **NMEA to Serial** to **Enabled** instead.
 
 ![app1](./images/app1.jpg)
 
 ![app2](./images/app2.jpg)
 
-## Step2: Register a Thingstream account
+## Step 2: Register a Thingstream Account
 
-1. Log in to [u-blox Thingstream](https://portal.thingstream.io/) to register an account
+1. Open [u-blox Thingstream](https://portal.thingstream.io/) and create an account.
 
 ![ThingstreamRegister](./images/ThingstreamRegister.jpg)
 
-2. Apply for AssistNow Token
+2. Request an AssistNow token.
 
 ![AssistNowToken1](./images/AssistNowToken1.jpg)
 
-3. Create a Profile
+3. Create a profile.
 
 ![AssistNowToken2](./images/AssistNowToken2.jpg)
 
 ![AssistNowToken3](./images/AssistNowToken3.jpg)
 
-4. Check the Token, which will be used in the following steps
+4. Copy the token for use in the following steps.
 
 ![AssistNowToken4](./images/AssistNowToken4.jpg)
 
-## Step3: Use u-cetnter2 to send ephemeris data to the device
+## Step 3: Transfer Assistance Data with u-center 2
 
-1. Download [u-center2 >= V25.06.18](https://www.u-blox.com/en/product/u-center)
+1. Download and install [u-center 2 version 25.06.18 or later](https://www.u-blox.com/en/product/u-center).
 
-2. Register a u-center2 account and log in
+2. Create a u-center 2 account and sign in.
 
 ![ucenter2login](./images/ucenter2login.jpg)
 
-3. Select the port and baud rate of the device
+3. Select the device's serial port and baud rate.
 
 ![start1](./images/ucetner2-start1.jpg)
 
-4. Check whether the GPS information is detected normally
+4. Confirm that u-center 2 is receiving GNSS data from the device.
 
 ![start2](./images/ucetner2-start2.jpg)
 
-5. Use AssistNow at the position shown below and fill in the AssistNow token applied in Thingstream
+5. Open AssistNow as shown below and enter the token obtained from Thingstream.
 
 ![start3](./images/ucetner2-start3.jpg)
 
-6. If the token is correct, the icon will turn green
+6. If the token is valid, the status icon turns green.
 
 ![start4](./images/ucetner2-start4.jpg)
 
-7. Click Download to download GPS ephemeris data. Please keep the default settings. The maximum number of days is one day
+7. Click **Download** to retrieve the GNSS assistance data. Keep the default settings and set the validity period to no more than one day.
 
 ![start5](./images/ucetner2-start5.jpg)
 
-8. Click the Transfer button to send the ephemeris to the device
+8. Click **Transfer** to send the assistance data to the device.
 
 ![start6](./images/ucetner2-start6.jpg)
 
-9. Wait for the transfer to complete. If the transfer fails, please try a few more times
+9. Wait for the transfer to finish. If it fails, retry the transfer.
 
 ![start7](./images/ucetner2-start7.jpg)
 
-10. The following figure shows the prompt of successful transmission
+10. The message shown below confirms a successful transfer.
 
 ![start8](./images/ucetner2-start8.jpg)
 
-## Step4: Test the actual effect
+## Step 4: Test Positioning Performance
 
-1. Switch the **NMEA to Serial** switch to Disable, place the device outdoors, and with the acceleration of AssistNow, the GPS positioning speed will be greatly improved.
-2. If it is other Ublox devices, please flash the factory firmware of other devices
-3. Without turning off the GPS device, the GPS ephemeris data will remain valid for one day. If the device is powered off, the GPS ephemeris data will be lost. Please follow the above method to resend the ephemeris data to the device. If the data exceeds the validity period of one day, please update the ephemeris data
+1. Set **NMEA to Serial** to **Disabled**, restore the device's normal firmware if you used loopback firmware, and place the device outdoors. AssistNow should reduce the time required to obtain a position fix.
+2. The transferred assistance data remains valid for up to one day while the GNSS receiver remains powered. If the receiver loses power or the data expires, repeat the transfer procedure.
