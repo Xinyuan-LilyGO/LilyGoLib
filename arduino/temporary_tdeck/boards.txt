@@ -1,0 +1,85 @@
+menu.UploadSpeed=Upload Speed
+menu.DebugLevel=Core Debug Level
+menu.EraseFlash=Erase All Flash Before Sketch Upload
+
+##############################################################
+# Temporary board definition for the original LILYGO T-Deck. #
+# Remove this package after T-Deck support is released by     #
+# Arduino-ESP32.                                               #
+##############################################################
+
+tdeck.name=LILYGO T-Deck (Temporary)
+
+tdeck.vid.0=0x303A
+tdeck.pid.0=0x81B5
+tdeck.upload_port.0.vid=0x303A
+tdeck.upload_port.0.pid=0x81B5
+
+tdeck.bootloader.tool=esp32:esptool_py
+tdeck.bootloader.tool.default=esp32:esptool_py
+
+tdeck.upload.tool=esp32:esptool_py
+tdeck.upload.tool.default=esp32:esptool_py
+tdeck.upload.tool.network=esp32:esp_ota
+tdeck.upload.maximum_size=3145728
+tdeck.upload.maximum_data_size=327680
+tdeck.upload.flags=
+tdeck.upload.erase_cmd=
+tdeck.upload.extra_flags=
+tdeck.upload.use_1200bps_touch=false
+tdeck.upload.wait_for_upload_port=false
+
+tdeck.serial.disableDTR=false
+tdeck.serial.disableRTS=false
+
+tdeck.build.tarch=xtensa
+tdeck.build.target=esp32s3
+tdeck.build.mcu=esp32s3
+tdeck.build.core=esp32:esp32
+tdeck.build.variant=lilygo_tdeck
+tdeck.build.board=T_DECK
+tdeck.build.bootloader_addr=0x0
+tdeck.runtime.use_core_platform_path_for_runtime_platform_path=true
+
+tdeck.build.usb_mode=1
+tdeck.build.cdc_on_boot=1
+tdeck.build.msc_on_boot=0
+tdeck.build.dfu_on_boot=0
+tdeck.build.f_cpu=240000000L
+tdeck.build.flash_size=16MB
+tdeck.build.flash_freq=80m
+tdeck.build.flash_mode=dio
+tdeck.build.boot=qio
+tdeck.build.boot_freq=80m
+tdeck.build.partitions=app3M_fat9M_16MB
+tdeck.build.defines=-DBOARD_HAS_PSRAM -DARDUINO_LILYGO_LORA_SX1262
+tdeck.build.loop_core=-DARDUINO_RUNNING_CORE=1
+tdeck.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+tdeck.build.psram_type=opi
+tdeck.build.memory_type={build.boot}_{build.psram_type}
+tdeck.build.code_debug=0
+
+tdeck.menu.UploadSpeed.921600=921600
+tdeck.menu.UploadSpeed.921600.upload.speed=921600
+tdeck.menu.UploadSpeed.460800=460800
+tdeck.menu.UploadSpeed.460800.upload.speed=460800
+tdeck.menu.UploadSpeed.115200=115200
+tdeck.menu.UploadSpeed.115200.upload.speed=115200
+
+tdeck.menu.DebugLevel.none=None
+tdeck.menu.DebugLevel.none.build.code_debug=0
+tdeck.menu.DebugLevel.error=Error
+tdeck.menu.DebugLevel.error.build.code_debug=1
+tdeck.menu.DebugLevel.warn=Warn
+tdeck.menu.DebugLevel.warn.build.code_debug=2
+tdeck.menu.DebugLevel.info=Info
+tdeck.menu.DebugLevel.info.build.code_debug=3
+tdeck.menu.DebugLevel.debug=Debug
+tdeck.menu.DebugLevel.debug.build.code_debug=4
+tdeck.menu.DebugLevel.verbose=Verbose
+tdeck.menu.DebugLevel.verbose.build.code_debug=5
+
+tdeck.menu.EraseFlash.none=Disabled
+tdeck.menu.EraseFlash.none.upload.erase_cmd=
+tdeck.menu.EraseFlash.all=Enabled
+tdeck.menu.EraseFlash.all.upload.erase_cmd=-e
