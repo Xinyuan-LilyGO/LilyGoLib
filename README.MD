@@ -20,10 +20,12 @@
 ### `1` Get Started
 
 - 🔧 **[T-Deck Quick Start](./docs/lilygo-t-deck.md)**
-- 🔧 **[T-LoRa-Pager Arduino IDE Quick Start](./docs/lilygo-t-lora-pager.md)**
-- 🔧 **[T-Watch-Ultra Arduino IDE Quick Start](./docs/lilygo-t-watch-ultra.md)**
-- 🔧 **[T-Watch-S3 Arduino IDE Quick Start](./docs/lilygo-t-watch-s3.md)**
-- 🔧 **[T-Watch-S3-Plus Arduino IDE Quick Start](./docs/lilygo-t-watch-s3-plus.md)**
+- 🔧 **[T-LoRa-Pager IDE Quick Start](./docs/lilygo-t-lora-pager.md)**
+- 🔧 **[T-Watch-Ultra IDE Quick Start](./docs/lilygo-t-watch-ultra.md)**
+- 🔧 **[T-Watch-S3 IDE Quick Start](./docs/lilygo-t-watch-s3.md)**
+- 🔧 **[T-Watch-S3-Plus IDE Quick Start](./docs/lilygo-t-watch-s3-plus.md)**
+- 🔧 **[T-Watch-2020-V3 Quick Start](./docs/lilygo-t-watch-2020-v3.md)**
+- 🔧 **[T-Watch (2019) Quick Start](./docs/lilygo-t-watch.md)**
 
 ### `2` Hardware Information
 
@@ -32,6 +34,8 @@
 - 🔧 **[T-Watch-Ultra Hardware Information](./docs/hardware/lilygo-t-watch-ultra.md)**
 - 🔧 **[T-Watch-S3 Hardware Information](./docs/hardware/lilygo-t-watch-s3.md)**
 - 🔧 **[T-Watch-S3-Plus Hardware Information](./docs/hardware/lilygo-t-watch-s3-plus.md)**
+- 🔧 **[T-Watch-2020-V3 Hardware Information](./docs/hardware/lilygo-t-watch-2020-v3.md)**
+- 🔧 **[T-Watch (2019) Hardware Information](./docs/hardware/lilygo-t-watch.md)**
 
 ### `3` GPS AssistNow Usage Guide
 
