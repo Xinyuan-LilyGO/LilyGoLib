@@ -34,7 +34,7 @@
 | Flash                 | 16 MB (QSPI)                         |
 | PSRAM                 | 8 MB (OPI)                           |
 | LoRa                  | [Semtech SX1262][3] or SX1280        |
-| Accelerometer sensor  | [Bosch BMA423][4]                    |
+| Accelerometer sensor  | [Bosch BMA423][4] or [Bosch BMA456][12] |
 | Real-Time Clock       | [NXP PCF8563][5]                     |
 | Power Management      | [X-Powers AXP2101][6]                |
 | Haptic driver         | [Ti DRV2605][7]                      |
@@ -53,6 +53,11 @@
 [9]: https://www.analog.com/en/products/max98357a.html "MAX98357A"
 [10]: https://buydisplay.com/download/ic/FT6236-FT6336-FT6436L-FT6436_Datasheet.pdf "FT6336U"
 [11]: https://www.everlight-led.cn/zh/datasheet-download/item/ir12-21c-tr8-datasheet "IR12-21C"
+[12]: https://www.bosch-sensortec.com/products/motion-sensors/accelerometers/bma456/ "BMA456"
+
+> [!TIP]
+>
+> Bosch BMA423 is being discontinued. Depending on the production batch, your watch may use a BMA456/BMA456H replacement, and later batches will transition to that sensor. LilyGoLib probes both models at runtime. To identify the installed sensor, upload the [BMA4XX Sensor Model example](../../examples/sensor/BMA4XX_SensorModel/BMA4XX_SensorModel.ino), open the serial monitor at 115200 baud, and check whether `Detected model` reports `BMA423` or `BMA456H (BMA456 replacement)`.
 
 ### ✨ Display Specifications
 
@@ -80,9 +85,9 @@
 | RTC(**PCF8563**) SDA                 | Shared with I2C bus | ❌    |
 | RTC(**PCF8563**) SCL                 | Shared with I2C bus | ❌    |
 | RTC(**PCF8563**) Interrupt           | 17                 | ❌    |
-| Sensor(**BMA423**) Interrupt         | 14                 | ❌    |
-| Sensor(**BMA423**) SDA               | Shared with I2C bus | ❌    |
-| Sensor(**BMA423**) SCL               | Shared with I2C bus | ❌    |
+| Sensor(**BMA4xx**) Interrupt         | 14                 | ❌    |
+| Sensor(**BMA4xx**) SDA               | Shared with I2C bus | ❌    |
+| Sensor(**BMA4xx**) SCL               | Shared with I2C bus | ❌    |
 | PCM Amplifier(**MAX98357A**) BCLK    | 48                 | ❌    |
 | PCM Amplifier(**MAX98357A**) WCLK    | 15                 | ❌    |
 | PCM Amplifier(**MAX98357A**) DOUT    | 46                 | ❌    |
@@ -114,7 +119,7 @@
 | Device                           | 7-Bit Address | Shared Bus  |
 | -------------------------------- | ------------- | ----------- |
 | [Touch Panel FT6336U][10]        | 0x38          | ❌ Use Wire1 |
-| [Accelerometer sensor BMA423][4] | 0x19          | ✅️           |
+| Accelerometer BMA423/BMA456      | 0x19          | ✅️           |
 | [Power Manager AXP2101][6]       | 0x34          | ✅️           |
 | [Real-Time Clock PCF8563][5]     | 0x51          | ✅️           |
 | [Haptic driver DRV2605][7]       | 0x5A          | ✅️           |
