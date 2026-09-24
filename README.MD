@@ -17,6 +17,43 @@
   <a href="https://github.com/Xinyuan-LilyGO/LilyGoLib/actions/workflows/radio_examples_ci.yml"><img alt="Radio examples build" src="https://github.com/Xinyuan-LilyGO/LilyGoLib/actions/workflows/radio_examples_ci.yml/badge.svg"/></a>
 </p>
 
+### Factory UI Preview
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/factory-ui.md#t-deck">
+        <img src=".github/assets/factory-ui/tdeck-preview.png" alt="T-Deck Factory UI preview" width="100%">
+      </a>
+      <br><strong>T-Deck</strong>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/factory-ui.md#t-lora-pager">
+        <img src=".github/assets/factory-ui/tlora-pager-preview.png" alt="T-LoRa Pager Factory UI preview" width="100%">
+      </a>
+      <br><strong>T-LoRa Pager</strong>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./docs/factory-ui.md#t-watch-s3">
+        <img src=".github/assets/factory-ui/twatch-s3-preview.png" alt="T-Watch S3 Factory UI preview" width="100%">
+      </a>
+      <br><strong>T-Watch S3</strong>
+    </td>
+    <td width="50%" align="center">
+      <a href="./docs/factory-ui.md#t-watch-ultra">
+        <img src=".github/assets/factory-ui/twatch-ultra-preview.png" alt="T-Watch Ultra Factory UI preview" width="100%">
+      </a>
+      <br><strong>T-Watch Ultra</strong>
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <a href="./docs/factory-ui.md"><strong>Explore the Factory UI gallery</strong></a>
+</p>
+
 ### `1` Get Started
 
 - 🔧 **[T-Deck Quick Start](./docs/lilygo-t-deck.md)**
