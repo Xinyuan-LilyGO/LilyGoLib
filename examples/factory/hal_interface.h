@@ -2577,7 +2577,7 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_HAS_HAPTIC_DRV
-#if defined(USING_DRV2605) || defined(ARDUINO_TWATCH_2020_V3) || defined(ARDUINO_T_WATCH_S3) || \
+#if defined(USING_DRV2605) || defined(ARDUINO_T_WATCH_S3) || \
     defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
 #define FACTORY_HAS_HAPTIC_DRV         1
 #else
