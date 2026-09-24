@@ -12,6 +12,25 @@
         {
           "name": "LILYGO T-Deck Temporary Support",
           "architecture": "esp32",
+          "version": "0.1.1",
+          "category": "Contributed",
+          "help": {
+            "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
+          },
+          "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_tdeck/dist/lilygo-tdeck-temp-0.1.1.zip",
+          "archiveFileName": "lilygo-tdeck-temp-0.1.1.zip",
+          "checksum": "SHA-256:f28eb0b1fb0b7de587b0c6606108ecdc5253e41a9d0b0e27364640772a6fa48a",
+          "size": "2676",
+          "boards": [
+            {
+              "name": "LilyGo T-Deck"
+            }
+          ],
+          "toolsDependencies": []
+        },
+        {
+          "name": "LILYGO T-Deck Temporary Support",
+          "architecture": "esp32",
           "version": "0.1.0",
           "category": "Contributed",
           "help": {
