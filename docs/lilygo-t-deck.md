@@ -14,12 +14,12 @@
 1. Install the [latest Arduino IDE 2.x](https://www.arduino.cc/en/software).
 2. Install [Arduino-ESP32 **3.3.0** or later](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html) through the Boards Manager.
    * Espressif stable Boards Manager URL: `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
-3. Check whether `LILYGO T-Deck` is available under `Tools` > `Board`.
+3. Check whether `LilyGo T-Deck` is available under `Tools` > `Board`.
    * If it is available, select it and continue with step 6.
    * If it is not available, add the following URL under `File` > `Preferences` > `Additional Boards Manager URLs`:
      * `https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_tdeck/package_lilygo_tdeck_index.json`
 4. Open Boards Manager, search for `LILYGO T-Deck Temporary Support`, and install it.
-5. Select `LILYGO T-Deck (Temporary)` under `Tools` > `Board`.
+5. Select `LilyGo T-Deck` under `Tools` > `Board`.
    * The temporary board package supports the original T-Deck only, not T-Deck V2.
 6. [Download the LilyGoLib library](https://github.com/Xinyuan-LilyGO/LilyGoLib/archive/refs/heads/master.zip).
 7. In the Arduino IDE, select `Sketch` > `Include Library` > `Add .ZIP Library`, then select the ZIP file downloaded in step 6.
@@ -39,7 +39,7 @@
 
    | Arduino IDE Setting                  | Value                                              |
    | ------------------------------------ | -------------------------------------------------- |
-   | Board                                | **LILYGO T-Deck** or **LILYGO T-Deck (Temporary)** |
+   | Board                                | **LilyGo T-Deck**                                  |
    | Port                                 | Your port                                          |
    | Core Debug Level                     | None                                               |
    | Erase All Flash Before Sketch Upload | Disabled                                           |
@@ -53,7 +53,7 @@
 >
 > * If the serial monitor shows no output, verify that a T-Deck board is selected.
 > * LilyGoLib requires Arduino-ESP32 3.3.0 or later. Earlier versions will produce compilation errors.
-> * When the official `LILYGO T-Deck` option becomes available, uninstall `LILYGO T-Deck Temporary Support` and select the official board.
+> * When the official `LilyGo T-Deck` option becomes available, uninstall `LILYGO T-Deck Temporary Support` and select the official board.
 
 ### Migrating to the Official Board Definition
 
@@ -62,7 +62,7 @@ After T-Deck support is included in a stable Arduino-ESP32 release:
 1. Open Boards Manager and uninstall `LILYGO T-Deck Temporary Support`.
 2. Update `esp32 by Espressif Systems` to the stable version containing T-Deck
    support.
-3. Select the official `LILYGO T-Deck` board under `Tools` > `Board`.
+3. Select the official `LilyGo T-Deck` board under `Tools` > `Board`.
 4. Recompile the sketch.
 
 <a id="t-deck-enter-download-mode"></a>

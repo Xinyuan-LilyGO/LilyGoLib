@@ -15,7 +15,7 @@ variant, and reuses the installed `esp32:esp32` core and tools.
 
 4. Open Boards Manager, search for `LILYGO T-Deck Temporary Support`, and
    install it.
-5. Select **LILYGO T-Deck (Temporary)** under **Tools > Board**.
+5. Select **LilyGo T-Deck** under **Tools > Board**.
 
 The board definition fixes the settings required by the original T-Deck: 16 MB
 flash, 8 MB OPI PSRAM, hardware USB CDC, a 3 MB application with 9.9 MB FATFS,
