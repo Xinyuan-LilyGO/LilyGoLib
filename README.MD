@@ -20,10 +20,10 @@
 ### `1` Get Started
 
 - 🔧 **[T-Deck Quick Start](./docs/lilygo-t-deck.md)**
-- 🔧 **[T-LoRa-Pager IDE Quick Start](./docs/lilygo-t-lora-pager.md)**
-- 🔧 **[T-Watch-Ultra IDE Quick Start](./docs/lilygo-t-watch-ultra.md)**
+- 🔧 **[T-LoRa-Pager Quick Start](./docs/lilygo-t-lora-pager.md)**
+- 🔧 **[T-Watch-Ultra Quick Start](./docs/lilygo-t-watch-ultra.md)**
 - 🔧 **[T-Watch-S3 IDE Quick Start](./docs/lilygo-t-watch-s3.md)**
-- 🔧 **[T-Watch-S3-Plus IDE Quick Start](./docs/lilygo-t-watch-s3-plus.md)**
+- 🔧 **[T-Watch-S3-Plus Quick Start](./docs/lilygo-t-watch-s3-plus.md)**
 - 🔧 **[T-Watch-2020-V3 Quick Start](./docs/lilygo-t-watch-2020-v3.md)**
 - 🔧 **[T-Watch (2019) Quick Start](./docs/lilygo-t-watch.md)**
 
