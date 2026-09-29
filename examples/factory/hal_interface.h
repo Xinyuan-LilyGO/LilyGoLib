@@ -2585,6 +2585,14 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 #endif
 
+#ifndef FACTORY_HAS_HAPTIC_FEEDBACK
+#if FACTORY_HAS_HAPTIC_DRV || defined(ARDUINO_TWATCH_2020_V3)
+#define FACTORY_HAS_HAPTIC_FEEDBACK    1
+#else
+#define FACTORY_HAS_HAPTIC_FEEDBACK    0
+#endif
+#endif
+
 #ifndef FACTORY_HAS_NES
 #if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK_V2)
 #define FACTORY_HAS_NES                1

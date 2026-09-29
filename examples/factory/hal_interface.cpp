@@ -4206,7 +4206,7 @@ void hw_set_keyboard_read_callback(void(*read)(int state, char &c))
 
 void hw_feedback()
 {
-#if defined(ARDUINO) && FACTORY_HAS_HAPTIC_DRV
+#if defined(ARDUINO) && FACTORY_HAS_HAPTIC_FEEDBACK
     if (_feedback_enable) {
         instance.vibrator();
     }
