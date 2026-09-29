@@ -16,6 +16,11 @@
 > 6. Any of the above steps must be included in the video content to facilitate explanation.
 >
 
+## Where can I find the factory firmware?
+
+* [Older firmware version with a white background](https://github.com/Xinyuan-LilyGO/LilyGoLib/releases/tag/V0.2.1)
+* New black UI on the current page.
+
 ## 1️⃣Support Product
 
 | Product              |
