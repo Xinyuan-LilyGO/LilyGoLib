@@ -1814,6 +1814,11 @@ void setupGui()
     register_app("NRF24", &img_radio, &ui_nrf24_main);
 #endif
 
+#if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_NRF24)
+    extern app_t ui_xiaomi_lightbar_main;
+    register_app("Mi Light Bar", &img_led, &ui_xiaomi_lightbar_main);
+#endif
+
 #if !defined(EXCLUDE_SI4735_RADIO_WF)
     extern app_t ui_si4735_radio_wf_main;
     register_app("Radio", &img_si4735, &ui_si4735_radio_wf_main);

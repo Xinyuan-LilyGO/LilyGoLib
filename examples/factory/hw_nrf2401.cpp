@@ -17,6 +17,39 @@
 static uint8_t nrf24_pipe_addr[5] = {0x01, 0x23, 0x45, 0x67, 0x89};
 static const int8_t nrf24_power_table[] = {-18, -12, -6, 0};
 
+static uint16_t xiaomi_lightbar_crc16(const uint8_t *data, size_t length)
+{
+    uint16_t crc = 0xFFFE;
+    for (size_t i = 0; i < length; ++i) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (uint8_t bit = 0; bit < 8; ++bit) {
+            crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021) : (uint16_t)(crc << 1);
+        }
+    }
+    return crc;
+}
+
+static void build_xiaomi_lightbar_packet(uint8_t packet[17], uint32_t remote_id,
+        uint16_t command, uint8_t sequence)
+{
+    static const uint8_t preamble[8] = {
+        0x53, 0x39, 0x14, 0xDD, 0x1C, 0x49, 0x34, 0x12
+    };
+
+    memcpy(packet, preamble, sizeof(preamble));
+    packet[8] = (remote_id >> 16) & 0xFF;
+    packet[9] = (remote_id >> 8) & 0xFF;
+    packet[10] = remote_id & 0xFF;
+    packet[11] = 0xFF;
+    packet[12] = sequence;
+    packet[13] = (command >> 8) & 0xFF;
+    packet[14] = command & 0xFF;
+
+    const uint16_t crc = xiaomi_lightbar_crc16(packet, 15);
+    packet[15] = (crc >> 8) & 0xFF;
+    packet[16] = crc & 0xFF;
+}
+
 #ifdef ARDUINO
 
 #include <LilyGoLib.h>
@@ -64,6 +97,66 @@ bool hw_has_nrf24()
         return true;
     }
     return false;
+}
+
+int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
+                                        uint8_t sequence)
+{
+#ifdef ARDUINO
+    if (!radioEvent || !hw_has_nrf24()) {
+        return -1;
+    }
+
+    // MJGJD01YL protocol details:
+    // https://github.com/lamperez/xiaomi-lightbar-nrf24
+    // ESP32 reference implementation:
+    // https://github.com/ebinf/lightbar2mqtt
+    static const uint8_t sync_address[5] = {0x55, 0x55, 0x55, 0x55, 0x55};
+    static const uint8_t channels[] = {6, 15, 43, 68};
+    static const uint8_t repetitions_per_channel = 5;
+    uint8_t packet[17];
+    build_xiaomi_lightbar_packet(packet, remote_id & 0xFFFFFF, command, sequence);
+
+    int16_t state = RADIOLIB_ERR_NONE;
+    instance.io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
+    instance.lockSPI();
+
+    state = nrf24.standby();
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setBitRate(2000);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setOutputPower(0);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setAddressWidth(5);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setCrcFiltering(false);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setTransmitPipe(sync_address);
+
+    for (uint8_t repeat = 0;
+            state == RADIOLIB_ERR_NONE && repeat < repetitions_per_channel;
+            ++repeat) {
+        for (uint8_t i = 0; i < sizeof(channels); ++i) {
+            state = nrf24.setFrequency(2400.0f + channels[i]);
+            if (state != RADIOLIB_ERR_NONE) break;
+            state = nrf24.transmit(packet, sizeof(packet), 0);
+            if (state != RADIOLIB_ERR_NONE) break;
+            delay(2);
+        }
+    }
+
+    nrf24.standby();
+    nrf24.setFrequency(2400.0f);
+    nrf24.setCrcFiltering(true);
+    nrf24.setAutoAck(true);
+    instance.unlockSPI();
+    instance.io.digitalWrite(EXPANDS_GPIO_EN, LOW);
+    xEventGroupClearBits(radioEvent, NRF24_ISR_FLAG);
+
+    LILYGO_LOG_PRINTF("MJGJD01YL id=%06lX command=%04X seq=%u state=%d\n",
+                      (unsigned long)(remote_id & 0xFFFFFF), command, sequence, state);
+    return state;
+#else
+    (void)remote_id;
+    (void)command;
+    (void)sequence;
+    return 0;
+#endif
 }
 
 void hw_get_nrf24_params(radio_params_t &params)

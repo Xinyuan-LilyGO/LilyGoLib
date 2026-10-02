@@ -1642,6 +1642,17 @@ bool hw_has_nrf24();
 void hw_clear_nrf24_flag();
 
 /**
+ * @brief Send one MJGJD01YL light bar command through the external NRF24.
+ *
+ * @param remote_id 24-bit remote identifier accepted by the light bar.
+ * @param command 16-bit light bar command and option value.
+ * @param sequence Packet sequence number used to reject duplicate commands.
+ * @return The RadioLib result (0 for success, negative for error).
+ */
+int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
+                                        uint8_t sequence);
+
+/**
  * @brief Get the radio frequency list.
  *
  * This function retrieves the list of available radio frequencies.
