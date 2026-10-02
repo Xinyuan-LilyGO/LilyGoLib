@@ -18,7 +18,7 @@
 #include "driver/gpio.h"
 #include "LilyGoLib.h"
 #include "core/LilyGoGeneral.h"
-#include "input/LilyGoRotaryInput.h"
+#include "rotary/Rotary.h"
 #include <SensorWireHelper.h>
 #include <cbuf.h>
 #include "driver/rtc_io.h"
@@ -33,11 +33,7 @@
 #endif
 
 #ifndef LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER
-#define LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER LILYGO_ROTARY_COUNTS_PER_STEP_MAX
-#endif
-
-#ifndef LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN
-#define LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN -1
+#define LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER 4
 #endif
 
 #ifndef LILYGO_LORA_PAGER_GPS_BAUDRATE
@@ -101,9 +97,16 @@ LILYGO_DEFINE_RADIO();
 RfalRfST25R3916Class nfc_hw(&SPI, NFC_CS, NFC_INT);
 RfalNfcClass NFCReader(&nfc_hw);
 
+#define TASK_ROTARY_START_PRESSED_FLAG _BV(0)
+
 EventGroupHandle_t LilyGoLoRaPager::_event;
 static TimerHandle_t timerHandler = NULL;
-static LilyGoRotaryInput rotaryInput;
+static Rotary rotary(ROTARY_A, ROTARY_B);
+static QueueHandle_t rotaryMsg = NULL;
+static TaskHandle_t rotaryHandler = NULL;
+static EventGroupHandle_t rotaryTaskFlag = NULL;
+static volatile uint8_t rotaryStepDivider = LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP;
+static void rotaryTask(void *p);
 extern void setupMSC(lock_callback_t lock_cb, lock_callback_t ulock_cb);
 static uint32_t _devices_probe = 0;
 
@@ -131,16 +134,11 @@ struct LoRaDetectAdcStats {
 
 static uint8_t clampRotaryStepDivider(uint8_t divider)
 {
-    uint8_t minDivider = LilyGoRotaryInput::getCountsPerStepMin();
-    uint8_t maxDivider = LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER;
-    if (maxDivider < minDivider) {
-        maxDivider = minDivider;
+    if (divider == 0) {
+        return 1;
     }
-    if (divider < minDivider) {
-        return minDivider;
-    }
-    if (divider > maxDivider) {
-        return maxDivider;
+    if (divider > LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER) {
+        return LILYGO_LORA_PAGER_ROTARY_MAX_STEP_DIVIDER;
     }
     return divider;
 }
@@ -522,7 +520,7 @@ LilyGoDeviceInitOptions LilyGoLoRaPager::getDefaultInitOptions() const
 
 bool LilyGoLoRaPager::hasEncoder()
 {
-    return rotaryInput.isRunning();
+    return rotaryHandler != NULL;
 }
 
 bool LilyGoLoRaPager::hasKeyboard()
@@ -774,19 +772,24 @@ uint32_t LilyGoLoRaPager::begin(const LilyGoDeviceInitOptions &init_options)
     }
 
     if (init_options.initRotary) {
-        LilyGoRotaryInputConfig rotaryConfig;
-        rotaryConfig.pinA = ROTARY_A;
-        rotaryConfig.pinB = ROTARY_B;
-        rotaryConfig.pinButton = ROTARY_C;
-        rotaryConfig.countsPerStep = clampRotaryStepDivider(LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP);
-        rotaryConfig.directionSign = LILYGO_LORA_PAGER_ROTARY_DIRECTION_SIGN;
-        // ROTARY_A/B/C have board-level external pull-ups on T-LoRa-Pager hardware.
-        rotaryConfig.encoderUseInternalPullup = false;
-        rotaryConfig.buttonUseInternalPullup = false;
-        if (rotaryInput.begin(rotaryConfig)) {
-            LILYGO_LOG_I("Rotary init succeeded, backend: %s", rotaryInput.backendName());
+        rotaryStepDivider = clampRotaryStepDivider(LILYGO_LORA_PAGER_ROTARY_COUNTS_PER_STEP);
+        rotaryMsg = xQueueCreate(5, sizeof(RotaryMsg_t));
+        rotaryTaskFlag = xEventGroupCreate();
+
+        if (rotaryMsg && rotaryTaskFlag &&
+                xTaskCreate(rotaryTask, "rotary", 2 * 1024, NULL, 10, &rotaryHandler) == pdPASS) {
+            LILYGO_LOG_I("Rotary init succeeded, backend: state-table polling");
         } else {
             LILYGO_LOG_E("Warning: Failed to init rotary");
+            if (rotaryMsg) {
+                vQueueDelete(rotaryMsg);
+                rotaryMsg = NULL;
+            }
+            if (rotaryTaskFlag) {
+                vEventGroupDelete(rotaryTaskFlag);
+                rotaryTaskFlag = NULL;
+            }
+            rotaryHandler = NULL;
         }
     }
 
@@ -979,7 +982,7 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
         return;
     }
 
-    rotaryInput.suspend();
+    disableRotary();
 
     // Convert only once, and close automatically after conversion is complete.
     pmic.adc().startConversion();
@@ -1053,7 +1056,7 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
 
     wakeupDisplay();
 
-    rotaryInput.resume();
+    enableRotary();
 
     powerControl(POWER_HAPTIC_DRIVER, true);
     powerControl(POWER_GPS, true);
@@ -1115,7 +1118,10 @@ void LilyGoLoRaPager::sleep(WakeupSource_t wakeup_src, bool off_rtc_backup_domai
         return;
     }
 
-    rotaryInput.end();
+    if (rotaryHandler) {
+        vTaskDelete(rotaryHandler);
+        rotaryHandler = NULL;
+    }
 
     // Convert only once, and close automatically after conversion is complete.
     pmic.adc().startConversion();
@@ -1660,27 +1666,38 @@ float LilyGoLoRaPager::getTemperature()
 
 RotaryMsg_t LilyGoLoRaPager::getRotary()
 {
-    return rotaryInput.read();
+    static bool centerBtnPressed = false;
+    RotaryMsg_t msg = {};
+
+    if (rotaryMsg && xQueueReceive(rotaryMsg, &msg, pdMS_TO_TICKS(50)) == pdPASS) {
+        centerBtnPressed = msg.centerBtnPressed;
+        return msg;
+    }
+
+    msg.centerBtnPressed = centerBtnPressed;
+    return msg;
 }
 
 void LilyGoLoRaPager::clearRotaryMsg()
 {
-    rotaryInput.clear();
+    if (rotaryMsg) {
+        xQueueReset(rotaryMsg);
+    }
 }
 
 void LilyGoLoRaPager::setRotaryStepDivider(uint8_t divider)
 {
-    rotaryInput.setCountsPerStep(clampRotaryStepDivider(divider));
+    rotaryStepDivider = clampRotaryStepDivider(divider);
 }
 
 uint8_t LilyGoLoRaPager::getRotaryStepDivider()
 {
-    return rotaryInput.getCountsPerStep();
+    return rotaryStepDivider;
 }
 
 uint8_t LilyGoLoRaPager::getRotaryStepDividerMin()
 {
-    return LilyGoRotaryInput::getCountsPerStepMin();
+    return 1;
 }
 
 uint8_t LilyGoLoRaPager::getRotaryStepDividerMax()
@@ -1690,12 +1707,97 @@ uint8_t LilyGoLoRaPager::getRotaryStepDividerMax()
 
 void LilyGoLoRaPager::disableRotary()
 {
-    rotaryInput.suspend();
+    if (rotaryHandler) {
+        vTaskSuspend(rotaryHandler);
+    }
 }
 
 void LilyGoLoRaPager::enableRotary()
 {
-    rotaryInput.resume();
+    if (rotaryHandler) {
+        if (digitalRead(ROTARY_C) == LOW) {
+            xEventGroupSetBits(rotaryTaskFlag, TASK_ROTARY_START_PRESSED_FLAG);
+        }
+        vTaskResume(rotaryHandler);
+    }
+}
+
+static bool getRotaryButtonState()
+{
+    static uint8_t buttonState = HIGH;
+    static uint8_t lastReading = HIGH;
+    static uint32_t lastDebounceTime = 0;
+    constexpr uint8_t debounceDelay = 20;
+    int reading = digitalRead(ROTARY_C);
+
+    EventBits_t eventBits = xEventGroupGetBits(rotaryTaskFlag);
+    if (eventBits & TASK_ROTARY_START_PRESSED_FLAG) {
+        if (reading == HIGH) {
+            xEventGroupClearBits(rotaryTaskFlag, TASK_ROTARY_START_PRESSED_FLAG);
+        } else {
+            return false;
+        }
+    }
+
+    if (reading != lastReading) {
+        lastDebounceTime = millis();
+        lastReading = reading;
+    }
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        buttonState = reading;
+    }
+    return buttonState == LOW;
+}
+
+static void rotaryTask(void *p)
+{
+    (void)p;
+    bool lastButtonState = false;
+    uint8_t pendingDirection = DIR_NONE;
+    uint8_t pendingSteps = 0;
+
+    // T-LoRa-Pager has board-level pull-ups on all three rotary pins.
+    rotary.begin(false);
+    pinMode(ROTARY_C, INPUT);
+
+    while (true) {
+        RotaryMsg_t msg = {};
+        msg.centerBtnPressed = getRotaryButtonState();
+
+        uint8_t result = rotary.process();
+        if (result != DIR_NONE) {
+            if (result == pendingDirection) {
+                ++pendingSteps;
+            } else {
+                pendingDirection = result;
+                pendingSteps = 1;
+            }
+
+            if (pendingSteps >= rotaryStepDivider) {
+                pendingDirection = DIR_NONE;
+                pendingSteps = 0;
+            } else {
+                result = DIR_NONE;
+            }
+        }
+
+        bool buttonChanged = msg.centerBtnPressed != lastButtonState;
+        if (result != DIR_NONE || buttonChanged) {
+            if (result == DIR_CW) {
+                msg.dir = ROTARY_DIR_UP;
+                msg.enc_diff = 1;
+            } else if (result == DIR_CCW) {
+                msg.dir = ROTARY_DIR_DOWN;
+                msg.enc_diff = -1;
+            }
+
+            msg.centerBtnClicked = buttonChanged && msg.centerBtnPressed;
+            msg.centerBtnReleased = buttonChanged && !msg.centerBtnPressed;
+            lastButtonState = msg.centerBtnPressed;
+            xQueueSend(rotaryMsg, &msg, portMAX_DELAY);
+        }
+        delay(2);
+    }
 }
 
 
