@@ -33,7 +33,7 @@
 #include "audio/AudioDevice.h"
 #include <Button2.h>
 
-#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY)
+#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY,SPI)
 #include "radio/LilyGoRadioHelper.h"
 
 using custom_feedback_t = void(*)(void *args);

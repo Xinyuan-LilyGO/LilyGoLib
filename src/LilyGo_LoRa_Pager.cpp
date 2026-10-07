@@ -351,7 +351,7 @@ static bool detectLoRaHardwarePresent()
 }
 
 #ifndef RADIOLIB_EXCLUDE_NRF24
-nRF24 nrf24 = new Module(44/*CS*/, 9/*IRQ*/, 43/*CE*/);
+nRF24 nrf24 = new Module(44/*CS*/, 9/*IRQ*/, 43/*CE*/, RADIOLIB_NC, SPI);
 #endif
 
 static const CommandTable_t st7796_init_list[19] = {

@@ -32,7 +32,7 @@
 #include <Button2.h>
 #include "nfc/nfc_include.h"
 
-#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY)
+#define newModule()   new Module(LORA_CS,LORA_IRQ,LORA_RST,LORA_BUSY,SPI)
 #include "radio/LilyGoRadioHelper.h"
 
 #ifndef EXPANDS_LORA_RF_SW
