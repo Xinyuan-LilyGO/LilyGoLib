@@ -33,14 +33,22 @@
 > The T-Vibe-Dev comes with the T-Deck firmware installed by default; therefore, to restore it to its factory state, you must flash the T-Deck firmware.
 >
 
-| Product                           |
-| --------------------------------- |
-| [T-LoRa-Pager or T-Vibe-Pager][1] |
-| [T-Watch-Ultra][2]                |
-| [T-Watch-S3][3]                   |
-| [T-Watch-S3-Plus][4]              |
-| [T-Deck or T-Vibe-Dev][5]         |
-| [T-Deck-Plus][6]                  |
+| Product                            | Factory firmware                         |
+| ---------------------------------- | ---------------------------------------- |
+| [T-LoRa-Pager SX1262 version][1]   | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
+| [T-LoRa-Pager LR1121 version][1]   | tlora-pager-lr1121-factory-xxxx-0x0.bin  |
+| [T-Vibe-Pager][1]                  | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
+| [T-Watch-Ultra SX1280  version][2] | twatch-ultra-sx1280-factory-xxxx-0x0.bin |
+| [T-Watch-Ultra SX1262 version][2]  | twatch-ultra-sx1262-factory-xxxx-0x0.bin |
+| [T-Watch-S3 SX1262 version][3]     | twatchs3-sx1262-factory-xxxx-0x0.bin     |
+| [T-Watch-S3 SX1280 version][3]     | twatchs3-sx1280-factory-xxxx-0x0.bin     |
+| [T-Watch-S3 CC1101][3]             | twatchs3-cc1101-factory-xxxx-0x0.bin     |
+| [T-Watch-S3-Plus][4]               | Same T-Watch-S3 firmware                 |
+| [T-Deck or T-Vibe-Dev][5]          | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Deck-Plus][6]                   | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Vibe-Dev][5]                    | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
+| [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -48,6 +56,8 @@
 [4]: https://lilygo.cc/products/t-watch-s3-plus
 [5]: https://lilygo.cc/products/t-deck
 [6]: https://lilygo.cc/products/t-deck-plus
+[7]: https://lilygo.cc/products/t-watch-2020-v3
+[8]: https://lilygo.cc/products
 
 ## 2️⃣How to Flash ?
 

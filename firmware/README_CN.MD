@@ -31,14 +31,22 @@
 > T-Vibe-Dev 出厂时预装 T-Deck 固件，因此要恢复出厂状态，同样是烧录 T-Deck 固件.
 >
 
-| 产品 |
-| ---- |
-| [T-LoRa-Pager 或 T-Vibe-Pager][1] |
-| [T-Watch-Ultra][2] |
-| [T-Watch-S3][3] |
-| [T-Watch-S3-Plus][4] |
-| [T-Deck 或 T-Vibe-Dev][5] |
-| [T-Deck-Plus][6] |
+| 产品                          | 出厂固件                                 |
+| ----------------------------- | ---------------------------------------- |
+| [T-LoRa-Pager SX1262版本][1]  | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
+| [T-LoRa-Pager LR1121版本][1]  | tlora-pager-lr1121-factory-xxxx-0x0.bin  |
+| [T-Vibe-Pager][1]             | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
+| [T-Watch-Ultra SX1280版本][2] | twatch-ultra-sx1280-factory-xxxx-0x0.bin |
+| [T-Watch-Ultra SX1262版本][2] | twatch-ultra-sx1262-factory-xxxx-0x0.bin |
+| [T-Watch-S3 SX1262版本][3]    | twatchs3-sx1262-factory-xxxx-0x0.bin     |
+| [T-Watch-S3 SX1280版本][3]    | twatchs3-sx1280-factory-xxxx-0x0.bin     |
+| [T-Watch-S3 CC1101][3]        | twatchs3-cc1101-factory-xxxx-0x0.bin     |
+| [T-Watch-S3-Plus][4]          | 写T-Watch-S3固件                         |
+| [T-Deck 或 T-Vibe-Dev][5]     | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Deck-Plus][6]              | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Vibe-Dev][5]               | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Watch-2020-V3][7]          | q307-twatch2020v3-factory-xxxx-0x0.bin   |
+| [T-Watch-2019][8]             | twatch-2019-factory-xxxx-0x0.bin         |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -46,6 +54,8 @@
 [4]: https://lilygo.cc/products/t-watch-s3-plus
 [5]: https://lilygo.cc/products/t-deck
 [6]: https://lilygo.cc/products/t-deck-plus
+[7]: https://lilygo.cc/products/t-watch-2020-v3
+[8]: https://lilygo.cc/products
 
 ## 2️⃣ 如何烧录固件？
 
