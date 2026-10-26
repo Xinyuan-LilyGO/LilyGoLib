@@ -25,13 +25,13 @@
       <a href="./docs/factory-ui.md#t-deck">
         <img src=".github/assets/factory-ui/tdeck-preview.png" alt="T-Deck Factory UI preview" width="100%">
       </a>
-      <br><strong>T-Deck</strong>
+      <br><strong>T-Deck or T-Vibe-Dev</strong>
     </td>
     <td width="50%" align="center">
       <a href="./docs/factory-ui.md#t-lora-pager">
         <img src=".github/assets/factory-ui/tlora-pager-preview.png" alt="T-LoRa Pager Factory UI preview" width="100%">
       </a>
-      <br><strong>T-LoRa Pager</strong>
+      <br><strong>T-LoRa Pager or T-Vibe-Pager</strong>
     </td>
   </tr>
   <tr>
@@ -63,6 +63,8 @@
 - 🔧 **[T-Watch-S3-Plus Quick Start](./docs/lilygo-t-watch-s3-plus.md)**
 - 🔧 **[T-Watch-2020-V3 Quick Start](./docs/lilygo-t-watch-2020-v3.md)**
 - 🔧 **[T-Watch (2019) Quick Start](./docs/lilygo-t-watch.md)**
+- 🔧 **[T-Vibe Dev Quick Start](./docs/lilygo-t-vibe-dev.md)**
+- 🔧 **[T-Vibe Pager Quick Start](./docs/lilygo-t-vibe-pager.md)**
 
 ### `2` Hardware Information
 
@@ -73,6 +75,8 @@
 - 🔧 **[T-Watch-S3-Plus Hardware Information](./docs/hardware/lilygo-t-watch-s3-plus.md)**
 - 🔧 **[T-Watch-2020-V3 Hardware Information](./docs/hardware/lilygo-t-watch-2020-v3.md)**
 - 🔧 **[T-Watch (2019) Hardware Information](./docs/hardware/lilygo-t-watch.md)**
+- 🔧 **[T-Vibe-Dev Hardware Information](./docs/hardware/lilygo-t-vibe-dev.md)**
+- 🔧 **[T-Vibe-Pager Hardware Information](./docs/hardware/lilygo-t-vibe-pager.md)**
 
 ### `3` GPS AssistNow Usage Guide
 

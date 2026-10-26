@@ -4,6 +4,8 @@
 
 <h1 align = "center">🌟LilyGo Firmware🌟</h1>
 
+# [中文](README_CN.MD) 
+
 
 > \[!IMPORTANT]
 >
@@ -23,14 +25,22 @@
 
 ## 1️⃣Support Product
 
-| Product              |
-| -------------------- |
-| [T-LoRa-Pager][1]    |
-| [T-Watch-Ultra][2]   |
-| [T-Watch-S3][3]      |
-| [T-Watch-S3-Plus][4] |
-| [T-Deck][5]          |
-| [T-Deck-Plus][6]     |
+
+> [!TIP]
+>
+> The T-Vibe-Pager comes with the T-LoRa-Pager firmware installed by default; therefore, to restore it to its factory state, you must flash the T-LoRa-Pager firmware.
+>
+> The T-Vibe-Dev comes with the T-Deck firmware installed by default; therefore, to restore it to its factory state, you must flash the T-Deck firmware.
+>
+
+| Product                           |
+| --------------------------------- |
+| [T-LoRa-Pager or T-Vibe-Pager][1] |
+| [T-Watch-Ultra][2]                |
+| [T-Watch-S3][3]                   |
+| [T-Watch-S3-Plus][4]              |
+| [T-Deck or T-Vibe-Dev][5]         |
+| [T-Deck-Plus][6]                  |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -47,11 +57,11 @@
 >
 > ⚠️ When writing firmware, please put the device into download mode first in order to download the firmware normally.
 >
-> * [How to put T-Deck into download mode](../docs/lilygo-t-deck.md#entering-download-mode-on-the-t-deck)
+> * [How to put T-Deck or T-Vibe-Dev into download mode](../docs/lilygo-t-deck.md#entering-download-mode-on-the-t-deck)
 > * [How to put T-Watch-S3 into download mode](../docs/lilygo-t-watch-s3.md#entering-download-mode-on-the-t-watch-s3)
 > * [How to put T-Watch-S3-Plus into download mode](../docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus)
 > * [How to put T-Watch-Ultra into download mode](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
-> * [How to put T-LoRa-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
+> * [How to put T-LoRa-Pager or T-Vibe-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
 >
 > ⚠️ After the download is complete, you must press the reset button once; otherwise, the device will remain in download mode.
 >

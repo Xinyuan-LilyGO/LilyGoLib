@@ -30,8 +30,8 @@
       |       |       |          |      
       |       |       |          └────── Supports SD cards up to 32 GB
       |       |       |               
-      |       |       └───────────── Press for one second to turn on the device; this button
-      |       |                     is not programmable
+      |       |       └───────────── Press for one second to turn on the device; 
+      |       |                      This button functions solely as a power-on button and cannot be programmed.
       |       |
       |       └───────────────────── GPIO0: user button and download-mode button
       |
