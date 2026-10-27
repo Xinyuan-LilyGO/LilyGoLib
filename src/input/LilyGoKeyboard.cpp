@@ -57,6 +57,28 @@ void LilyGoKeyboard::setPins(int backlight)
     _backlight = backlight;
 }
 
+bool LilyGoKeyboard::setLayout(KeyboardLayoutType layout)
+{
+    if (layout == KeyboardLayoutType::AZERTY) {
+        if (!_config.layout.azerty_keymap || !_config.layout.azerty_symbol_map) {
+            return false;
+        }
+        _config.layout.current_keymap = _config.layout.azerty_keymap;
+        _config.layout.current_symbol_map = _config.layout.azerty_symbol_map;
+    } else {
+        layout = KeyboardLayoutType::QWERTY;
+        _config.layout.current_keymap = _qwertyKeymap;
+        _config.layout.current_symbol_map = _qwertySymbolMap;
+    }
+    _keyboardLayout = layout;
+    return true;
+}
+
+KeyboardLayoutType LilyGoKeyboard::getLayout() const
+{
+    return _keyboardLayout;
+}
+
 void LilyGoKeyboard::setBrightness(uint8_t level)
 {
     if (this->bl_cb) {
@@ -82,6 +104,9 @@ uint8_t LilyGoKeyboard::getBrightness()
 bool LilyGoKeyboard::begin(const LilyGoKeyboardConfig &config, TwoWire &w, uint8_t irq, uint8_t sda, uint8_t scl)
 {
     _config = config;
+    _qwertyKeymap = config.layout.current_keymap;
+    _qwertySymbolMap = config.layout.current_symbol_map;
+    _keyboardLayout = KeyboardLayoutType::QWERTY;
     _comboManager.clearAll();
     for (int i = 0; i < static_cast<int>(ModifierKey::MAX_MODIFIERS); i++) {
         _modifierStates[i] = false;
@@ -238,6 +263,22 @@ ModifierKey LilyGoKeyboard::identifyModifierKey(uint8_t k)
     if (mods.shift_key_value != 0xFF && k == mods.shift_key_value) return ModifierKey::SHIFT;
 
     return ModifierKey::NONE;
+}
+
+ModifierKey LilyGoKeyboard::getModifierKey(uint8_t k)
+{
+    return identifyModifierKey(k);
+}
+
+bool LilyGoKeyboard::isBackspaceKey(uint8_t k) const
+{
+    return k == _config.modifiers.backspace_value;
+}
+
+bool LilyGoKeyboard::isSpeakerKey(uint8_t k) const
+{
+    return _config.modifiers.speaker_key_value != 0xFF &&
+           k == _config.modifiers.speaker_key_value;
 }
 
 int LilyGoKeyboard::getKey(char *c)
@@ -397,8 +438,12 @@ int LilyGoKeyboard::handleSpecialKeys(uint8_t k, bool pressed, char *c)
     return 0;
 }
 
-char LilyGoKeyboard::getKeyChar(uint8_t k)
+char LilyGoKeyboard::getMappedKeyChar(uint8_t k, bool use_symbol_layer, bool use_caps)
 {
+    if (isBackspaceKey(k)) {
+        return '\b';
+    }
+
     uint8_t row = k / 10;
     uint8_t col = k % 10;
 
@@ -408,18 +453,23 @@ char LilyGoKeyboard::getKeyChar(uint8_t k)
     }
 
     char keyVal;
-    if (symbol_key_pressed) {
+    if (use_symbol_layer) {
         // Symbol mode: access the current symbol map (first address + offset)
         keyVal = *(_config.layout.current_symbol_map + row * _config.layout.kb_cols + col);
     } else {
         // Character mode: access the current character map
         keyVal = *(_config.layout.current_keymap + row * _config.layout.kb_cols + col);
         // Uppercase conversion (skipping null characters)
-        if (cap_key_pressed && keyVal != '\0') {
+        if (use_caps && keyVal != '\0') {
             keyVal = toupper(keyVal);
         }
     }
     return keyVal;
+}
+
+char LilyGoKeyboard::getKeyChar(uint8_t k)
+{
+    return getMappedKeyChar(k, symbol_key_pressed, cap_key_pressed);
 }
 
 char LilyGoKeyboard::handleSpaceAndNullChar(char keyVal, char &lastKeyVal, bool &pressed)

@@ -410,6 +410,7 @@ static const LilyGoKeyboardConfig keyboardConfig = {
         .ctrl_key_value = 0xFF,
         .shift_key_value = 0xFF,
         .backspace_value = 0x1D,
+        .speaker_key_value = 0xFF,
     },
 };
 static cbuf _key_buf(32);

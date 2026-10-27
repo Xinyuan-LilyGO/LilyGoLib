@@ -11,6 +11,14 @@
 #include <stdint.h>
 
 /**
+ * Keyboard character layout selected by the host application.
+ */
+enum class KeyboardLayoutType : uint8_t {
+    QWERTY = 0,
+    AZERTY = 1,
+};
+
+/**
  * @brief Device-independent modifier key identifiers.
  */
 enum class ModifierKey : uint8_t {
@@ -35,6 +43,8 @@ struct KeyboardLayoutConfig {
     const char *current_symbol_map; /**< Symbol-layer keymap table. */
     bool has_symbol_key;            /**< true when the layout has a dedicated symbol key. */
     bool space_as_symbol_key;       /**< true when Space acts as a temporary symbol-layer prefix. */
+    const char *azerty_keymap;      /**< Optional AZERTY base keymap table. */
+    const char *azerty_symbol_map;  /**< Optional AZERTY symbol-layer keymap table. */
 };
 
 /**
@@ -49,6 +59,7 @@ struct ModifierKeyConfig {
     uint8_t ctrl_key_value;      /**< Key value for ModifierKey::CTRL. */
     uint8_t shift_key_value;     /**< Key value for ModifierKey::SHIFT. */
     uint8_t backspace_value;     /**< Key value used for Backspace. */
+    uint8_t speaker_key_value;   /**< Key value used for the speaker key, or 0xFF when absent. */
 };
 
 /**

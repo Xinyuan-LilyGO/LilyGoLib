@@ -50,13 +50,13 @@ void HC32Expander::reset(uint16_t delayMs)
 
 uint8_t HC32Expander::readChipId()
 {
-    return readReg(REG_CHIP_ID);
+    return readReg(HC_REG_CHIP_ID);
 }
 
 void HC32Expander::readVersion(uint8_t &major, uint8_t &minor, uint8_t &patch)
 {
     uint8_t buf[3];
-    readRegs(REG_FW_VERSION, buf, 3);
+    readRegs(HC_REG_FW_VERSION, buf, 3);
     patch = buf[0];
     minor = buf[1];
     major = buf[2];
@@ -64,7 +64,7 @@ void HC32Expander::readVersion(uint8_t &major, uint8_t &minor, uint8_t &patch)
 
 uint8_t HC32Expander::readIrqStatus()
 {
-    return readReg(REG_IRQ_STATUS);
+    return readReg(HC_REG_IRQ_STATUS);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -74,23 +74,23 @@ uint8_t HC32Expander::readIrqStatus()
 void HC32Expander::pinMode(uint8_t pin, bool input)
 {
     if (pin > 23) return;
-    uint32_t mask = getMaskRegs(REG_GPIO_DIR_L, REG_GPIO_DIR_M, REG_GPIO_DIR_H);
+    uint32_t mask = getMaskRegs(HC_REG_GPIO_DIR_L, HC_REG_GPIO_DIR_M, HC_REG_GPIO_DIR_H);
     if (input) {
         mask |= (1UL << pin);
     } else {
         mask &= ~(1UL << pin);
     }
-    setMaskRegs(REG_GPIO_DIR_L, REG_GPIO_DIR_M, REG_GPIO_DIR_H, mask);
+    setMaskRegs(HC_REG_GPIO_DIR_L, HC_REG_GPIO_DIR_M, HC_REG_GPIO_DIR_H, mask);
 }
 
 void HC32Expander::setDirectionMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_DIR_L, REG_GPIO_DIR_M, REG_GPIO_DIR_H, mask & 0xFFFFFF);
+    setMaskRegs(HC_REG_GPIO_DIR_L, HC_REG_GPIO_DIR_M, HC_REG_GPIO_DIR_H, mask & 0xFFFFFF);
 }
 
 uint32_t HC32Expander::getDirectionMask()
 {
-    return getMaskRegs(REG_GPIO_DIR_L, REG_GPIO_DIR_M, REG_GPIO_DIR_H);
+    return getMaskRegs(HC_REG_GPIO_DIR_L, HC_REG_GPIO_DIR_M, HC_REG_GPIO_DIR_H);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -100,23 +100,23 @@ uint32_t HC32Expander::getDirectionMask()
 void HC32Expander::digitalWrite(uint8_t pin, bool high)
 {
     if (pin > 23) return;
-    uint32_t mask = getMaskRegs(REG_GPIO_OUT_L, REG_GPIO_OUT_M, REG_GPIO_OUT_H);
+    uint32_t mask = getMaskRegs(HC_REG_GPIO_OUT_L, HC_REG_GPIO_OUT_M, HC_REG_GPIO_OUT_H);
     if (high) {
         mask |= (1UL << pin);
     } else {
         mask &= ~(1UL << pin);
     }
-    setMaskRegs(REG_GPIO_OUT_L, REG_GPIO_OUT_M, REG_GPIO_OUT_H, mask);
+    setMaskRegs(HC_REG_GPIO_OUT_L, HC_REG_GPIO_OUT_M, HC_REG_GPIO_OUT_H, mask);
 }
 
 void HC32Expander::setOutputMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_OUT_L, REG_GPIO_OUT_M, REG_GPIO_OUT_H, mask & 0xFFFFFF);
+    setMaskRegs(HC_REG_GPIO_OUT_L, HC_REG_GPIO_OUT_M, HC_REG_GPIO_OUT_H, mask & 0xFFFFFF);
 }
 
 uint32_t HC32Expander::getOutputMask()
 {
-    return getMaskRegs(REG_GPIO_OUT_L, REG_GPIO_OUT_M, REG_GPIO_OUT_H);
+    return getMaskRegs(HC_REG_GPIO_OUT_L, HC_REG_GPIO_OUT_M, HC_REG_GPIO_OUT_H);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -132,7 +132,7 @@ bool HC32Expander::digitalRead(uint8_t pin)
 
 uint32_t HC32Expander::readInputMask()
 {
-    return getMaskRegs(REG_GPIO_IN_L, REG_GPIO_IN_M, REG_GPIO_IN_H);
+    return getMaskRegs(HC_REG_GPIO_IN_L, HC_REG_GPIO_IN_M, HC_REG_GPIO_IN_H);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -142,29 +142,29 @@ uint32_t HC32Expander::readInputMask()
 void HC32Expander::setPullUp(uint8_t pin, bool enable)
 {
     if (pin > 23) return;
-    uint32_t mask = getMaskRegs(REG_GPIO_PU_L, REG_GPIO_PU_M, REG_GPIO_PU_H);
+    uint32_t mask = getMaskRegs(HC_REG_GPIO_PU_L, HC_REG_GPIO_PU_M, HC_REG_GPIO_PU_H);
     if (enable) mask |= (1UL << pin);
     else        mask &= ~(1UL << pin);
-    setMaskRegs(REG_GPIO_PU_L, REG_GPIO_PU_M, REG_GPIO_PU_H, mask);
+    setMaskRegs(HC_REG_GPIO_PU_L, HC_REG_GPIO_PU_M, HC_REG_GPIO_PU_H, mask);
 }
 
 void HC32Expander::setPullDown(uint8_t pin, bool enable)
 {
     if (pin > 23) return;
-    uint32_t mask = getMaskRegs(REG_GPIO_PD_L, REG_GPIO_PD_M, REG_GPIO_PD_H);
+    uint32_t mask = getMaskRegs(HC_REG_GPIO_PD_L, HC_REG_GPIO_PD_M, HC_REG_GPIO_PD_H);
     if (enable) mask |= (1UL << pin);
     else        mask &= ~(1UL << pin);
-    setMaskRegs(REG_GPIO_PD_L, REG_GPIO_PD_M, REG_GPIO_PD_H, mask);
+    setMaskRegs(HC_REG_GPIO_PD_L, HC_REG_GPIO_PD_M, HC_REG_GPIO_PD_H, mask);
 }
 
 void HC32Expander::setPullUpMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_PU_L, REG_GPIO_PU_M, REG_GPIO_PU_H, mask & 0xFFFFFF);
+    setMaskRegs(HC_REG_GPIO_PU_L, HC_REG_GPIO_PU_M, HC_REG_GPIO_PU_H, mask & 0xFFFFFF);
 }
 
 void HC32Expander::setPullDownMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_PD_L, REG_GPIO_PD_M, REG_GPIO_PD_H, mask & 0xFFFFFF);
+    setMaskRegs(HC_REG_GPIO_PD_L, HC_REG_GPIO_PD_M, HC_REG_GPIO_PD_H, mask & 0xFFFFFF);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -174,30 +174,30 @@ void HC32Expander::setPullDownMask(uint32_t mask)
 void HC32Expander::setIrqEnable(uint8_t pin, bool enable)
 {
     if (pin > 23) return;
-    uint32_t mask = getMaskRegs(REG_GPIO_IRQ_EN_L, REG_GPIO_IRQ_EN_M, REG_GPIO_IRQ_EN_H);
+    uint32_t mask = getMaskRegs(HC_REG_GPIO_IRQ_EN_L, HC_REG_GPIO_IRQ_EN_M, HC_REG_GPIO_IRQ_EN_H);
     if (enable) mask |= (1UL << pin);
     else        mask &= ~(1UL << pin);
-    setMaskRegs(REG_GPIO_IRQ_EN_L, REG_GPIO_IRQ_EN_M, REG_GPIO_IRQ_EN_H, mask);
+    setMaskRegs(HC_REG_GPIO_IRQ_EN_L, HC_REG_GPIO_IRQ_EN_M, HC_REG_GPIO_IRQ_EN_H, mask);
 }
 
 void HC32Expander::setIrqEnableMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_IRQ_EN_L, REG_GPIO_IRQ_EN_M, REG_GPIO_IRQ_EN_H, mask & 0xFFFFFF);
+    setMaskRegs(HC_REG_GPIO_IRQ_EN_L, HC_REG_GPIO_IRQ_EN_M, HC_REG_GPIO_IRQ_EN_H, mask & 0xFFFFFF);
 }
 
 void HC32Expander::setIrqEdge(IrqEdge edge)
 {
-    writeReg(REG_GPIO_IRQ_EDGE, (uint8_t)edge);
+    writeReg(HC_REG_GPIO_IRQ_EDGE, (uint8_t)edge);
 }
 
 uint32_t HC32Expander::readGpioChangeMask()
 {
-    return getMaskRegs(REG_GPIO_CHANGE_L, REG_GPIO_CHANGE_M, REG_GPIO_CHANGE_H);
+    return getMaskRegs(HC_REG_GPIO_CHANGE_L, HC_REG_GPIO_CHANGE_M, HC_REG_GPIO_CHANGE_H);
 }
 
 uint32_t HC32Expander::readGpioLevelMask()
 {
-    return getMaskRegs(REG_GPIO_LEVEL_L, REG_GPIO_LEVEL_M, REG_GPIO_LEVEL_H);
+    return getMaskRegs(HC_REG_GPIO_LEVEL_L, HC_REG_GPIO_LEVEL_M, HC_REG_GPIO_LEVEL_H);
 }
 
 bool HC32Expander::isIrqPending()
@@ -212,13 +212,13 @@ bool HC32Expander::isIrqPending()
 void HC32Expander::setPinFunction(uint8_t pin, PinFunction func)
 {
     if (pin > 25) return;
-    writeReg(REG_GPIO_FUNC_BASE + pin, (uint8_t)func);
+    writeReg(HC_REG_GPIO_FUNC_BASE + pin, (uint8_t)func);
 }
 
 HC32Expander::PinFunction HC32Expander::getPinFunction(uint8_t pin)
 {
     if (pin > 25) return FUNC_GPIO;
-    return (PinFunction)readReg(REG_GPIO_FUNC_BASE + pin);
+    return (PinFunction)readReg(HC_REG_GPIO_FUNC_BASE + pin);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -228,7 +228,7 @@ HC32Expander::PinFunction HC32Expander::getPinFunction(uint8_t pin)
 void HC32Expander::analogWrite(uint8_t pin, uint8_t duty)
 {
     uint8_t buf[2] = { duty, pin };
-    writeRegs(REG_PWM_DUTY, buf, 2);
+    writeRegs(HC_REG_PWM_DUTY, buf, 2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -238,7 +238,7 @@ void HC32Expander::analogWrite(uint8_t pin, uint8_t duty)
 void HC32Expander::setAw9364Level(uint8_t pin, uint8_t level)
 {
     uint8_t buf[2] = { level, pin };
-    writeRegs(REG_AW9364_LEVEL, buf, 2);
+    writeRegs(HC_REG_AW9364_LEVEL, buf, 2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -256,12 +256,12 @@ void HC32Expander::setSleepHold(uint8_t pin, bool enable)
 
 void HC32Expander::setSleepHoldMask(uint32_t mask)
 {
-    setMaskRegs(REG_GPIO_SLEEP_L, REG_GPIO_SLEEP_M, REG_GPIO_SLEEP_H, mask);
+    setMaskRegs(HC_REG_GPIO_SLEEP_L, HC_REG_GPIO_SLEEP_M, HC_REG_GPIO_SLEEP_H, mask);
 }
 
 uint32_t HC32Expander::getSleepHoldMask()
 {
-    return getMaskRegs(REG_GPIO_SLEEP_L, REG_GPIO_SLEEP_M, REG_GPIO_SLEEP_H);
+    return getMaskRegs(HC_REG_GPIO_SLEEP_L, HC_REG_GPIO_SLEEP_M, HC_REG_GPIO_SLEEP_H);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -270,12 +270,12 @@ uint32_t HC32Expander::getSleepHoldMask()
 
 void HC32Expander::sleep(bool wakeup_by_button)
 {
-    writeReg(REG_CMD, wakeup_by_button ? CMD_SLEEP_BTN_WAKEUP : CMD_SLEEP_ENABLE);
+    writeReg(HC_REG_CMD, wakeup_by_button ? CMD_SLEEP_BTN_WAKEUP : CMD_SLEEP_ENABLE);
 }
 
 void HC32Expander::enterBootloader()
 {
-    writeReg(REG_CMD, CMD_ENTER_BOOTLOADER);
+    writeReg(HC_REG_CMD, CMD_ENTER_BOOTLOADER);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

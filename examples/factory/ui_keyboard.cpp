@@ -21,6 +21,9 @@ static lv_obj_t *symbol_chip = NULL;
 static lv_obj_t *alt_chip = NULL;
 static lv_obj_t *caps_chip = NULL;
 static lv_obj_t *backspace_chip = NULL;
+static lv_obj_t *monitor_card = NULL;
+static lv_obj_t *settings_button = NULL;
+static lv_obj_t *settings_container = NULL;
 
 static uint32_t pressed_count = 0;
 static uint32_t released_count = 0;
@@ -41,6 +44,7 @@ struct keyboard_monitor_layout_t {
     uint8_t caps_key;
     uint8_t caps_b_key;
     uint8_t backspace_key;
+    uint8_t speaker_key;
     bool space_as_symbol;
 };
 
@@ -58,37 +62,29 @@ static constexpr char symbol_map[] = {
     ' ', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'
 };
 static const keyboard_monitor_layout_t keyboard_layout = {
-    4, 10, normal_map, symbol_map, 0x1E, 0x14, 0x1C, 0xFF, 0x1D, true
+    4, 10, normal_map, symbol_map, 0x1E, 0x14, 0x1C, 0xFF, 0x1D, 0xFF, true
 };
 #elif defined(ARDUINO_T_DECK_V2)
-static constexpr char normal_map[] = {
-    'o', 'e', 'r', 'u', 'q',
-    'w', 's', 'g', 'h', 'l',
-    '\0', 'd', 't', 'y', 'i',
-    'a', 'p', '\0', '\n', '\0',
-    '\0', 'x', 'v', 'b', '$',
-    ' ', 'z', 'c', 'n', 'm',
-    '\0', '\0', 'f', 'j', 'k'
-};
-static constexpr char symbol_map[] = {
-    '#', '2', '3', '_', '+',
-    '1', '4', '/', ':', '"',
-    '\0', '5', '(', ')', '-',
-    '*', '@', '\0', '\0', '\0',
-    '\0', '8', '?', '!', '\0',
-    '\0', '7', '9', ',', '.',
-    '0', '\0', '6', ';', '\''
-};
+// The T-Deck V2 keymaps live in its TCA8418 driver.  Factory only queries
+// translated values through LilyGoKeyboard and keeps the matrix dimensions
+// here for diagnostic display.
+static constexpr char normal_map[] = "";
+static constexpr char symbol_map[] = "";
 static const keyboard_monitor_layout_t keyboard_layout = {
-    7, 5, normal_map, symbol_map, 0x14, 0x28, 0x20, 0x3D, 0x22, false
+    7, 5, normal_map, symbol_map, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, false
 };
 #else
 static constexpr char normal_map[] = "";
 static constexpr char symbol_map[] = "";
 static const keyboard_monitor_layout_t keyboard_layout = {
-    0, 0, normal_map, symbol_map, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, false
+    0, 0, normal_map, symbol_map, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, false
 };
 #endif
+
+static const keyboard_monitor_layout_t &active_keyboard_layout()
+{
+    return keyboard_layout;
+}
 
 static const char *state_name(bool pressed)
 {
@@ -118,6 +114,9 @@ static lv_coord_t compact_card_height()
 
 static lv_coord_t detail_width()
 {
+    if (is_screen_small()) {
+        return 92;
+    }
     return lv_disp_get_hor_res(NULL) >= 420 ? 190 : 150;
 }
 
@@ -150,19 +149,27 @@ static const char *key_name(char c, char *buffer, size_t size)
 
 static char mapped_key_char(uint8_t logical, bool use_symbol_layer, bool use_caps)
 {
-    if (keyboard_layout.cols == 0 || keyboard_layout.rows == 0) {
+#if defined(ARDUINO_T_DECK_V2)
+    return instance.kb.getMappedKeyChar(logical, use_symbol_layer, use_caps);
+#elif defined(USING_TDECK_KEYBOARD)
+    (void)use_symbol_layer;
+    (void)use_caps;
+    return static_cast<char>(logical);
+#else
+    const keyboard_monitor_layout_t &layout = active_keyboard_layout();
+    if (layout.cols == 0 || layout.rows == 0) {
         return '\0';
     }
 
     uint8_t row = logical / 10;
     uint8_t col = logical % 10;
-    if (row >= keyboard_layout.rows || col >= keyboard_layout.cols) {
+    if (row >= layout.rows || col >= layout.cols) {
         return '\0';
     }
 
-    char c = keyboard_layout.normal[row * keyboard_layout.cols + col];
+    char c = layout.normal[row * layout.cols + col];
     if (use_symbol_layer) {
-        char symbol = keyboard_layout.symbol[row * keyboard_layout.cols + col];
+        char symbol = layout.symbol[row * layout.cols + col];
         if (symbol != '\0') {
             c = symbol;
         }
@@ -171,34 +178,63 @@ static char mapped_key_char(uint8_t logical, bool use_symbol_layer, bool use_cap
         c = (char)toupper((unsigned char)c);
     }
     return c;
+#endif
 }
 
 static const char *logical_key_name(uint8_t logical, char *buffer, size_t size)
 {
 #if defined(USING_TDECK_KEYBOARD)
+    if (logical == TDeckKeyboard::MicrophoneKeyCode) {
+        return "MIC";
+    }
     return key_name(static_cast<char>(logical), buffer, size);
 #endif
-    if (logical == keyboard_layout.symbol_key) {
-        return keyboard_layout.space_as_symbol ? "Space" : "Symbol";
-    }
-    if (logical == keyboard_layout.alt_key) {
+#if defined(ARDUINO_T_DECK_V2)
+    ModifierKey modifier = instance.kb.getModifierKey(logical);
+    switch (modifier) {
+    case ModifierKey::SYMBOL:
+        return "Symbol";
+    case ModifierKey::ALT:
         return "Alt";
-    }
-    if (logical == keyboard_layout.caps_key || logical == keyboard_layout.caps_b_key) {
+    case ModifierKey::CAPS:
+    case ModifierKey::CAPS_B:
         return "Cap";
+    default:
+        break;
     }
-    if (logical == keyboard_layout.backspace_key) {
+    if (instance.kb.isBackspaceKey(logical)) {
         return "Backspace";
     }
+    if (instance.kb.isSpeakerKey(logical)) {
+        return "Speaker";
+    }
+    return key_name(mapped_key_char(logical, symbol_active, caps_active), buffer, size);
+#endif
+    const keyboard_monitor_layout_t &layout = active_keyboard_layout();
+    if (logical == layout.symbol_key) {
+        return layout.space_as_symbol ? "Space" : "Symbol";
+    }
+    if (logical == layout.alt_key) {
+        return "Alt";
+    }
+    if (logical == layout.caps_key || logical == layout.caps_b_key) {
+        return "Cap";
+    }
+    if (logical == layout.backspace_key) {
+        return "Backspace";
+    }
+    if (logical == layout.speaker_key) {
+        return "Speaker";
+    }
 
-    if (keyboard_layout.cols == 0 || keyboard_layout.rows == 0) {
+    if (layout.cols == 0 || layout.rows == 0) {
         snprintf(buffer, size, "Raw 0x%02X", logical);
         return buffer;
     }
 
     uint8_t row = logical / 10;
     uint8_t col = logical % 10;
-    if (row >= keyboard_layout.rows || col >= keyboard_layout.cols) {
+    if (row >= layout.rows || col >= layout.cols) {
         snprintf(buffer, size, "Raw 0x%02X", logical);
         return buffer;
     }
@@ -320,8 +356,9 @@ static void update_key_view(bool pressed, uint8_t raw, uint8_t logical)
     }
 
     if (detail_label) {
-        uint8_t row = keyboard_layout.cols ? logical / 10 : 0;
-        uint8_t col = keyboard_layout.cols ? logical % 10 : 0;
+        const keyboard_monitor_layout_t &layout = active_keyboard_layout();
+        uint8_t row = layout.cols ? logical / 10 : 0;
+        uint8_t col = layout.cols ? logical % 10 : 0;
         lv_label_set_text_fmt(detail_label,
                               "%s r%02X k%02X\n"
                               "R%u C%u P:%lu U:%lu",
@@ -387,15 +424,29 @@ static void keyboard_raw_cb(bool pressed, uint8_t raw)
 #else
     uint8_t logical = raw - 1;
 #endif
-    if (logical == keyboard_layout.symbol_key) {
+#if defined(ARDUINO_T_DECK_V2)
+    ModifierKey modifier = instance.kb.getModifierKey(logical);
+    if (modifier == ModifierKey::SYMBOL) {
         symbol_active = pressed;
-    } else if (logical == keyboard_layout.alt_key) {
+    } else if (modifier == ModifierKey::ALT) {
         alt_active = pressed;
-    } else if (logical == keyboard_layout.caps_key || logical == keyboard_layout.caps_b_key) {
+    } else if (modifier == ModifierKey::CAPS || modifier == ModifierKey::CAPS_B) {
         caps_active = pressed;
-    } else if (logical == keyboard_layout.backspace_key) {
+    } else if (instance.kb.isBackspaceKey(logical)) {
         backspace_active = pressed;
     }
+#else
+    const keyboard_monitor_layout_t &layout = active_keyboard_layout();
+    if (logical == layout.symbol_key) {
+        symbol_active = pressed;
+    } else if (logical == layout.alt_key) {
+        alt_active = pressed;
+    } else if (logical == layout.caps_key || logical == layout.caps_b_key) {
+        caps_active = pressed;
+    } else if (logical == layout.backspace_key) {
+        backspace_active = pressed;
+    }
+#endif
 
     if (pressed && alt_active && is_backlight_combo_key(logical)) {
         show_backlight_combo(raw, logical);
@@ -421,6 +472,50 @@ static void reset_monitor_state()
     memset(history_lines, 0, sizeof(history_lines));
 }
 
+static void keyboard_layout_changed_cb(lv_event_t *e)
+{
+    lv_obj_t *dropdown = lv_event_get_target_obj(e);
+    hw_set_keyboard_layout(lv_dropdown_get_selected(dropdown) == 1 ?
+                           KEYBOARD_LAYOUT_AZERTY : KEYBOARD_LAYOUT_QWERTY);
+    reset_monitor_state();
+    refresh_modifier_view();
+}
+
+static void keyboard_settings_brightness_cb(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target_obj(e);
+    hw_set_kb_backlight((uint8_t)lv_slider_get_value(slider));
+}
+
+static void keyboard_settings_open_cb(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    if (!page_container || settings_container) {
+        return;
+    }
+
+    if (monitor_card) {
+        lv_obj_add_flag(monitor_card, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    settings_container = lv_obj_create(page_container);
+    lv_obj_set_size(settings_container, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_opa(settings_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(settings_container, 0, 0);
+    lv_obj_set_style_pad_all(settings_container, 0, 0);
+    lv_obj_set_style_pad_row(settings_container, 6, 0);
+    lv_obj_set_flex_flow(settings_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_clear_flag(settings_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *card = ui_create_card(settings_container, NULL);
+    ui_create_card_dropdown(card, LV_SYMBOL_KEYBOARD, "Layout", "QWERTY\nAZERTY",
+                            hw_get_keyboard_layout() == KEYBOARD_LAYOUT_AZERTY ? 1 : 0,
+                            keyboard_layout_changed_cb);
+
+    ui_create_card_slider(card, LV_SYMBOL_KEYBOARD, "Backlight", 0, 255,
+                          hw_get_kb_backlight(), keyboard_settings_brightness_cb);
+}
+
 static void release_keyboard_monitor()
 {
 #if defined(ARDUINO) && defined(USING_INPUT_DEV_KEYBOARD)
@@ -434,6 +529,17 @@ static void release_keyboard_monitor()
 static void back_event_handler(lv_event_t *e)
 {
     LV_UNUSED(e);
+
+    // The app page's edge-swipe handler invokes this callback too.  When the
+    // settings overlay is open, treat that gesture as an in-app back action.
+    if (settings_container) {
+        lv_obj_delete(settings_container);
+        settings_container = NULL;
+        if (monitor_card) {
+            lv_obj_remove_flag(monitor_card, LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+    }
 
     release_keyboard_monitor();
 
@@ -451,6 +557,9 @@ static void back_event_handler(lv_event_t *e)
     alt_chip = NULL;
     caps_chip = NULL;
     backspace_chip = NULL;
+    monitor_card = NULL;
+    settings_button = NULL;
+    settings_container = NULL;
 
     menu_show();
 }
@@ -498,6 +607,7 @@ static void create_keyboard_monitor_ui()
     lv_obj_set_style_text_font(status_label, &lv_font_montserrat_12, 0);
     lv_label_set_text(status_label, "Press keys. FN/ALT+B toggles BL.");
 
+    monitor_card = card;
     lv_obj_t *key_panel = create_monitor_panel(card);
     key_label = lv_label_create(key_panel);
     lv_label_set_text(key_label, "--");
@@ -543,6 +653,19 @@ static void create_keyboard_monitor_ui()
     lv_obj_set_style_text_align(detail_label, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(detail_label, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_text_font(detail_label, &lv_font_montserrat_12, 0);
+
+#if defined(ARDUINO_T_DECK) || defined(ARDUINO_T_DECK_V2)
+    settings_button = lv_btn_create(bottom_row);
+    lv_obj_set_size(settings_button, 34, 30);
+    lv_obj_set_style_bg_color(settings_button, UI_COLOR_ACCENT, 0);
+    lv_obj_set_style_radius(settings_button, 6, 0);
+    lv_obj_set_style_border_width(settings_button, 0, 0);
+    ui_add_accent_focus_style(settings_button);
+    lv_obj_t *settings_icon = lv_label_create(settings_button);
+    lv_label_set_text(settings_icon, LV_SYMBOL_SETTINGS);
+    lv_obj_center(settings_icon);
+    lv_obj_add_event_cb(settings_button, keyboard_settings_open_cb, LV_EVENT_CLICKED, NULL);
+#endif
 
     if (!compact) {
         modifier_label = lv_label_create(card);

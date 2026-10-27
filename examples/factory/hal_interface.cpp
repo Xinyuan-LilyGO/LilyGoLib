@@ -62,6 +62,8 @@ static uint8_t mic_input_source = MIC_INPUT_SOURCE_INTERNAL;
 static uint8_t haptic_effect = HAPTIC_EFFECT_DEFAULT;
 static bool touch_guide_dismissed = false;
 static bool keyboard_navigation_enabled = true;
+static uint8_t keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
+static bool keyboard_layout_loaded = false;
 
 #ifndef ARDUINO
 /* Desktop builds use deterministic values so screenshots and UI reviews are repeatable. */
@@ -4201,6 +4203,47 @@ void hw_set_keyboard_read_callback(void(*read)(int state, char &c))
 {
 #if defined(ARDUINO) && (defined(USING_INPUT_DEV_KEYBOARD) || defined(USING_TDECK_KEYBOARD))
     instance.kb.setCallback(read);
+#endif
+}
+
+void hw_set_keyboard_layout(uint8_t layout)
+{
+    layout = layout == KEYBOARD_LAYOUT_AZERTY ? KEYBOARD_LAYOUT_AZERTY : KEYBOARD_LAYOUT_QWERTY;
+    keyboard_layout = layout;
+    keyboard_layout_loaded = true;
+#if defined(ARDUINO)
+    Preferences layout_prefs;
+    if (layout_prefs.begin("kb_layout", false)) {
+        layout_prefs.putUChar("layout", layout);
+        layout_prefs.end();
+    }
+#endif
+#if defined(ARDUINO) && defined(ARDUINO_T_DECK_V2)
+    instance.kb.setLayout(static_cast<KeyboardLayoutType>(layout));
+#elif defined(ARDUINO) && defined(ARDUINO_T_DECK)
+    instance.kb.setLayout(static_cast<KeyboardLayoutType>(layout));
+#endif
+}
+
+uint8_t hw_get_keyboard_layout()
+{
+#if defined(ARDUINO)
+    if (!keyboard_layout_loaded) {
+        Preferences layout_prefs;
+        if (layout_prefs.begin("kb_layout", true)) {
+            uint8_t saved = layout_prefs.getUChar("layout", KEYBOARD_LAYOUT_QWERTY);
+            layout_prefs.end();
+            keyboard_layout = saved == KEYBOARD_LAYOUT_AZERTY ?
+                              KEYBOARD_LAYOUT_AZERTY : KEYBOARD_LAYOUT_QWERTY;
+        }
+        keyboard_layout_loaded = true;
+    }
+#endif
+#if defined(ARDUINO) && (defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK))
+    instance.kb.setLayout(static_cast<KeyboardLayoutType>(keyboard_layout));
+    return static_cast<uint8_t>(instance.kb.getLayout());
+#else
+    return keyboard_layout;
 #endif
 }
 

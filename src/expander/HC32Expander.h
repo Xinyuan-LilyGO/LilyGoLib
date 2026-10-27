@@ -30,7 +30,7 @@ public:
         FUNC_AW9364  = 3,
     };
 
-    /* ─── IRQ Edge Modes (REG_GPIO_IRQ_EDGE values) ─── */
+    /* ─── IRQ Edge Modes (HC_REG_GPIO_IRQ_EDGE values) ─── */
     enum IrqEdge : uint8_t {
         EDGE_HIGH_LEVEL = 0x00,
         EDGE_LOW_LEVEL  = 0x01,
@@ -305,44 +305,44 @@ private:
     TwoWire *_wire;
 
     /* ─── Register Addresses (from config.h) ─── */
-    static constexpr uint8_t REG_CHIP_ID        = 0x00;
-    static constexpr uint8_t REG_FW_VERSION     = 0x01;
-    static constexpr uint8_t REG_IRQ_STATUS     = 0x04;
-    static constexpr uint8_t REG_IRQ_ENABLE     = 0x05;
-    static constexpr uint8_t REG_GPIO_CHANGE_L  = 0x06;
-    static constexpr uint8_t REG_GPIO_CHANGE_M  = 0x07;
-    static constexpr uint8_t REG_GPIO_CHANGE_H  = 0x08;
-    static constexpr uint8_t REG_GPIO_LEVEL_L   = 0x09;
-    static constexpr uint8_t REG_GPIO_LEVEL_M   = 0x0A;
-    static constexpr uint8_t REG_GPIO_LEVEL_H   = 0x0B;
-    static constexpr uint8_t REG_CMD            = 0x0F;
-    static constexpr uint8_t REG_GPIO_DIR_L     = 0x10;
-    static constexpr uint8_t REG_GPIO_DIR_M     = 0x11;
-    static constexpr uint8_t REG_GPIO_DIR_H     = 0x12;
-    static constexpr uint8_t REG_GPIO_OUT_L     = 0x13;
-    static constexpr uint8_t REG_GPIO_OUT_M     = 0x14;
-    static constexpr uint8_t REG_GPIO_OUT_H     = 0x15;
-    static constexpr uint8_t REG_GPIO_IN_L      = 0x16;
-    static constexpr uint8_t REG_GPIO_IN_M      = 0x17;
-    static constexpr uint8_t REG_GPIO_IN_H      = 0x18;
-    static constexpr uint8_t REG_GPIO_PU_L      = 0x19;
-    static constexpr uint8_t REG_GPIO_PU_M      = 0x1A;
-    static constexpr uint8_t REG_GPIO_PU_H      = 0x1B;
-    static constexpr uint8_t REG_GPIO_PD_L      = 0x1C;
-    static constexpr uint8_t REG_GPIO_PD_M      = 0x1D;
-    static constexpr uint8_t REG_GPIO_PD_H      = 0x1E;
-    static constexpr uint8_t REG_GPIO_IRQ_EN_L  = 0x1F;
-    static constexpr uint8_t REG_GPIO_IRQ_EN_M  = 0x20;
-    static constexpr uint8_t REG_GPIO_IRQ_EN_H  = 0x21;
-    static constexpr uint8_t REG_GPIO_IRQ_EDGE  = 0x22;
-    static constexpr uint8_t REG_GPIO_FUNC_BASE = 0x30;
-    static constexpr uint8_t REG_PWM_DUTY       = 0x50;
-    static constexpr uint8_t REG_PWM_PIN        = 0x51;
-    static constexpr uint8_t REG_GPIO_SLEEP_L   = 0x52;
-    static constexpr uint8_t REG_GPIO_SLEEP_M   = 0x53;
-    static constexpr uint8_t REG_GPIO_SLEEP_H   = 0x54;
-    static constexpr uint8_t REG_AW9364_LEVEL   = 0x55;
-    static constexpr uint8_t REG_AW9364_PIN     = 0x56;
+    static constexpr uint8_t HC_REG_CHIP_ID        = 0x00;
+    static constexpr uint8_t HC_REG_FW_VERSION     = 0x01;
+    static constexpr uint8_t HC_REG_IRQ_STATUS     = 0x04;
+    static constexpr uint8_t HC_REG_IRQ_ENABLE     = 0x05;
+    static constexpr uint8_t HC_REG_GPIO_CHANGE_L  = 0x06;
+    static constexpr uint8_t HC_REG_GPIO_CHANGE_M  = 0x07;
+    static constexpr uint8_t HC_REG_GPIO_CHANGE_H  = 0x08;
+    static constexpr uint8_t HC_REG_GPIO_LEVEL_L   = 0x09;
+    static constexpr uint8_t HC_REG_GPIO_LEVEL_M   = 0x0A;
+    static constexpr uint8_t HC_REG_GPIO_LEVEL_H   = 0x0B;
+    static constexpr uint8_t HC_REG_CMD            = 0x0F;
+    static constexpr uint8_t HC_REG_GPIO_DIR_L     = 0x10;
+    static constexpr uint8_t HC_REG_GPIO_DIR_M     = 0x11;
+    static constexpr uint8_t HC_REG_GPIO_DIR_H     = 0x12;
+    static constexpr uint8_t HC_REG_GPIO_OUT_L     = 0x13;
+    static constexpr uint8_t HC_REG_GPIO_OUT_M     = 0x14;
+    static constexpr uint8_t HC_REG_GPIO_OUT_H     = 0x15;
+    static constexpr uint8_t HC_REG_GPIO_IN_L      = 0x16;
+    static constexpr uint8_t HC_REG_GPIO_IN_M      = 0x17;
+    static constexpr uint8_t HC_REG_GPIO_IN_H      = 0x18;
+    static constexpr uint8_t HC_REG_GPIO_PU_L      = 0x19;
+    static constexpr uint8_t HC_REG_GPIO_PU_M      = 0x1A;
+    static constexpr uint8_t HC_REG_GPIO_PU_H      = 0x1B;
+    static constexpr uint8_t HC_REG_GPIO_PD_L      = 0x1C;
+    static constexpr uint8_t HC_REG_GPIO_PD_M      = 0x1D;
+    static constexpr uint8_t HC_REG_GPIO_PD_H      = 0x1E;
+    static constexpr uint8_t HC_REG_GPIO_IRQ_EN_L  = 0x1F;
+    static constexpr uint8_t HC_REG_GPIO_IRQ_EN_M  = 0x20;
+    static constexpr uint8_t HC_REG_GPIO_IRQ_EN_H  = 0x21;
+    static constexpr uint8_t HC_REG_GPIO_IRQ_EDGE  = 0x22;
+    static constexpr uint8_t HC_REG_GPIO_FUNC_BASE = 0x30;
+    static constexpr uint8_t HC_REG_PWM_DUTY       = 0x50;
+    static constexpr uint8_t HC_REG_PWM_PIN        = 0x51;
+    static constexpr uint8_t HC_REG_GPIO_SLEEP_L   = 0x52;
+    static constexpr uint8_t HC_REG_GPIO_SLEEP_M   = 0x53;
+    static constexpr uint8_t HC_REG_GPIO_SLEEP_H   = 0x54;
+    static constexpr uint8_t HC_REG_AW9364_LEVEL   = 0x55;
+    static constexpr uint8_t HC_REG_AW9364_PIN     = 0x56;
 
     void setMaskRegs(uint8_t regL, uint8_t regM, uint8_t regH, uint32_t mask);
     uint32_t getMaskRegs(uint8_t regL, uint8_t regM, uint8_t regH);

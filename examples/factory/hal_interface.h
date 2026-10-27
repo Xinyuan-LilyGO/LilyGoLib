@@ -39,6 +39,11 @@ typedef enum {
 } keyboard_type_t;
 
 typedef enum {
+    KEYBOARD_LAYOUT_QWERTY = 0,
+    KEYBOARD_LAYOUT_AZERTY = 1,
+} keyboard_layout_t;
+
+typedef enum {
     SENSOR_TYPE_IMU,
     SENSOR_TYPE_ACCEL
 } sensor_type_t;
@@ -1214,6 +1219,12 @@ sensor_type_t hw_get_sensor_type();
  * @param read A pointer to the callback function.
  */
 void hw_set_keyboard_read_callback(void(*read)(int state, char &c));
+
+/** Select the character layout used by a supported hardware keyboard. */
+void hw_set_keyboard_layout(uint8_t layout);
+
+/** Return the currently selected character layout. */
+uint8_t hw_get_keyboard_layout();
 
 /**
  * @brief Provide hardware feedback.

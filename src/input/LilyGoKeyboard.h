@@ -75,6 +75,12 @@ public:
      */
     void setPins(int backlight);
 
+    /** Select the character map used by the keyboard. */
+    bool setLayout(KeyboardLayoutType layout);
+
+    /** Return the currently selected character map. */
+    KeyboardLayoutType getLayout() const;
+
     // /**
     //  * @brief Set the keyboard mapping index.
     //  *
@@ -198,6 +204,22 @@ public:
      */
     void clearKeyCombos();
 
+    /** Return the modifier represented by a physical key value. */
+    ModifierKey getModifierKey(uint8_t k);
+
+    /** Return true when a physical key value is the configured Backspace key. */
+    bool isBackspaceKey(uint8_t k) const;
+
+    /** Return true when a physical key value is the configured speaker key. */
+    bool isSpeakerKey(uint8_t k) const;
+
+    /**
+     * Translate a physical key value using the selected device keymap.
+     * The layer and caps state are supplied by raw-event consumers because a
+     * raw callback intentionally bypasses the driver's event state machine.
+     */
+    char getMappedKeyChar(uint8_t k, bool symbol_layer = false, bool caps = false);
+
 private:
     /**
      * @brief Updates the keyboard state and retrieves the currently pressed key.
@@ -298,6 +320,9 @@ private:
     uint32_t lastPressedTime = 0;
     /** Current keyboard configuration. */
     LilyGoKeyboardConfig _config = {};
+    const char *_qwertyKeymap = nullptr;
+    const char *_qwertySymbolMap = nullptr;
+    KeyboardLayoutType _keyboardLayout = KeyboardLayoutType::QWERTY;
     /** Manager for user-defined key combinations. */
     KeyComboManager _comboManager;
     /** Tracks which modifier keys are currently pressed. */
