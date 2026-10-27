@@ -35,6 +35,9 @@
 #ifdef CONFIG_CODEC_ES8388_SUPPORT
 #include "../device/include/es8388_codec.h"
 #endif
+#ifdef CONFIG_CODEC_ES8389_SUPPORT
+#include "../device/include/es8389_codec.h"
+#endif
 #ifdef CONFIG_CODEC_TAS5805M_SUPPORT
 #include "../device/include/tas5805m_dac.h"
 #endif

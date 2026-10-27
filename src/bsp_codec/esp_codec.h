@@ -33,6 +33,9 @@
 #ifdef CONFIG_CODEC_ES8374_SUPPORT
 #include "device/include/es8374_codec.h"
 #endif
+#ifdef CONFIG_CODEC_ES8389_SUPPORT
+#include "device/include/es8389_codec.h"
+#endif
 #ifdef CONFIG_CODEC_TAS5805M_SUPPORT
 #include "device/include/tas5805m_dac.h"
 #endif
@@ -57,6 +60,7 @@ typedef enum {
     CODEC_TYPE_AW88298,   /**< AW88298 audio codec chip */
     CODEC_TYPE_ES8374,    /**< ES8374 audio codec chip */
     CODEC_TYPE_ES8388,    /**< ES8388 audio codec chip */
+    CODEC_TYPE_ES8389,    /**< ES8389 audio codec chip */
     CODEC_TYPE_TAS5805M,  /**< TAS5805M audio codec chip */
     CODEC_TYPE_ZL38063,   /**< ZL38063 audio codec chip */
 } EspCodecType;

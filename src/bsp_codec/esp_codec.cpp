@@ -237,6 +237,37 @@ bool EspCodec::begin(TwoWire &wire, uint8_t address, EspCodecType type)
     }
 #endif
     break;
+    case CODEC_TYPE_ES8389:
+#ifdef CONFIG_CODEC_ES8389_SUPPORT
+    {
+        es8389_codec_cfg_t es8389_cfg = {
+            .ctrl_if = i2c_ctrl_if,
+            .gpio_if = gpio_if,
+            .codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH,
+            .sys_cfg = {
+                .is_master = false,
+                .no_mclk = false,
+            },
+            .adc_cfg = {
+                .digital_mic = false,
+                .label = NULL,
+            },
+            .dac_cfg = {
+                .ref_enable = false,
+                .ref_dac_ch = -1,
+                .real_adc_data_ch = -1,
+                .headphone = 0,
+            },
+            .pa_cfg = {
+                .pa_pin = (int16_t)_pa_num,
+                .pa_active_low = false,
+                .hw_gain = gain,
+            },
+        };
+        codec_if = es8389_codec_new(&es8389_cfg);
+    }
+#endif
+    break;
     default:
         log_e("Error chip type");
         break;
