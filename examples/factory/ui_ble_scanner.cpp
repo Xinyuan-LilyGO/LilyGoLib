@@ -253,6 +253,34 @@ static string hex_bytes(const string &data, size_t max_bytes)
     return out.empty() ? "--" : out;
 }
 
+static bool is_displayable_device_name(const string &name)
+{
+    bool has_alphanumeric = false;
+    if (name.empty()) {
+        return false;
+    }
+
+    // The factory UI fonts are intentionally limited to printable ASCII.
+    // Treat UTF-8, control bytes and binary payloads as unnamed rather than
+    // rendering unsupported glyphs as square boxes.
+    for (unsigned char ch : name) {
+        if (ch < 0x20 || ch > 0x7E) {
+            return false;
+        }
+        if ((ch >= 'A' && ch <= 'Z') ||
+                (ch >= 'a' && ch <= 'z') ||
+                (ch >= '0' && ch <= '9')) {
+            has_alphanumeric = true;
+        }
+    }
+    return has_alphanumeric;
+}
+
+static bool is_t_device_name(const string &name)
+{
+    return name.size() >= 2 && name[0] == 'T' && name[1] == '-';
+}
+
 static string manufacturer_summary(const NimBLEAdvertisedDevice *device)
 {
     if (!device->haveManufacturerData()) {
@@ -316,6 +344,9 @@ static void prune_stale_locked(uint32_t now)
 static void sort_devices_locked(void)
 {
     sort(scan_devices.begin(), scan_devices.end(), [](const ble_scan_device_t &a, const ble_scan_device_t &b) {
+        const bool a_is_t_device = is_t_device_name(a.name);
+        const bool b_is_t_device = is_t_device_name(b.name);
+        if (a_is_t_device != b_is_t_device) return a_is_t_device > b_is_t_device;
         if (a.rssi != b.rssi) return a.rssi > b.rssi;
         if (a.last_seen_ms != b.last_seen_ms) return a.last_seen_ms > b.last_seen_ms;
         return a.address < b.address;
@@ -382,20 +413,29 @@ static void upsert_device(const NimBLEAdvertisedDevice *device, bool count_seen)
     ble_scan_device_t incoming = {};
     incoming.address = device->getAddress().toString();
     incoming.address_type = device->getAddressType();
-    incoming.name = device->haveName() ? device->getName() : "";
+    string advertised_name = device->haveName() ? device->getName() : "";
+    incoming.name = is_displayable_device_name(advertised_name) ? advertised_name : "";
     incoming.rssi = device->getRSSI();
     incoming.has_tx_power = device->haveTXPower();
     incoming.tx_power = incoming.has_tx_power ? device->getTXPower() : 0;
     incoming.connectable = device->isConnectable();
     incoming.scannable = device->isScannable();
     incoming.legacy = device->isLegacyAdvertisement();
-    incoming.has_name = device->haveName();
-    incoming.has_mfg = device->haveManufacturerData();
-    incoming.mfg_summary = manufacturer_summary(device);
-    incoming.has_service_uuid = device->haveServiceUUID();
-    incoming.service_uuid = service_summary(device, &incoming.service_uuid_count);
-    incoming.has_appearance = device->haveAppearance();
-    incoming.appearance = incoming.has_appearance ? device->getAppearance() : 0;
+    incoming.has_name = !incoming.name.empty();
+
+    // The first callback for an active scan is the primary advertisement. It
+    // is enough to update the lightweight list fields there; defer payload
+    // formatting until the scan response/final callback to keep NimBLE's host
+    // task responsive when many devices are nearby.
+    const bool parse_payload = !active_scan_enabled || !count_seen;
+    if (parse_payload) {
+        incoming.has_mfg = device->haveManufacturerData();
+        incoming.mfg_summary = manufacturer_summary(device);
+        incoming.has_service_uuid = device->haveServiceUUID();
+        incoming.service_uuid = service_summary(device, &incoming.service_uuid_count);
+        incoming.has_appearance = device->haveAppearance();
+        incoming.appearance = incoming.has_appearance ? device->getAppearance() : 0;
+    }
     incoming.adv_len = device->getAdvLength();
     incoming.first_seen_ms = millis();
     incoming.last_seen_ms = incoming.first_seen_ms;
@@ -427,7 +467,6 @@ static void upsert_device(const NimBLEAdvertisedDevice *device, bool count_seen)
         }
     }
 
-    sort_devices_locked();
     unlock_devices();
     scan_dirty = true;
 }
@@ -501,7 +540,9 @@ static bool start_scan(void)
     scan->setActiveScan(active_scan_enabled);
     scan->setInterval(100);
     scan->setWindow(active_scan_enabled ? 100 : 60);
-    scan->setMaxResults(0);
+    // Keep the same bounded result set as the UI.  A zero limit makes NimBLE
+    // allocate and destroy an advertised-device object for every report.
+    scan->setMaxResults(BLE_SCAN_MAX_DEVICES);
     scan->setScanResponseTimeout(active_scan_enabled ? 650 : 0);
 
     bool ok = scan->start(BLE_SCAN_WINDOW_MS, false, true);
