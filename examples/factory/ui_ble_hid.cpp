@@ -25,6 +25,7 @@ static lv_obj_t *page_container = nullptr;
 static lv_timer_t *mouse_timer = nullptr;
 static lv_timer_t *ui_timer = nullptr;
 static lv_obj_t *unavailable_msgbox = nullptr;
+static lv_obj_t *broadcast_name_label = nullptr;
 static lv_obj_t *state_label = nullptr;
 static lv_obj_t *keyboard_label = nullptr;
 static lv_obj_t *mouse_label = nullptr;
@@ -47,6 +48,44 @@ static uint32_t key_count = 0;
 static uint32_t button_count = 0;
 static char key_text[16] = "--";
 static char button_text[16] = "--";
+static char hid_device_name[32] = "BLE HID";
+
+static void make_hid_device_name(char *name, size_t name_size)
+{
+    if (!name || name_size == 0) {
+        return;
+    }
+
+#if defined(ARDUINO_T_LORA_PAGER)
+    static constexpr const char *BOARD_NAME = "T-LoRa-Pager";
+#elif defined(ARDUINO_T_DECK_V2)
+    static constexpr const char *BOARD_NAME = "T-Deck-V2";
+#elif defined(ARDUINO_T_DECK)
+    static constexpr const char *BOARD_NAME = "T-Deck";
+#elif defined(ARDUINO_T_WATCH_S3_ULTRA)
+    static constexpr const char *BOARD_NAME = "T-Watch-Ultra";
+#elif defined(ARDUINO_T_WATCH_S3)
+    static constexpr const char *BOARD_NAME = "T-Watch-S3";
+#elif defined(ARDUINO_TWATCH_2020_V3)
+    static constexpr const char *BOARD_NAME = "T-Watch-2020-V3";
+#elif defined(ARDUINO_TWATCH_BASE)
+    static constexpr const char *BOARD_NAME = "T-Watch";
+#else
+    static constexpr const char *BOARD_NAME = "BLE-HID";
+#endif
+
+    uint8_t mac[6] = {};
+    if (hw_get_mac(mac)) {
+        // Three bytes provide a useful per-device suffix while keeping the
+        // advertised name short enough for active BLE scan responses.
+        snprintf(name, name_size, "%s-%02X%02X%02X", BOARD_NAME,
+                 static_cast<unsigned>(mac[3]),
+                 static_cast<unsigned>(mac[4]),
+                 static_cast<unsigned>(mac[5]));
+    } else {
+        snprintf(name, name_size, "%s", BOARD_NAME);
+    }
+}
 
 static bool keyboard_available()
 {
@@ -237,6 +276,7 @@ static void destroy_page()
         page_container = nullptr;
     }
     state_label = nullptr;
+    broadcast_name_label = nullptr;
     keyboard_label = nullptr;
     mouse_label = nullptr;
     sens_label = nullptr;
@@ -286,10 +326,14 @@ void ui_ble_hid_enter(lv_obj_t *parent)
     }
 
     cleanup();
+    make_hid_device_name(hid_device_name, sizeof(hid_device_name));
     page_container = ui_create_app_page(parent, "BLE HID", back_event_handler);
 
     lv_obj_t *status_card = ui_create_card(page_container, "Status");
-    lv_obj_t *row = ui_create_card_info(status_card, LV_SYMBOL_BLUETOOTH, "BLE", "Starting");
+    lv_obj_t *row = ui_create_card_info(status_card, LV_SYMBOL_BLUETOOTH,
+                                        "Broadcast name", hid_device_name);
+    broadcast_name_label = lv_obj_get_child(row, lv_obj_get_child_count(row) - 1);
+    row = ui_create_card_info(status_card, LV_SYMBOL_BLUETOOTH, "BLE", "Starting");
     state_label = lv_obj_get_child(row, lv_obj_get_child_count(row) - 1);
     row = ui_create_card_info(status_card, LV_SYMBOL_KEYBOARD, "Keyboard",
                               keyboard_available() ? "Ready" : "Not detected");
@@ -372,9 +416,7 @@ void ui_ble_hid_enter(lv_obj_t *parent)
     }
     ui_timer = lv_timer_create(ui_timer_cb, BLE_HID_UI_PERIOD_MS, nullptr);
 
-    char device_name[32];
-    snprintf(device_name, sizeof(device_name), "%s HID", hw_get_variant_name());
-    ble_hid_helper::startAsync(device_name, BLE_HID_START_TIMEOUT_MS);
+    ble_hid_helper::startAsync(hid_device_name, BLE_HID_START_TIMEOUT_MS);
     ui_timer_cb(ui_timer);
 }
 

@@ -28,6 +28,11 @@ namespace ble_hid_helper
 namespace
 {
 constexpr uint16_t BLE_HID_APPEARANCE = 0x03C0;
+// The legacy advertising packet is limited to 31 bytes.  The board-specific
+// name and HID UUID fit in the primary packet; Appearance is moved to the
+// scan response so scanners that do not merge scan responses still see the
+// correct device name.
+constexpr char BLE_HID_FALLBACK_NAME[] = "BLE HID";
 constexpr uint8_t KEYBOARD_REPORT_ID = 1;
 constexpr uint8_t MOUSE_REPORT_ID = 2;
 constexpr uint32_t KEYBOARD_REPORT_DELAY_MS = 7;
@@ -42,7 +47,7 @@ volatile bool startTimedOut = false;
 uint32_t startMs = 0;
 uint32_t startTimeoutMs = 0;
 TaskHandle_t startTaskHandle = nullptr;
-char advertisedName[32] = "LilyGo HID";
+char advertisedName[32] = "BLE HID";
 
 void logHeap(const char *stage)
 {
@@ -232,26 +237,38 @@ private:
         advertising->stop();
         advertising->reset();
         advertising->clearData();
-        advertising->setPreferredParams(32, 80);
+        if (!advertising->setPreferredParams(32, 80)) {
+            LILYGO_LOG_PRINTF("BLEHID advertising preferred params failed\n");
+            return false;
+        }
 
         NimBLEAdvertisementData advertisingData;
-        advertisingData.setFlags(BLE_HS_ADV_F_BREDR_UNSUP | BLE_HS_ADV_F_DISC_GEN);
-        advertisingData.setName(deviceName, true);
-        advertisingData.addServiceUUID(NimBLEUUID(static_cast<uint16_t>(0x1812)));
-        advertisingData.setAppearance(BLE_HID_APPEARANCE);
+        if (!advertisingData.setFlags(BLE_HS_ADV_F_BREDR_UNSUP | BLE_HS_ADV_F_DISC_GEN) ||
+                !advertisingData.setName(deviceName && deviceName[0] ? deviceName : BLE_HID_FALLBACK_NAME, true) ||
+                !advertisingData.addServiceUUID(NimBLEUUID(static_cast<uint16_t>(0x1812)))) {
+            LILYGO_LOG_PRINTF("BLEHID advertising data does not fit\n");
+            return false;
+        }
 
         NimBLEAdvertisementData scanData;
-        scanData.setManufacturerData("LilyGo");
-        advertising->setAdvertisementData(advertisingData);
-        advertising->setScanResponseData(scanData);
+        if (!scanData.setAppearance(BLE_HID_APPEARANCE)) {
+            LILYGO_LOG_PRINTF("BLEHID scan response data does not fit\n");
+            return false;
+        }
+        if (!advertising->setAdvertisementData(advertisingData) ||
+                !advertising->setScanResponseData(scanData) ||
+                !advertising->setConnectableMode(BLE_GAP_CONN_MODE_UND)) {
+            LILYGO_LOG_PRINTF("BLEHID advertising configuration failed\n");
+            return false;
+        }
         advertising->enableScanResponse(true);
-        advertising->setConnectableMode(BLE_GAP_CONN_MODE_UND);
 
         if (!advertising->start()) {
             LILYGO_LOG_PRINTF("BLEHID advertising start failed\n");
             return false;
         }
-        LILYGO_LOG_PRINTF("BLEHID advertising started\n");
+        LILYGO_LOG_PRINTF("BLEHID advertising started name=%s\n",
+                          deviceName && deviceName[0] ? deviceName : BLE_HID_FALLBACK_NAME);
         return true;
     }
 
@@ -428,7 +445,7 @@ bool startAsync(const char *deviceName, uint32_t timeoutMs)
     }
 
     snprintf(advertisedName, sizeof(advertisedName), "%s",
-             deviceName && deviceName[0] ? deviceName : "LilyGo HID");
+             deviceName && deviceName[0] ? deviceName : "BLE HID");
     appActive = true;
     startFailed = false;
     startTimedOut = false;
