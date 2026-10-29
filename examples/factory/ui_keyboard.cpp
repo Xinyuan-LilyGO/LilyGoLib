@@ -34,6 +34,21 @@ static bool caps_active = false;
 static bool backspace_active = false;
 static char history_lines[7][56];
 
+static void set_keyboard_monitor_input(bool enabled)
+{
+#if defined(ARDUINO_T_DECK) || defined(ARDUINO_T_DECK_V2)
+    // The monitor consumes keyboard events through the device driver's raw
+    // callback. Keep those events from activating the page's focused widget
+    // (Enter would otherwise click the hidden page back button on entry).
+    lv_indev_t *keyboard = lv_get_keyboard_indev();
+    if (keyboard) {
+        lv_indev_enable(keyboard, enabled);
+    }
+#else
+    LV_UNUSED(enabled);
+#endif
+}
+
 struct keyboard_monitor_layout_t {
     uint8_t rows;
     uint8_t cols;
@@ -701,10 +716,14 @@ void ui_keyboard_enter(lv_obj_t *parent)
 #if defined(ARDUINO) && defined(USING_INPUT_DEV_KEYBOARD)
     instance.kb.setRawCallback(keyboard_raw_cb);
     enable_keyboard();
+#if defined(ARDUINO_T_DECK_V2)
+    set_keyboard_monitor_input(false);
+#endif
     lv_label_set_text(status_label, "Raw monitor active. FN/ALT+B toggles BL.");
 #elif defined(ARDUINO) && defined(USING_TDECK_KEYBOARD)
     instance.kb.setRawCallback(keyboard_raw_cb);
     enable_keyboard();
+    set_keyboard_monitor_input(false);
     lv_label_set_text(status_label, "Character monitor active.");
 #else
     lv_label_set_text(status_label, "Keyboard monitor is not available in this build.");
