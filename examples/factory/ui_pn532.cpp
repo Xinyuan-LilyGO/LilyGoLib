@@ -8,7 +8,7 @@
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO) && defined(ARDUINO_TWATCH_BASE) && !defined(EXCLUDE_PN532)
+#if defined(ARDUINO) && (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_CC1101)) && !defined(EXCLUDE_PN532)
 
 static lv_obj_t *page_container = nullptr;
 static lv_obj_t *status_label = nullptr;
@@ -51,7 +51,9 @@ static void stop_scan()
 static void second_beep_cb(lv_timer_t *timer)
 {
     second_beep_timer = nullptr;
+#if defined(PN532_BUZZER) && PN532_BUZZER >= 0
     tone(PN532_BUZZER, PN532_BEEP_FREQUENCY_HZ, PN532_BEEP_DURATION_MS);
+#endif
     lv_timer_delete(timer);
 }
 
@@ -62,7 +64,9 @@ static void beep_for_card()
         second_beep_timer = nullptr;
     }
     buzzer_used = true;
+#if defined(PN532_BUZZER) && PN532_BUZZER >= 0
     tone(PN532_BUZZER, PN532_BEEP_FREQUENCY_HZ, PN532_BEEP_DURATION_MS);
+#endif
     second_beep_timer = lv_timer_create(second_beep_cb, PN532_BEEP_GAP_MS, nullptr);
 }
 
@@ -147,7 +151,9 @@ static void close_page()
         second_beep_timer = nullptr;
     }
     if (buzzer_used) {
+#if defined(PN532_BUZZER) && PN532_BUZZER >= 0
         noTone(PN532_BUZZER);
+#endif
         buzzer_used = false;
     }
     if (page_container) {

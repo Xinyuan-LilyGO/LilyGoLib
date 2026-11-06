@@ -59,6 +59,15 @@ static int16_t               last_tx_state = 0;
 
 #define NRF24_ISR_FLAG              _BV(1)
 
+static void set_nrf24_pa_transmit(bool enable)
+{
+#if defined(ARDUINO_T_LORA_PAGER)
+    instance.io.digitalWrite(EXPANDS_GPIO_EN, enable ? HIGH : LOW);
+#else
+    (void)enable;
+#endif
+}
+
 static void hw_nrf24_isr()
 {
     BaseType_t xHigherPriorityTaskWoken, xResult;
@@ -84,10 +93,10 @@ void hw_nrf24_begin()
         LILYGO_LOG_PRINTF("nRF2401 option Model not detected\n");
         return;
     }
+#if defined(ARDUINO_T_LORA_PAGER)
     nrf24.setPacketSentAction(hw_nrf24_isr);
-
-    // Set PA control IO to output function
     instance.io.pinMode(EXPANDS_GPIO_EN, OUTPUT);
+#endif
 }
 #endif
 
@@ -118,7 +127,7 @@ int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
     build_xiaomi_lightbar_packet(packet, remote_id & 0xFFFFFF, command, sequence);
 
     int16_t state = RADIOLIB_ERR_NONE;
-    instance.io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
+    set_nrf24_pa_transmit(true);
     instance.lockSPI();
 
     state = nrf24.standby();
@@ -145,7 +154,7 @@ int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
     nrf24.setCrcFiltering(true);
     nrf24.setAutoAck(true);
     instance.unlockSPI();
-    instance.io.digitalWrite(EXPANDS_GPIO_EN, LOW);
+    set_nrf24_pa_transmit(false);
     xEventGroupClearBits(radioEvent, NRF24_ISR_FLAG);
 
     LILYGO_LOG_PRINTF("MJGJD01YL id=%06lX command=%04X seq=%u state=%d\n",
@@ -215,11 +224,11 @@ int16_t hw_set_nrf24_params(radio_params_t &params)
     case RADIO_DISABLE:
         state =  nrf24.standby();
         // Receiving function
-        instance.io.digitalWrite(EXPANDS_GPIO_EN, LOW);
+        set_nrf24_pa_transmit(false);
         break;
     case RADIO_TX:
         // Transmit function
-        instance.io.digitalWrite(EXPANDS_GPIO_EN, HIGH);
+        set_nrf24_pa_transmit(true);
         state = nrf24.setTransmitPipe(nrf24_pipe_addr);
         if (state == RADIOLIB_ERR_NONE) {
             LILYGO_LOG_PRINTLN(F("TX pipe configured"));
@@ -233,7 +242,7 @@ int16_t hw_set_nrf24_params(radio_params_t &params)
         break;
     case RADIO_RX:
         // Receiving function
-        instance.io.digitalWrite(EXPANDS_GPIO_EN, LOW);
+        set_nrf24_pa_transmit(false);
         state = nrf24.setReceivePipe(0, nrf24_pipe_addr);
         if (state == RADIOLIB_ERR_NONE) {
             LILYGO_LOG_PRINTLN(F("RX pipe configured"));
@@ -276,6 +285,7 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
         return false;
     }
 
+#if !defined(ARDUINO_T_EMBED_CC1101)
     if (continuous) {
         EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
         if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
@@ -284,6 +294,9 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
             return false;
         }
     }
+#else
+    (void)continuous;
+#endif
 
     if (!params.data) {
         params.state = -1;
@@ -303,11 +316,39 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
     LILYGO_LOG_PRINT("[TX LEN:]");
     LILYGO_LOG_PRINTLN(params.length);
 
+#if defined(ARDUINO_T_EMBED_CC1101)
+    // The T-Embed expansion header has no nRF24 IRQ line, so poll the status
+    // register over SPI instead of waiting for a GPIO interrupt.
+    instance.lockSPI();
+    nrf24.finishTransmit();
+    params.state = nrf24.startTransmit((const uint8_t *)params.data, params.length, 0);
+    const uint32_t started = millis();
+    while (params.state == RADIOLIB_ERR_NONE) {
+        const int16_t status = nrf24.getStatus(RADIOLIB_NRF24_TX_DS | RADIOLIB_NRF24_MAX_RT);
+        if (status & RADIOLIB_NRF24_TX_DS) {
+            params.state = nrf24.finishTransmit();
+            break;
+        }
+        if (status & RADIOLIB_NRF24_MAX_RT) {
+            nrf24.finishTransmit();
+            params.state = RADIOLIB_ERR_ACK_NOT_RECEIVED;
+            break;
+        }
+        if (millis() - started >= 70) {
+            nrf24.finishTransmit();
+            params.state = RADIOLIB_ERR_TX_TIMEOUT;
+            break;
+        }
+        delay(1);
+    }
+    instance.unlockSPI();
+#else
     instance.lockSPI();
     nrf24.finishTransmit();
     xEventGroupClearBits(radioEvent, NRF24_ISR_FLAG);
     params.state = nrf24.startTransmit((const uint8_t*)params.data, params.length, 0);
     instance.unlockSPI();
+#endif
     last_tx_state = params.state;
 
     if (params.state == RADIOLIB_ERR_NONE) {
@@ -326,6 +367,10 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
 bool hw_get_nrf24_tx_done(int16_t &state)
 {
 #ifdef ARDUINO
+#if defined(ARDUINO_T_EMBED_CC1101)
+    state = last_tx_state;
+    return true;
+#else
     if (!radioEvent) {
         state = -1;
         last_tx_state = state;
@@ -346,6 +391,7 @@ bool hw_get_nrf24_tx_done(int16_t &state)
     instance.unlockSPI();
     last_tx_state = state;
     return true;
+#endif
 #else
     state = 0;
     return true;
@@ -355,11 +401,13 @@ bool hw_get_nrf24_tx_done(int16_t &state)
 void hw_get_nrf24_rx(radio_rx_params_t &params)
 {
 #ifdef ARDUINO
+#if !defined(ARDUINO_T_EMBED_CC1101)
     EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdTICKS_TO_MS(2));
     if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
         params.state = -1;
         return;
     }
+#endif
 
     if (!params.data) {
         params.state = -1;
@@ -368,6 +416,14 @@ void hw_get_nrf24_rx(radio_rx_params_t &params)
     }
 
     instance.lockSPI();
+#if defined(ARDUINO_T_EMBED_CC1101)
+    if (!(nrf24.getStatus(RADIOLIB_NRF24_RX_DR) & RADIOLIB_NRF24_RX_DR)) {
+        instance.unlockSPI();
+        params.length = 0;
+        params.state = -1;
+        return;
+    }
+#endif
     size_t  length = nrf24.getPacketLength();
     params.length = length > params.length ? params.length : length;
     params.state = nrf24.readData(params.data, params.length);

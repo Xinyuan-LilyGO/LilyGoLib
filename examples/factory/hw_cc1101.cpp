@@ -81,7 +81,11 @@ int16_t hw_set_radio_params(radio_params_t &params)
 #ifdef ARDUINO
     int16_t state = 0;
     instance.lockSPI();
+#if defined(ARDUINO_T_EMBED_CC1101)
+    state = instance.setRFFrequencyBand(params.freq);
+#else
     state = radio.setFrequency(params.freq);
+#endif
     if (state == RADIOLIB_ERR_INVALID_FREQUENCY) {
         LILYGO_LOG_PRINTLN(F("Selected frequency is invalid for this module!"));
     }

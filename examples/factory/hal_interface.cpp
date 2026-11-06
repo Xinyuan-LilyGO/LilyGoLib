@@ -4526,9 +4526,12 @@ IRsend irsend(IR_SEND); // T-Watch S3 GPIO2 pin to use.
 
 #if defined(ARDUINO) && defined(USING_IR_RECEIVER)
 #include <IRrecv.h>
+#ifndef IR_RECEIVE_PIN
+#define IR_RECEIVE_PIN IR_SEND
+#endif
 static constexpr uint16_t FACTORY_IR_CAPTURE_BUFFER_SIZE = 1024;
 static constexpr uint8_t FACTORY_IR_CAPTURE_TIMEOUT_MS = 50;
-IRrecv irrecv(IR_SEND, FACTORY_IR_CAPTURE_BUFFER_SIZE, FACTORY_IR_CAPTURE_TIMEOUT_MS, true);
+IRrecv irrecv(IR_RECEIVE_PIN, FACTORY_IR_CAPTURE_BUFFER_SIZE, FACTORY_IR_CAPTURE_TIMEOUT_MS, true);
 #endif
 
 void hw_set_remote_code(uint32_t nec_code)
@@ -4557,7 +4560,7 @@ void hw_ir_function_select(bool enableSend)
 {
 #if defined(ARDUINO)
     if (enableSend) {
-#if defined(USING_IR_REMOTE) && defined(USING_IR_RECEIVER)
+#if defined(USING_IR_REMOTE) && defined(USING_IR_RECEIVER) && defined(ARDUINO_T_DECK_V2)
         instance.IRFunctionSelect(IR_FUNC_SENDER);
 #endif
 
@@ -4576,7 +4579,7 @@ void hw_ir_function_select(bool enableSend)
         }
 #endif
     } else {
-#if defined(USING_IR_REMOTE) && defined(USING_IR_RECEIVER)
+#if defined(USING_IR_REMOTE) && defined(USING_IR_RECEIVER) && defined(ARDUINO_T_DECK_V2)
         instance.IRFunctionSelect(IR_FUNC_RECEIVER);
 #endif
 
