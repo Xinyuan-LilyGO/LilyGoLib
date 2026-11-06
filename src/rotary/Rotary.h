@@ -7,9 +7,6 @@
 
 #include "Arduino.h"
 
-// Enable this to emit codes twice per step.
-// #define HALF_STEP
-
 // Values returned by 'process'
 // No complete step yet.
 #define DIR_NONE 0x0
@@ -23,7 +20,8 @@ class Rotary
 public:
     Rotary(char, char);
     unsigned char process();
-    void begin(bool internalPullup = true, bool flipLogicForPulldown = false);
+    void begin(bool internalPullup = true, bool flipLogicForPulldown = false,
+               bool halfStep = false);
 
     inline unsigned char pin_1() const
     {
@@ -40,6 +38,7 @@ private:
     unsigned char pin1;
     unsigned char pin2;
     unsigned char inverter;
+    bool halfStepEnabled;
 };
 
 #endif
