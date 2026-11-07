@@ -11,7 +11,7 @@
 namespace {
 
 constexpr uint32_t kEffectIntervalMs = 40;
-constexpr uint8_t kBrightnessLevels = 16;
+constexpr uint8_t kBrightnessLevels = 32;
 
 enum Ws2812Effect : uint8_t {
     EFFECT_OFF,
@@ -172,7 +172,7 @@ void refreshOutput()
     }
     strip.show();
     if (statusLabel) {
-        lv_label_set_text_fmt(statusLabel, "%s  B:%u/16  S:%u",
+        lv_label_set_text_fmt(statusLabel, "%s  B:%u/32  S:%u",
                               effectNames[effectMode], brightnessLevel, speed);
     }
 }
