@@ -28,7 +28,8 @@ static constexpr int kMicSensitivity = 1000;
 // These Watch PDM paths have a board-dependent DC bias in their PCM output.
 #if defined(USING_PDM_MICROPHONE) && \
     (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || \
-     defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA))
+     defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
+     defined(ARDUINO_T_EMBED_CC1101))
 static constexpr bool kRemoveMicDcOffset = true;
 #else
 static constexpr bool kRemoveMicDcOffset = false;
