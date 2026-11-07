@@ -1810,6 +1810,7 @@ void setupGui()
 #endif
 #if defined(ARDUINO_T_EMBED_CC1101)
     extern app_t ui_t_embed_ws2812_main;
+    extern app_t ui_cc1101_scan_main;
 #endif
 
 #if !defined(EXCLUDE_IR_REMOTE)
@@ -1974,6 +1975,9 @@ void setupGui()
         register_app("Sub-G", &img_radio, &ui_cc1101_tool_main);
 #else
         register_app("LoRa", &img_radio, &ui_lora_hub_main);
+#endif
+#if defined(ARDUINO_T_EMBED_CC1101) && !defined(EXCLUDE_CC1101_SCAN)
+        register_app("CC1101 Scan", &img_radio, &ui_cc1101_scan_main);
 #endif
 #if !defined(EXCLUDE_LORAWAN)
         extern app_t ui_lorawan_lr1121_main;
