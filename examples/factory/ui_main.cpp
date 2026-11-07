@@ -1842,6 +1842,8 @@ void setupGui()
 #if !defined(EXCLUDE_NRF24)
     extern app_t ui_nrf24_main;
     register_app("NRF24", &img_radio, &ui_nrf24_main);
+    extern app_t ui_nrf24_scan_main;
+    register_app("NRF24 Scan", &img_radio, &ui_nrf24_scan_main);
 #endif
 
 #if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_NRF24)
