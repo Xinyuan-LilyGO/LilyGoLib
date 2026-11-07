@@ -318,12 +318,12 @@ static void ui_slider_encoder_guard_event_cb(lv_event_t *e)
     lv_indev_type_t indev_type = ui_event_indev_type(e);
 
     switch (code) {
-    case LV_EVENT_FOCUSED:
-        lv_obj_scroll_to_view_recursive(slider, LV_ANIM_ON);
-        if (indev_type == LV_INDEV_TYPE_ENCODER || indev_type == LV_INDEV_TYPE_KEYPAD) {
-            ui_slider_lock_parent_scroll(slider);
-        }
+    case LV_EVENT_FOCUSED: {
+        /* Scroll the complete row so its label remains visible on small displays. */
+        lv_obj_t *row = lv_obj_get_parent(slider);
+        lv_obj_scroll_to_view_recursive(row ? row : slider, LV_ANIM_ON);
         break;
+    }
     case LV_EVENT_PRESSED:
     case LV_EVENT_PRESSING:
         ui_slider_lock_parent_scroll(slider);
@@ -587,10 +587,12 @@ static void ui_dropdown_encoder_guard_event_cb(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
 
     switch (code) {
-    case LV_EVENT_FOCUSED:
-        lv_obj_scroll_to_view_recursive(dropdown, LV_ANIM_ON);
-        ui_slider_lock_parent_scroll(dropdown);
+    case LV_EVENT_FOCUSED: {
+        /* Keep the label and dropdown together when focus moves into a row. */
+        lv_obj_t *row = lv_obj_get_parent(dropdown);
+        lv_obj_scroll_to_view_recursive(row ? row : dropdown, LV_ANIM_ON);
         break;
+    }
     case LV_EVENT_PRESSED:
     case LV_EVENT_PRESSING:
     case LV_EVENT_KEY:

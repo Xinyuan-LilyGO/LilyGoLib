@@ -1478,6 +1478,13 @@ static void ui_poll_timer_callback(lv_timer_t *t)
         if (clock_swipe_wake) {
             clock_swipe_wake = false;
 
+            /* BOOT is only for unlocking; discard its held click from the app UI. */
+#if LOCKSCREEN_HAS_BOOT_UNLOCK
+            if (lv_indev_t *encoder = lv_get_encoder_indev()) {
+                lv_indev_wait_release(encoder);
+            }
+#endif
+
             hw_set_cpu_freq(240);
 
 #ifdef ENABLE_LOCKSCREEN_PARTICLES

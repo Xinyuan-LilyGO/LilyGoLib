@@ -42,6 +42,7 @@ static uint8_t range_index = 3;
 static uint8_t scan_index = 0;
 static bool scanning = false;
 static bool radio_ready = false;
+static bool scroll_mode = false;
 static float rssi_values[kFrequencyCount];
 static float peak_rssi[kFrequencyCount];
 
@@ -189,10 +190,55 @@ static void scan_button_event(lv_event_t *event)
     }
 }
 
+static void scan_chart_event(lv_event_t *event)
+{
+    lv_obj_t *obj = lv_event_get_target_obj(event);
+    lv_event_code_t code = lv_event_get_code(event);
+    lv_group_t *group = (lv_group_t *)lv_obj_get_group(obj);
+
+    if (code == LV_EVENT_FOCUSED) {
+        lv_obj_scroll_to_view_recursive(obj, LV_ANIM_ON);
+    } else if (code == LV_EVENT_CLICKED) {
+        lv_indev_t *indev = lv_event_get_indev(event);
+        if (indev && (lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER ||
+                      lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD)) {
+            scroll_mode = !scroll_mode;
+            if (group) lv_group_set_editing(group, scroll_mode);
+        }
+    } else if (code == LV_EVENT_ROTARY && scroll_mode) {
+        const int32_t diff = lv_event_get_rotary_diff(event);
+        lv_obj_scroll_to_y(page_container,
+                           lv_obj_get_scroll_y(page_container) + diff * 24,
+                           LV_ANIM_OFF);
+        lv_event_stop_processing(event);
+    } else if (code == LV_EVENT_KEY && scroll_mode) {
+        const uint32_t key = lv_event_get_key(event);
+        if (key == LV_KEY_DOWN || key == LV_KEY_RIGHT) {
+            lv_obj_scroll_to_y(page_container,
+                               lv_obj_get_scroll_y(page_container) + 24,
+                               LV_ANIM_OFF);
+            lv_event_stop_processing(event);
+        } else if (key == LV_KEY_UP || key == LV_KEY_LEFT) {
+            lv_obj_scroll_to_y(page_container,
+                               lv_obj_get_scroll_y(page_container) - 24,
+                               LV_ANIM_OFF);
+            lv_event_stop_processing(event);
+        } else if (key == LV_KEY_ESC || key == LV_KEY_ENTER) {
+            scroll_mode = false;
+            if (group) lv_group_set_editing(group, false);
+            lv_event_stop_processing(event);
+        }
+    } else if (code == LV_EVENT_DEFOCUSED || code == LV_EVENT_DELETE) {
+        scroll_mode = false;
+        if (group) lv_group_set_editing(group, false);
+    }
+}
+
 static void back_event(lv_event_t *event)
 {
     (void)event;
     stop_scan();
+    scroll_mode = false;
     if (scan_timer) {
         lv_timer_delete(scan_timer);
         scan_timer = nullptr;
@@ -229,6 +275,14 @@ static void ui_cc1101_scan_enter(lv_obj_t *parent)
     lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, -100, -20);
     lv_chart_set_div_line_count(chart, 4, 0);
     lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_CIRCULAR);
+    lv_obj_add_flag(chart, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(chart, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_remove_flag(chart, LV_OBJ_FLAG_SCROLL_CHAIN);
+    lv_obj_add_style(chart, &ui_styles.accent_focus_ring, LV_STATE_FOCUSED);
+    lv_obj_add_event_cb(chart, scan_chart_event, LV_EVENT_ALL, nullptr);
+    if (lv_group_t *group = lv_group_get_default()) {
+        lv_group_add_obj(group, chart);
+    }
     lv_obj_set_style_bg_color(chart, UI_COLOR_BG, 0);
     lv_obj_set_style_border_width(chart, 1, 0);
     lv_obj_set_style_border_color(chart, UI_COLOR_DIVIDER, 0);
