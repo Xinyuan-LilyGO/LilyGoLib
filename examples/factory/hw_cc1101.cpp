@@ -45,7 +45,10 @@ void hw_radio_begin()
 {
     radioEvent = xEventGroupCreate();
 
-    // CC1101 uses GDO2 for packet sent and GDO0 for packet received.
+    // T-Embed-CC1101 routes GDO0 to the packet IRQ and GDO2 to the packet
+    // sent IRQ. RadioLib attaches the callbacks to these pins below.
+    pinMode(LORA_IRQ, INPUT);
+    pinMode(LORA_BUSY, INPUT);
     radio.setPacketSentAction(hw_radio_isr);
     radio.setPacketReceivedAction(hw_radio_isr);
 }
@@ -347,7 +350,35 @@ void hw_get_radio_rx(radio_rx_params_t &params)
 bool radio_transmit(const uint8_t *data, size_t length)
 {
 #ifdef ARDUINO
-    int state = radio.transmit(data, length);
+    if (!radioEvent || !data || length == 0) {
+        last_tx_state = -1;
+        return false;
+    }
+
+    instance.lockSPI();
+    int state = radio.standby();
+    if (state == RADIOLIB_ERR_NONE) {
+        xEventGroupClearBits(radioEvent, LORA_ISR_FLAG);
+        state = radio.startTransmit(data, length);
+    }
+    instance.unlockSPI();
+
+    if (state == RADIOLIB_ERR_NONE) {
+        // Wait for the CC1101 GDO2 packet-sent IRQ. This keeps the direct
+        // Factory tool path interrupt-driven instead of polling RadioLib.
+        const EventBits_t eventBits = xEventGroupWaitBits(
+            radioEvent, LORA_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2000));
+        if ((eventBits & LORA_ISR_FLAG) == 0) {
+            state = RADIOLIB_ERR_TX_TIMEOUT;
+        }
+    }
+
+    instance.lockSPI();
+    const int16_t finishState = radio.finishTransmit();
+    instance.unlockSPI();
+    if (state == RADIOLIB_ERR_NONE) {
+        state = finishState;
+    }
     last_tx_state = state;
     last_send_millis = millis();
     return (state == RADIOLIB_ERR_NONE);
