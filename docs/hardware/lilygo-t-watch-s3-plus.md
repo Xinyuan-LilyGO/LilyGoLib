@@ -70,7 +70,7 @@
 | Feature               | Specification  |
 | --------------------- | -------------- |
 | Resolution            | 240 x 240      |
-| Display Size          | 1.3 inches     |
+| Display Size          | 1.54 inches    |
 | Surface Luminance     | 450 cd/m²      |
 | Driver IC             | ST7789V3 (SPI) |
 | Contrast ratio        | 800:1          |
