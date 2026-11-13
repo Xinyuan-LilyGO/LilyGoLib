@@ -131,7 +131,21 @@ public:
     bool isOTGEnabled() override;
     bool enableOTG() override;
     bool disableOTG() override;
+    /**
+     * @brief Enter light sleep using the selected button wake sources.
+     *
+     * WAKEUP_SRC_BOOT_BUTTON and WAKEUP_SRC_ROTARY_BUTTON select the shared
+     * encoder/BOOT key on GPIO0. WAKEUP_SRC_BUTTON selects the USER key on
+     * GPIO6. Multiple supported button sources may be combined.
+     */
     void lightSleep(WakeupSource_t wakeupSource = WAKEUP_SRC_BOOT_BUTTON);
+
+    /**
+     * @brief Enter deep sleep using selected button and/or timer wake sources.
+     *
+     * Physical wake-source mappings are the same as lightSleep(). When
+     * WAKEUP_SRC_TIMER is selected, sleepSeconds must be non-zero.
+     */
     void sleep(WakeupSource_t wakeupSource = WAKEUP_SRC_BOOT_BUTTON,
                bool offRtcBackupDomain = false, uint32_t sleepSeconds = 0);
     bool lockSPI(TickType_t ticksToWait = portMAX_DELAY);
@@ -147,6 +161,7 @@ private:
         const uint16_t step = pmic.getConfig().chargeCurrentStep;
         return step ? getChargeCurrent() / step : 0;
     }
+    uint64_t getWakeupPinMask(WakeupSource_t wakeupSource) const;
     void initSharedSpiPins();
     bool initRotary();
     static void rotaryTaskEntry(void *param);

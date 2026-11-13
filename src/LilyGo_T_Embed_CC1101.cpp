@@ -503,23 +503,96 @@ bool LilyGoTEmbedCC1101::shutdown()
 
 bool LilyGoTEmbedCC1101::lockSPI(TickType_t ticksToWait) { return LilyGoDispArduinoSPI::lock(ticksToWait); }
 void LilyGoTEmbedCC1101::unlockSPI() { LilyGoDispArduinoSPI::unlock(); }
-void LilyGoTEmbedCC1101::lightSleep(WakeupSource_t)
+
+uint64_t LilyGoTEmbedCC1101::getWakeupPinMask(WakeupSource_t wakeupSource) const
 {
-    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-    esp_sleep_enable_ext1_wakeup_io((1ULL << BOARD_USER_KEY) | (1ULL << ENCODER_KEY),
-                                    ESP_EXT1_WAKEUP_ANY_LOW);
-    disableRotary();
-    esp_light_sleep_start();
-    enableRotary();
+    uint64_t pins = 0;
+    if (wakeupSource & (WAKEUP_SRC_BOOT_BUTTON | WAKEUP_SRC_ROTARY_BUTTON)) {
+        pins |= 1ULL << ENCODER_KEY;
+    }
+    if (wakeupSource & WAKEUP_SRC_BUTTON) {
+        pins |= 1ULL << BOARD_USER_KEY;
+    }
+    return pins;
 }
-void LilyGoTEmbedCC1101::sleep(WakeupSource_t, bool, uint32_t sleepSeconds)
+
+void LilyGoTEmbedCC1101::lightSleep(WakeupSource_t wakeupSource)
 {
+    const uint64_t wakeupPins = getWakeupPinMask(wakeupSource);
+    if (wakeupPins == 0) {
+        LILYGO_LOG_E("No supported T-Embed light-sleep wake source selected");
+        return;
+    }
+
+    if (wakeupPins & (1ULL << ENCODER_KEY)) {
+        pinMode(ENCODER_KEY, INPUT_PULLUP);
+    }
+    if (wakeupPins & (1ULL << BOARD_USER_KEY)) {
+        pinMode(BOARD_USER_KEY, INPUT_PULLUP);
+    }
+
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-    if (sleepSeconds) {
-        esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
-    } else {
-        esp_sleep_enable_ext1_wakeup_io((1ULL << BOARD_USER_KEY) | (1ULL << ENCODER_KEY),
-                                        ESP_EXT1_WAKEUP_ANY_LOW);
+    const esp_err_t wakeupResult = esp_sleep_enable_ext1_wakeup_io(
+                                       wakeupPins,
+                                       ESP_EXT1_WAKEUP_ANY_LOW);
+    if (wakeupResult != ESP_OK) {
+        LILYGO_LOG_E("Failed to enable T-Embed light-sleep wakeup: %s",
+                     esp_err_to_name(wakeupResult));
+        return;
+    }
+
+    disableRotary();
+    const esp_err_t sleepResult = esp_light_sleep_start();
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+    enableRotary();
+
+    if (sleepResult != ESP_OK) {
+        LILYGO_LOG_E("Failed to enter T-Embed light sleep: %s",
+                     esp_err_to_name(sleepResult));
+    }
+}
+
+void LilyGoTEmbedCC1101::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSeconds)
+{
+    const bool timerWakeup = wakeupSource & WAKEUP_SRC_TIMER;
+    const WakeupSource_t physicalSources = static_cast<WakeupSource_t>(
+            static_cast<uint32_t>(wakeupSource) & ~static_cast<uint32_t>(WAKEUP_SRC_TIMER));
+    const uint64_t wakeupPins = getWakeupPinMask(physicalSources);
+
+    if (timerWakeup && sleepSeconds == 0) {
+        LILYGO_LOG_E("Timer wakeup requires a non-zero sleep duration");
+        return;
+    }
+    if (physicalSources && wakeupPins == 0) {
+        LILYGO_LOG_E("No supported T-Embed deep-sleep button wake source selected");
+        return;
+    }
+    if (!timerWakeup && wakeupPins == 0) {
+        LILYGO_LOG_E("No supported T-Embed deep-sleep wake source selected");
+        return;
+    }
+
+    if (wakeupPins & (1ULL << ENCODER_KEY)) {
+        pinMode(ENCODER_KEY, INPUT_PULLUP);
+    }
+    if (wakeupPins & (1ULL << BOARD_USER_KEY)) {
+        pinMode(BOARD_USER_KEY, INPUT_PULLUP);
+    }
+
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_err_t wakeupResult = ESP_OK;
+    if (timerWakeup) {
+        wakeupResult = esp_sleep_enable_timer_wakeup(
+                           static_cast<uint64_t>(sleepSeconds) * 1000000ULL);
+    }
+    if (wakeupResult == ESP_OK && wakeupPins != 0) {
+        wakeupResult = esp_sleep_enable_ext1_wakeup_io(
+                           wakeupPins, ESP_EXT1_WAKEUP_ANY_LOW);
+    }
+    if (wakeupResult != ESP_OK) {
+        LILYGO_LOG_E("Failed to configure T-Embed deep-sleep wakeup: %s",
+                     esp_err_to_name(wakeupResult));
+        return;
     }
     esp_deep_sleep_start();
 }
