@@ -83,6 +83,21 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
 * [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
 
+<a id="t-embed-cc1101-third-party"></a>
+
+## T-Embed-CC1101 Third-Party Libraries
+
+* [Adafruit BusIO@1.17.4](https://github.com/adafruit/Adafruit_BusIO)
+* [Adafruit NeoPixel@1.15.5](https://github.com/adafruit/Adafruit_NeoPixel)
+* [Adafruit PN532@1.3.4](https://github.com/adafruit/Adafruit-PN532)
+* [Button2@2.7.0](https://github.com/LennartHennigs/Button2)
+* [ESP8266Audio@2.4.1](https://github.com/earlephilhower/ESP8266Audio)
+* [IRremoteESP8266@2.8.6 (C++20 compatibility branch)](https://github.com/tonhuisman/IRremoteESP8266/archive/refs/heads/feature/C++20-compatibility.zip)
+* [lvgl@9.6.0](https://github.com/lvgl/lvgl)
+* [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
+* [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
+* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+
 ## Other Bundled Libraries
 
 * [Adafruit GFX Library@1.12.6](https://github.com/adafruit/Adafruit-GFX-Library) (transitive Adafruit dependency)

@@ -65,6 +65,7 @@
 - 🔧 **[T-Watch (2019) Quick Start](./docs/lilygo-t-watch.md)**
 - 🔧 **[T-Vibe Dev Quick Start](./docs/lilygo-t-vibe-dev.md)**
 - 🔧 **[T-Vibe Pager Quick Start](./docs/lilygo-t-vibe-pager.md)**
+- 🔧 **[T-Embed-CC1101 Quick Start](./docs/lilygo-t-embed-cc1101.md)**
 
 ### `2` Hardware Information
 
@@ -77,6 +78,7 @@
 - 🔧 **[T-Watch (2019) Hardware Information](./docs/hardware/lilygo-t-watch.md)**
 - 🔧 **[T-Vibe-Dev Hardware Information](./docs/hardware/lilygo-t-vibe-dev.md)**
 - 🔧 **[T-Vibe-Pager Hardware Information](./docs/hardware/lilygo-t-vibe-pager.md)**
+- 🔧 **[T-Embed-CC1101 Hardware Information](./docs/hardware/lilygo-t-embed-cc1101.md)**
 
 ### `3` GPS AssistNow Usage Guide
 
