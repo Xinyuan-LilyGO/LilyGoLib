@@ -7,13 +7,13 @@
 ## `1` Overview
 
 * This page explains how to use the `LilyGO T-LoRa-Pager` with LilyGoLib.
-* For PlatformIO development, use the separate [LilyGoLib-PlatformIO](https://github.com/Xinyuan-LilyGO/LilyGoLib-PlatformIO) project.
+* For PlatformIO development, follow the [PlatformIO Quick Start](./platformio.md).
 * See the [T-LoRa-Pager hardware reference](./hardware/lilygo-t-lora-pager.md) for hardware specifications, interfaces, GPIO assignments, and I2C addresses.
 
 ## `2` Arduino IDE Quick Start
 
 1. Install the [Arduino IDE](https://www.arduino.cc/en/software).
-2. Install [Arduino-ESP32 **3.3.0-alpha1** or later](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html) through the Boards Manager.
+2. Install [Arduino-ESP32 **3.3.11** or later](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html) through the Boards Manager.
    * Additional Boards Manager URL: `https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json`
 3. [Download the LilyGoLib library](https://github.com/Xinyuan-LilyGO/LilyGoLib/archive/refs/heads/master.zip).
 4. In the Arduino IDE, select `Sketch` > `Include Library` > `Add .ZIP Library`, then select the ZIP file downloaded in step 3.
@@ -64,7 +64,7 @@
 >
 > * If the serial monitor shows no output, make sure `USB CDC On Boot` is set to `Enabled`.
 > * `Radio-SX1262` is the default `Board Revision`. Change it when your device uses a different radio module.
-> * LilyGoLib requires Arduino-ESP32 3.3.0-alpha1 or later. Earlier versions will produce compilation errors.
+> * LilyGoLib requires Arduino-ESP32 3.3.11 or later. Earlier versions will produce compilation errors.
 
 ### Keyboard function settings and input methods
 

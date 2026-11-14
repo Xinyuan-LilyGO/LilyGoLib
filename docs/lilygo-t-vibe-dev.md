@@ -18,7 +18,7 @@
 ## `2` Arduino IDE 快速入门
 
 1. 安装[最新版 Arduino IDE 2.x](https://www.arduino.cc/en/software)
-2. 通过开发板管理器安装 [Arduino-ESP32 **3.3.0** 或更高版本](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)
+2. 通过开发板管理器安装 [Arduino-ESP32 **3.3.11** 或更高版本](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)
    * Espressif 稳定版开发板管理器地址：`https://espressif.github.io/arduino-esp32/package_esp32_index.json`
 3. 检查 `Tools` > `Board` 中是否有 `LilyGo T-Deck` (这不是文档错误,请看上方Tips)
    * 如果有，选择该开发板，然后跳到第 6 步
@@ -57,7 +57,7 @@
 > [!TIP]
 >
 > * 如果串口监视器没有输出，请确认已选择 T-Deck 开发板。
-> * LilyGoLib 需要 Arduino-ESP32 3.3.0 或更高版本。使用更早的版本会导致编译错误。
+> * LilyGoLib 需要 Arduino-ESP32 3.3.11 或更高版本。使用更早的版本会导致编译错误。
 > * 官方 `LilyGo T-Deck` 开发板选项可用后，请卸载 `LILYGO T-Deck Temporary Support`，并选择官方开发板。
 
 ### 迁移到官方开发板定义

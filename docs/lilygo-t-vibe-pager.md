@@ -12,13 +12,13 @@
 ## `1` 概述
 
 * 本文介绍如何通过 LilyGoLib 使用 `LilyGO T-Vibe-Pager`。
-* 如需使用 PlatformIO 开发，请参阅独立的 [LilyGoLib-PlatformIO](https://github.com/Xinyuan-LilyGO/LilyGoLib-PlatformIO) 项目。
+* 如需使用 PlatformIO 开发，请参阅本仓库的 [PlatformIO 快速入门](./platformio.md)。
 * 有关硬件规格、接口、GPIO 引脚分配和 I2C 地址，请参阅 [T-Vibe-Pager 硬件参考文档](./hardware/lilygo-t-vibe-pager.md)。
 
 ## `2` Arduino IDE 快速入门
 
 1. 安装 [Arduino IDE](https://www.arduino.cc/en/software)。
-2. 通过开发板管理器安装 [Arduino-ESP32 **3.3.0-alpha1** 或更高版本](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)。
+2. 通过开发板管理器安装 [Arduino-ESP32 **3.3.11** 或更高版本](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)。
    * 开发板管理器附加地址：`https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json`
 3. [下载 LilyGoLib 库](https://github.com/Xinyuan-LilyGO/LilyGoLib/archive/refs/heads/master.zip)。
 4. 在 Arduino IDE 中选择 `Sketch` > `Include Library` > `Add .ZIP Library`，然后选择第 3 步下载的 ZIP 文件。
@@ -62,7 +62,7 @@
 > [!TIP]
 >
 > * 如果串口监视器没有输出，请确认 `USB CDC On Boot` 已设置为 `Enabled`。
-> * LilyGoLib 需要 Arduino-ESP32 3.3.0-alpha1 或更高版本。使用更早的版本会导致编译错误。
+> * LilyGoLib 需要 Arduino-ESP32 3.3.11 或更高版本。使用更早的版本会导致编译错误。
 
 ### 键盘功能设置和输入方式
 

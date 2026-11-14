@@ -56,6 +56,7 @@
 
 ### `1` Get Started
 
+- 🔧 **[PlatformIO Quick Start](./docs/platformio.md)**
 - 🔧 **[T-Deck Quick Start](./docs/lilygo-t-deck.md)**
 - 🔧 **[T-LoRa-Pager Quick Start](./docs/lilygo-t-lora-pager.md)**
 - 🔧 **[T-Watch-Ultra Quick Start](./docs/lilygo-t-watch-ultra.md)**

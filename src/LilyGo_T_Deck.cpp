@@ -154,13 +154,21 @@ LilyGoDeck::LilyGoDeck() :
 
 const char *LilyGoDeck::getName()
 {
+#if defined(ARDUINO_T_VIBE_DEV)
+    return "LilyGo T-Vibe-Dev";
+#else
     return "LilyGo T-Deck";
+#endif
 }
 
 const LilyGoDeviceCapability &LilyGoDeck::getCapability() const
 {
     static const LilyGoDeviceCapability capability = {
-        "LilyGo T-Deck", "SX1262 (optional)", "None", "None",
+#if defined(ARDUINO_T_VIBE_DEV)
+        "LilyGo T-Vibe-Dev", "None", "None", "None",
+#else
+        "LilyGo T-Deck", USING_RADIO_NAME " (optional)", "None", "None",
+#endif
         true, false, true, true, true, true, false,
         false, false, false, false, false, false, false,
         true, true, false, true, false, true, true,
@@ -565,6 +573,7 @@ bool LilyGoDeck::isCardReady()
 
 bool LilyGoDeck::initLoRa()
 {
+#if defined(USING_RADIO_NAME)
     if (!lockSPI()) {
         return false;
     }
@@ -580,6 +589,9 @@ bool LilyGoDeck::initLoRa()
     }
     devicesProbe |= HW_RADIO_ONLINE;
     return true;
+#else
+    return false;
+#endif
 }
 
 bool LilyGoDeck::hasRadio() const
@@ -802,9 +814,11 @@ void LilyGoDeck::lightSleep(WakeupSource_t wakeupSource)
     const uint8_t keyboardBrightness = keyboardWasOnline ? kb.getBrightness() : 0;
 
     sleepDisplay();
+#if defined(USING_RADIO_NAME)
     if (hasRadio()) {
         radio.sleep();
     }
+#endif
     if (keyboardWasOnline) {
         if (!kb.setBrightness(0)) {
             LILYGO_LOG_W("Failed to turn off T-Deck keyboard backlight");
@@ -844,9 +858,11 @@ void LilyGoDeck::lightSleep(WakeupSource_t wakeupSource)
     Serial.println("T-Deck woke from light sleep");
 
     wakeupDisplay();
+#if defined(USING_RADIO_NAME)
     if (hasRadio()) {
         radio.standby();
     }
+#endif
     if (keyboardWasOnline && initKeyboard()) {
         if (!kb.setBrightness(keyboardBrightness)) {
             LILYGO_LOG_W("Failed to restore T-Deck keyboard backlight");
@@ -912,9 +928,11 @@ void LilyGoDeck::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSeconds)
     }
 
     sleepDisplay();
+#if defined(USING_RADIO_NAME)
     if (hasRadio()) {
         radio.sleep();
     }
+#endif
     if (hasKeyboard()) {
         if (!kb.setBrightness(0)) {
             LILYGO_LOG_W("Failed to turn off T-Deck keyboard backlight");

@@ -468,13 +468,21 @@ LilyGoLoRaPager::~LilyGoLoRaPager()
 
 const char *LilyGoLoRaPager::getName()
 {
-    return "LilyGo T-LoRa-Pager (2025)";
+#if defined(ARDUINO_T_VIBE_PAGER)
+    return "LilyGo T-Vibe-Pager";
+#else
+    return "LilyGo T-LoRa-Pager";
+#endif
 }
 
 const LilyGoDeviceCapability &LilyGoLoRaPager::getCapability() const
 {
     static const LilyGoDeviceCapability capability = {
-        /* boardName */       "LilyGo T-LoRa-Pager (2025)",
+#if defined(ARDUINO_T_VIBE_PAGER)
+        /* boardName */       "LilyGo T-Vibe-Pager",
+#else
+        /* boardName */       "LilyGo T-LoRa-Pager",
+#endif
 #ifdef USING_RADIO_NAME
         /* radioName */       USING_RADIO_NAME,
 #else
@@ -988,9 +996,11 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     // Convert only once, and close automatically after conversion is complete.
     pmic.adc().startConversion();
 
+#if defined(USING_RADIO_NAME)
     if (_devices_probe & HW_RADIO_ONLINE) {
         radio.sleep();
     }
+#endif
 
     uint32_t gps_baudrate = Serial1.baudRate();
     if (gps_baudrate == 0) {
@@ -1051,9 +1061,11 @@ void LilyGoLoRaPager::lightSleep(WakeupSource_t wakeup_src)
     pinMode(NFC_CS, OUTPUT);
     digitalWrite(NFC_CS, HIGH);
 
+#if defined(USING_RADIO_NAME)
     if (_devices_probe & HW_RADIO_ONLINE) {
         radio.standby();
     }
+#endif
 
     wakeupDisplay();
 
@@ -1443,6 +1455,7 @@ bool LilyGoLoRaPager::initNRF24()
 
 bool LilyGoLoRaPager::initLoRa()
 {
+#if defined(USING_RADIO_NAME)
     if (_devices_probe & HW_RADIO_ONLINE) {
         _radio_hardware_present = true;
     } else {
@@ -1497,6 +1510,11 @@ bool LilyGoLoRaPager::initLoRa()
 #endif /*ARDUINO_LILYGO_LORA_LR1121*/
 
     return true;
+#else
+    _radio_hardware_present = false;
+    _devices_probe &= ~HW_RADIO_ONLINE;
+    return false;
+#endif
 }
 
 bool LilyGoLoRaPager::isLoRaHardwarePresent() const

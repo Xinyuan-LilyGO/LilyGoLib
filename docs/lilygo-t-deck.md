@@ -12,7 +12,7 @@
 ## `2` Arduino IDE Quick Start
 
 1. Install the [latest Arduino IDE 2.x](https://www.arduino.cc/en/software).
-2. Install [Arduino-ESP32 **3.3.0** or later](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html) through the Boards Manager.
+2. Install [Arduino-ESP32 **3.3.11** or later](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html) through the Boards Manager.
    * Espressif stable Boards Manager URL: `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
 3. Check whether `LilyGo T-Deck` is available under `Tools` > `Board`.
    * If it is available, select it and continue with step 6.
@@ -52,7 +52,7 @@
 > [!TIP]
 >
 > * If the serial monitor shows no output, verify that a T-Deck board is selected.
-> * LilyGoLib requires Arduino-ESP32 3.3.0 or later. Earlier versions will produce compilation errors.
+> * LilyGoLib requires Arduino-ESP32 3.3.11 or later. Earlier versions will produce compilation errors.
 > * When the official `LilyGo T-Deck` option becomes available, uninstall `LILYGO T-Deck Temporary Support` and select the official board.
 
 ### Migrating to the Official Board Definition

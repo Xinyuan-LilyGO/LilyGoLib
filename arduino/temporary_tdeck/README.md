@@ -7,7 +7,7 @@ variant, and reuses the installed `esp32:esp32` core and tools.
 ## Install in Arduino IDE
 
 1. Install the latest Arduino IDE 2.x.
-2. Install `esp32 by Espressif Systems` version 3.3.0 or later from Boards
+2. Install `esp32 by Espressif Systems` version 3.3.11 or later from Boards
    Manager.
 3. Add this URL under **File > Preferences > Additional Boards Manager URLs**:
 

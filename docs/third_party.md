@@ -16,7 +16,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [ESP8266Audio@2.4.1](https://github.com/earlephilhower/ESP8266Audio)
 * [lvgl@9.6.0](https://github.com/lvgl/lvgl)
 * [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
 ## T-Watch 2020 V3 Third-Party Libraries
 
@@ -26,7 +26,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
 * [PCMFlow@0.2.1](https://github.com/lbuque/PCMFlow)
 * [PCMFlowG722@0.2.0](https://github.com/tanakamasayuki/PCMFlowG722)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
 <a id="t-watch-s3-third-party"></a>
 
@@ -39,7 +39,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [PCMFlow@0.2.1](https://github.com/lbuque/PCMFlow)
 * [PCMFlowG722@0.2.0](https://github.com/tanakamasayuki/PCMFlowG722)
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
 <a id="t-watch-ultra-third-party"></a>
 
@@ -52,7 +52,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [PCMFlow@0.2.1](https://github.com/lbuque/PCMFlow)
 * [PCMFlowG722@0.2.0](https://github.com/tanakamasayuki/PCMFlowG722)
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 * [ST25R3916-NFC-RFAL@1.0.1](https://github.com/lewisxhe/ST25R3916-NFC-RFAL)
 
 <a id="t-lora-pager-third-party"></a>
@@ -69,7 +69,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [PCMFlow@0.2.1](https://github.com/lbuque/PCMFlow)
 * [PCMFlowG722@0.2.0](https://github.com/tanakamasayuki/PCMFlowG722)
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 * [ST25R3916-NFC-RFAL@1.0.1](https://github.com/lewisxhe/ST25R3916-NFC-RFAL)
 
 <a id="t-deck-third-party"></a>
@@ -81,7 +81,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [lvgl@9.6.0](https://github.com/lvgl/lvgl)
 * [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
 <a id="t-embed-plus-third-party"></a>
 
@@ -96,7 +96,7 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [lvgl@9.6.0](https://github.com/lvgl/lvgl)
 * [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
-* [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
 ## Other Bundled Libraries
 
@@ -106,5 +106,5 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [SparkFun MAX3010x Pulse and Proximity Sensor Library@1.1.2](https://github.com/sparkfun/SparkFun_MAX3010x_Sensor_Library) (optional MAX3010x heart-rate and proximity sensor support)
 * [arduino-nofrendo@1.2](https://github.com/moononournation/arduino-nofrendo) (optional Pager NES support)
 
-SensorLib 0.5.0 is the official `v0.5.0` release at commit `61d992f`.
+SensorLib 0.5.2 is the official `v0.5.2` release.
 The separate ESP32 BLE keyboard and mouse forks, TinyGPSPlus, XPowersLib, and split NFC forks are not included in the current LilyGoLib-ThirdParty bundle.

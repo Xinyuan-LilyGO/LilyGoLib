@@ -27,7 +27,9 @@
 #include "input/TDeckKeyboard.h"
 
 #define newModule() new Module(LORA_CS, LORA_IRQ, LORA_RST, LORA_BUSY, SPI)
+#if !defined(ARDUINO_T_VIBE_DEV)
 #define LILYGO_RADIO_REQUIRE_MODULE
+#endif
 #include "radio/LilyGoRadioHelper.h"
 
 enum TDeckButtonId : uint8_t {
