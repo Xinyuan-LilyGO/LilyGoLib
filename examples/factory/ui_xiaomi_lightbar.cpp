@@ -1,12 +1,13 @@
 /**
  * @file      ui_xiaomi_lightbar.cpp
  * @license   MIT
- * @brief     MJGJD01YL light bar controller for T-LoRa Pager and external NRF24.
+ * @brief     MJGJD01YL light bar controller for supported boards with NRF24.
  */
 #include <LilyGoLog.h>
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_NRF24)
+#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_CC1101)) && \
+    !defined(EXCLUDE_NRF24)
 
 #ifdef ARDUINO
 #include <Preferences.h>
@@ -16,6 +17,7 @@ namespace {
 
 constexpr uint32_t FALLBACK_REMOTE_ID = 0x111111;
 constexpr uint32_t SLIDER_SEND_DELAY_MS = 120;
+constexpr uint8_t CAPTURE_CONFIRM_FRAMES = 2;
 constexpr uint16_t COMMAND_TOGGLE = 0x0100;
 constexpr uint16_t COMMAND_COOLER = 0x0200;
 constexpr uint16_t COMMAND_WARMER = 0x0300;
@@ -33,9 +35,13 @@ lv_obj_t *temperature_value = nullptr;
 lv_obj_t *unavailable_msgbox = nullptr;
 lv_timer_t *brightness_send_timer = nullptr;
 lv_timer_t *temperature_send_timer = nullptr;
+lv_timer_t *capture_timer = nullptr;
 
 uint32_t remote_id = FALLBACK_REMOTE_ID;
 uint8_t packet_sequence = 0;
+uint32_t capture_candidate_id = 0;
+uint8_t capture_candidate_hits = 0;
+bool capture_active = false;
 
 uint32_t generated_remote_id()
 {
@@ -86,6 +92,77 @@ void save_remote_id()
 #endif
 }
 
+void stop_remote_capture()
+{
+    if (capture_active) hw_stop_xiaomi_lightbar_remote_capture();
+    capture_active = false;
+    capture_candidate_id = 0;
+    capture_candidate_hits = 0;
+    if (capture_timer) lv_timer_pause(capture_timer);
+}
+
+void capture_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!capture_active) return;
+
+    uint32_t detected_id = 0;
+    uint8_t channel = 0;
+    if (!hw_poll_xiaomi_lightbar_remote(detected_id, channel)) return;
+
+    if (capture_candidate_id == detected_id) {
+        ++capture_candidate_hits;
+    } else {
+        capture_candidate_id = detected_id;
+        capture_candidate_hits = 1;
+    }
+
+    char message[64];
+    snprintf(message, sizeof(message), "ID %06lX CH%u (%u/%u)",
+             (unsigned long)detected_id, channel, capture_candidate_hits,
+             CAPTURE_CONFIRM_FRAMES);
+    set_status(message);
+    if (capture_candidate_hits < CAPTURE_CONFIRM_FRAMES) return;
+
+    remote_id = detected_id;
+    char formatted[7];
+    snprintf(formatted, sizeof(formatted), "%06lX", (unsigned long)remote_id);
+    if (id_textarea) lv_textarea_set_text(id_textarea, formatted);
+    save_remote_id();
+    stop_remote_capture();
+
+    snprintf(message, sizeof(message), "Remote %s captured", formatted);
+    set_status(message);
+    hw_feedback();
+}
+
+void capture_button_cb(lv_event_t *event)
+{
+    (void)event;
+    if (capture_active) {
+        stop_remote_capture();
+        set_status("Remote ID scan stopped");
+        return;
+    }
+
+    const int16_t state = hw_start_xiaomi_lightbar_remote_capture();
+    if (state != 0) {
+        char message[40];
+        snprintf(message, sizeof(message), "Scan failed (%d)", state);
+        set_status(message);
+        return;
+    }
+
+    capture_active = true;
+    capture_candidate_id = 0;
+    capture_candidate_hits = 0;
+    if (capture_timer) {
+        lv_timer_reset(capture_timer);
+        lv_timer_resume(capture_timer);
+    }
+    set_status("Turn or press original remote");
+}
+
 void commit_remote_id()
 {
     if (!id_textarea) return;
@@ -109,6 +186,7 @@ void commit_remote_id()
 
 int16_t send_command(uint16_t command)
 {
+    stop_remote_capture();
     const int16_t state = hw_send_xiaomi_lightbar_command(remote_id, command,
                           packet_sequence++);
     if (state != 0) {
@@ -309,6 +387,11 @@ void back_event_handler(lv_event_t *event)
 {
     (void)event;
     disable_keyboard();
+    stop_remote_capture();
+    if (capture_timer) {
+        lv_timer_delete(capture_timer);
+        capture_timer = nullptr;
+    }
     if (brightness_send_timer) {
         lv_timer_delete(brightness_send_timer);
         brightness_send_timer = nullptr;
@@ -382,6 +465,8 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(status_label, UI_COLOR_TEXT_SECONDARY, 0);
     ui_create_card_item(card, LV_SYMBOL_WIFI, "Status", status_label);
+    ui_create_card_button(card, LV_SYMBOL_REFRESH, "Original ID", "Scan",
+                          capture_button_cb);
 
     card = ui_create_card(page_container, "Brightness");
     create_level_control(card, true);
@@ -393,8 +478,10 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
                                             SLIDER_SEND_DELAY_MS, nullptr);
     temperature_send_timer = lv_timer_create(temperature_send_timer_cb,
                                              SLIDER_SEND_DELAY_MS, nullptr);
+    capture_timer = lv_timer_create(capture_timer_cb, 10, nullptr);
     lv_timer_pause(brightness_send_timer);
     lv_timer_pause(temperature_send_timer);
+    lv_timer_pause(capture_timer);
 
     card = ui_create_card(page_container, "Commands");
     ui_create_card_button(card, LV_SYMBOL_POWER, "Power", "Toggle", toggle_cb);
@@ -404,6 +491,7 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
 void ui_xiaomi_lightbar_exit(lv_obj_t *parent)
 {
     (void)parent;
+    stop_remote_capture();
 }
 
 app_t ui_xiaomi_lightbar_main = {

@@ -56,8 +56,26 @@ static void build_xiaomi_lightbar_packet(uint8_t packet[17], uint32_t remote_id,
 
 static EventGroupHandle_t    radioEvent = NULL;
 static int16_t               last_tx_state = 0;
+static bool                  xiaomi_capture_active = false;
+static uint8_t               xiaomi_capture_channel_index = 0;
+static uint32_t              xiaomi_capture_next_channel_at = 0;
 
 #define NRF24_ISR_FLAG              _BV(1)
+
+static constexpr uint8_t xiaomi_capture_channels[] = {6, 7, 15, 16, 43, 44, 68, 69};
+static constexpr uint8_t xiaomi_capture_address[] = {0x1C, 0xDD, 0x14, 0x39, 0x53};
+static constexpr uint8_t xiaomi_lightbar_preamble[] = {
+    0x53, 0x39, 0x14, 0xDD, 0x1C, 0x49, 0x34, 0x12
+};
+static constexpr size_t xiaomi_raw_packet_length = 12;
+static constexpr size_t xiaomi_decoded_packet_length = 9;
+static constexpr uint32_t xiaomi_channel_dwell_ms = 80;
+
+#if defined(BOARD_NRF24_CS)
+static constexpr int xiaomi_nrf24_cs_pin = BOARD_NRF24_CS;
+#else
+static constexpr int xiaomi_nrf24_cs_pin = 44;
+#endif
 
 static void set_nrf24_pa_transmit(bool enable)
 {
@@ -84,6 +102,110 @@ static void hw_nrf24_isr()
     }
 }
 
+// Caller must hold the shared SPI lock.
+static uint8_t xiaomi_nrf24_spi_transfer(uint8_t command, const uint8_t *out,
+        uint8_t *in, size_t length)
+{
+    SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+    digitalWrite(xiaomi_nrf24_cs_pin, LOW);
+    const uint8_t status = SPI.transfer(command);
+    for (size_t i = 0; i < length; ++i) {
+        const uint8_t value = out ? out[i] : 0xFF;
+        const uint8_t result = SPI.transfer(value);
+        if (in) in[i] = result;
+    }
+    digitalWrite(xiaomi_nrf24_cs_pin, HIGH);
+    SPI.endTransaction();
+    return status;
+}
+
+static void xiaomi_nrf24_write_register(uint8_t reg, uint8_t value)
+{
+    xiaomi_nrf24_spi_transfer(RADIOLIB_NRF24_CMD_WRITE | (reg & 0x1F),
+                              &value, nullptr, 1);
+}
+
+static uint8_t xiaomi_nrf24_read_register(uint8_t reg)
+{
+    uint8_t value = 0;
+    xiaomi_nrf24_spi_transfer(reg & 0x1F, nullptr, &value, 1);
+    return value;
+}
+
+static int16_t xiaomi_listen_on_channel(uint8_t channel)
+{
+    int16_t state = nrf24.standby();
+    if (state == RADIOLIB_ERR_NONE) {
+        state = nrf24.setFrequency(2400.0f + channel);
+    }
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.startReceive();
+    return state;
+}
+
+static int16_t xiaomi_configure_remote_capture()
+{
+    int16_t state = nrf24.standby();
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setBitRate(2000);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setAddressWidth(5);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setAutoAck(false);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.setCrcFiltering(false);
+    if (state == RADIOLIB_ERR_NONE) state = nrf24.disablePipe(0);
+    for (uint8_t pipe = 2; state == RADIOLIB_ERR_NONE && pipe <= 5; ++pipe) {
+        state = nrf24.disablePipe(pipe);
+    }
+    if (state == RADIOLIB_ERR_NONE) {
+        state = nrf24.setReceivePipe(1, xiaomi_capture_address);
+    }
+    if (state != RADIOLIB_ERR_NONE) return state;
+
+    // Proprietary Telink frames do not contain a valid dynamic-length field.
+    xiaomi_nrf24_write_register(RADIOLIB_NRF24_REG_FEATURE, 0x00);
+    xiaomi_nrf24_write_register(RADIOLIB_NRF24_REG_DYNPD, 0x00);
+    xiaomi_nrf24_write_register(RADIOLIB_NRF24_REG_RX_PW_P1,
+                                xiaomi_raw_packet_length);
+    xiaomi_nrf24_spi_transfer(RADIOLIB_NRF24_CMD_FLUSH_RX, nullptr, nullptr, 0);
+    xiaomi_nrf24_write_register(
+        RADIOLIB_NRF24_REG_STATUS,
+        RADIOLIB_NRF24_RX_DR | RADIOLIB_NRF24_TX_DS | RADIOLIB_NRF24_MAX_RT);
+    if (xiaomi_nrf24_read_register(RADIOLIB_NRF24_REG_EN_AA) != 0x00 ||
+            xiaomi_nrf24_read_register(RADIOLIB_NRF24_REG_DYNPD) != 0x00 ||
+            xiaomi_nrf24_read_register(RADIOLIB_NRF24_REG_FEATURE) != 0x00 ||
+            xiaomi_nrf24_read_register(RADIOLIB_NRF24_REG_RX_PW_P1) !=
+            xiaomi_raw_packet_length) {
+        return -1;
+    }
+    return RADIOLIB_ERR_NONE;
+}
+
+static int16_t xiaomi_transmit_packet(const uint8_t *packet, size_t length)
+{
+#if defined(ARDUINO_T_EMBED_CC1101)
+    // The Embed expansion header has no nRF24 IRQ line.
+    nrf24.finishTransmit();
+    int16_t state = nrf24.startTransmit(packet, length, 0);
+    const uint32_t started = millis();
+    while (state == RADIOLIB_ERR_NONE) {
+        const int16_t status = nrf24.getStatus(
+                                   RADIOLIB_NRF24_TX_DS | RADIOLIB_NRF24_MAX_RT);
+        if (status & RADIOLIB_NRF24_TX_DS) {
+            return nrf24.finishTransmit();
+        }
+        if (status & RADIOLIB_NRF24_MAX_RT) {
+            nrf24.finishTransmit();
+            return RADIOLIB_ERR_ACK_NOT_RECEIVED;
+        }
+        if (millis() - started >= 70) {
+            nrf24.finishTransmit();
+            return RADIOLIB_ERR_TX_TIMEOUT;
+        }
+        delay(1);
+    }
+    return state;
+#else
+    return nrf24.transmit(packet, length, 0);
+#endif
+}
+
 void hw_nrf24_begin()
 {
     radioEvent = xEventGroupCreate();
@@ -106,6 +228,113 @@ bool hw_has_nrf24()
         return true;
     }
     return false;
+}
+
+int16_t hw_start_xiaomi_lightbar_remote_capture()
+{
+#ifdef ARDUINO
+    if (!radioEvent || !hw_has_nrf24()) return -1;
+    if (xiaomi_capture_active) return RADIOLIB_ERR_NONE;
+
+    set_nrf24_pa_transmit(false);
+    instance.lockSPI();
+    int16_t state = xiaomi_configure_remote_capture();
+    if (state == RADIOLIB_ERR_NONE) {
+        xiaomi_capture_channel_index = 0;
+        state = xiaomi_listen_on_channel(
+                    xiaomi_capture_channels[xiaomi_capture_channel_index]);
+    }
+    if (state != RADIOLIB_ERR_NONE) nrf24.begin();
+    instance.unlockSPI();
+
+    xiaomi_capture_active = state == RADIOLIB_ERR_NONE;
+    xiaomi_capture_next_channel_at = millis() + xiaomi_channel_dwell_ms;
+    xEventGroupClearBits(radioEvent, NRF24_ISR_FLAG);
+    return state;
+#else
+    return 0;
+#endif
+}
+
+bool hw_poll_xiaomi_lightbar_remote(uint32_t &remote_id, uint8_t &channel)
+{
+#ifdef ARDUINO
+    if (!xiaomi_capture_active) return false;
+
+    uint8_t raw[xiaomi_raw_packet_length] = {};
+    bool received = false;
+    const uint32_t now = millis();
+
+    instance.lockSPI();
+    const int16_t status = nrf24.getStatus(RADIOLIB_NRF24_RX_DR);
+    if (status >= 0 && (status & RADIOLIB_NRF24_RX_DR)) {
+        const uint8_t active_channel =
+            xiaomi_capture_channels[xiaomi_capture_channel_index];
+        if (nrf24.standby() == RADIOLIB_ERR_NONE) {
+            xiaomi_nrf24_spi_transfer(RADIOLIB_NRF24_CMD_READ_RX_PAYLOAD,
+                                      nullptr, raw, sizeof(raw));
+            xiaomi_nrf24_write_register(
+                RADIOLIB_NRF24_REG_STATUS,
+                RADIOLIB_NRF24_RX_DR | RADIOLIB_NRF24_TX_DS |
+                RADIOLIB_NRF24_MAX_RT);
+            received = true;
+            channel = active_channel;
+        }
+        xiaomi_listen_on_channel(active_channel);
+        xiaomi_capture_next_channel_at = now + xiaomi_channel_dwell_ms;
+    } else if ((int32_t)(now - xiaomi_capture_next_channel_at) >= 0) {
+        xiaomi_capture_channel_index =
+            (xiaomi_capture_channel_index + 1U) %
+            (sizeof(xiaomi_capture_channels) / sizeof(xiaomi_capture_channels[0]));
+        xiaomi_listen_on_channel(
+            xiaomi_capture_channels[xiaomi_capture_channel_index]);
+        xiaomi_capture_next_channel_at = now + xiaomi_channel_dwell_ms;
+    }
+    instance.unlockSPI();
+
+    if (!received) return false;
+
+    uint8_t decoded[xiaomi_decoded_packet_length];
+    memcpy(decoded, raw + 3, sizeof(decoded));
+    if (decoded[3] != 0xFF) return false;
+
+    uint8_t crc_input[15];
+    memcpy(crc_input, xiaomi_lightbar_preamble,
+           sizeof(xiaomi_lightbar_preamble));
+    memcpy(crc_input + sizeof(xiaomi_lightbar_preamble), decoded, 7);
+    const uint16_t received_crc = ((uint16_t)decoded[7] << 8) | decoded[8];
+    if (received_crc != xiaomi_lightbar_crc16(crc_input, sizeof(crc_input))) {
+        return false;
+    }
+
+    remote_id = ((uint32_t)decoded[0] << 16) |
+                ((uint32_t)decoded[1] << 8) | decoded[2];
+    return remote_id != 0 && remote_id != 0xFFFFFF;
+#else
+    (void)remote_id;
+    (void)channel;
+    return false;
+#endif
+}
+
+void hw_stop_xiaomi_lightbar_remote_capture()
+{
+#ifdef ARDUINO
+    if (!xiaomi_capture_active) return;
+    xiaomi_capture_active = false;
+
+    instance.lockSPI();
+    nrf24.standby();
+    const int16_t state = nrf24.begin();
+#if defined(ARDUINO_T_LORA_PAGER)
+    if (state == RADIOLIB_ERR_NONE) nrf24.setPacketSentAction(hw_nrf24_isr);
+#else
+    (void)state;
+#endif
+    instance.unlockSPI();
+    set_nrf24_pa_transmit(false);
+    if (radioEvent) xEventGroupClearBits(radioEvent, NRF24_ISR_FLAG);
+#endif
 }
 
 int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
@@ -143,7 +372,7 @@ int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
         for (uint8_t i = 0; i < sizeof(channels); ++i) {
             state = nrf24.setFrequency(2400.0f + channels[i]);
             if (state != RADIOLIB_ERR_NONE) break;
-            state = nrf24.transmit(packet, sizeof(packet), 0);
+            state = xiaomi_transmit_packet(packet, sizeof(packet));
             if (state != RADIOLIB_ERR_NONE) break;
             delay(2);
         }

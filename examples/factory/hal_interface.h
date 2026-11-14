@@ -1664,6 +1664,27 @@ int16_t hw_send_xiaomi_lightbar_command(uint32_t remote_id, uint16_t command,
                                         uint8_t sequence);
 
 /**
+ * @brief Start scanning for an original MJGJD01YL remote control.
+ *
+ * @return The RadioLib result (0 for success, negative for error).
+ */
+int16_t hw_start_xiaomi_lightbar_remote_capture();
+
+/**
+ * @brief Poll for a validated MJGJD01YL remote control frame.
+ *
+ * @param remote_id Receives the decoded 24-bit remote identifier.
+ * @param channel Receives the nRF24 channel where the frame was captured.
+ * @return True when a frame with a valid separator and CRC was decoded.
+ */
+bool hw_poll_xiaomi_lightbar_remote(uint32_t &remote_id, uint8_t &channel);
+
+/**
+ * @brief Stop remote capture and restore the normal nRF24 configuration.
+ */
+void hw_stop_xiaomi_lightbar_remote_capture();
+
+/**
  * @brief Get the radio frequency list.
  *
  * This function retrieves the list of available radio frequencies.
