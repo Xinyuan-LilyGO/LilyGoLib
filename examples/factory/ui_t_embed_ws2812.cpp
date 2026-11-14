@@ -1,10 +1,10 @@
 /**
  * @file      ui_t_embed_ws2812.cpp
- * @brief     T-Embed-CC1101 WS2812 effects and production test.
+ * @brief     T-Embed-Plus WS2812 effects and production test.
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_CC1101)
+#if defined(ARDUINO_T_EMBED_PLUS)
 
 #include <Adafruit_NeoPixel.h>
 
@@ -276,4 +276,4 @@ app_t ui_t_embed_ws2812_main = {
     .user_data = nullptr,
 };
 
-#endif // ARDUINO_T_EMBED_CC1101
+#endif // ARDUINO_T_EMBED_PLUS

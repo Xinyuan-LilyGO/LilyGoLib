@@ -83,9 +83,9 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
 * [SensorLib@0.5.0](https://github.com/lewisxhe/SensorLib)
 
-<a id="t-embed-cc1101-third-party"></a>
+<a id="t-embed-plus-third-party"></a>
 
-## T-Embed-CC1101 Third-Party Libraries
+## T-Embed-Plus Third-Party Libraries
 
 * [Adafruit BusIO@1.17.4](https://github.com/adafruit/Adafruit_BusIO)
 * [Adafruit NeoPixel@1.15.5](https://github.com/adafruit/Adafruit_NeoPixel)

@@ -4,12 +4,9 @@
 #include <stdint.h>
 
 #define USB_VID 0x303A
-#define USB_PID 0x1001
+#define USB_PID 0x83F5
 #define USB_MANUFACTURER "LILYGO"
-#define USB_PRODUCT "T-Embed-CC1101"
-
-static const uint8_t TX = 43;
-static const uint8_t RX = 44;
+#define USB_PRODUCT "T-Embed-Plus"
 
 #define DISP_WIDTH 170
 #define DISP_HEIGHT 320
@@ -49,8 +46,8 @@ static const uint8_t RX = 44;
 
 #define BOARD_I2C_SDA 8
 #define BOARD_I2C_SCL 18
-static const uint8_t SDA = BOARD_I2C_SDA;
-static const uint8_t SCL = BOARD_I2C_SCL;
+#define SDA BOARD_I2C_SDA
+#define SCL BOARD_I2C_SCL
 
 #define BOARD_SPI_SCK 11
 #define BOARD_SPI_MOSI 9
@@ -73,10 +70,10 @@ static const uint8_t SCL = BOARD_I2C_SCL;
 #define LORA_MOSI BOARD_SPI_MOSI
 #define LORA_MISO BOARD_SPI_MISO
 #define SD_CS BOARD_SD_CS
-static const uint8_t SS = BOARD_SD_CS;
-static const uint8_t SCK = BOARD_SPI_SCK;
-static const uint8_t MOSI = BOARD_SPI_MOSI;
-static const uint8_t MISO = BOARD_SPI_MISO;
+#define SS BOARD_SD_CS
+#define SCK BOARD_SPI_SCK
+#define MOSI BOARD_SPI_MOSI
+#define MISO BOARD_SPI_MISO
 
 #define BOARD_PN532_SCL BOARD_I2C_SCL
 #define BOARD_PN532_SDA BOARD_I2C_SDA
@@ -93,5 +90,4 @@ static const uint8_t MISO = BOARD_SPI_MISO;
 #define USING_PCM_AMPLIFIER
 #define USING_IR_REMOTE
 #define USING_IR_RECEIVER
-
-#endif /* Pins_Arduino_h */
+#endif

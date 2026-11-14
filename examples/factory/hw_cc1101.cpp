@@ -45,7 +45,7 @@ void hw_radio_begin()
 {
     radioEvent = xEventGroupCreate();
 
-    // T-Embed-CC1101 routes GDO0 to the packet IRQ and GDO2 to the packet
+    // T-Embed-Plus routes GDO0 to the packet IRQ and GDO2 to the packet
     // sent IRQ. RadioLib attaches the callbacks to these pins below.
     pinMode(LORA_IRQ, INPUT);
     pinMode(LORA_BUSY, INPUT);
@@ -84,7 +84,7 @@ int16_t hw_set_radio_params(radio_params_t &params)
 #ifdef ARDUINO
     int16_t state = 0;
     instance.lockSPI();
-#if defined(ARDUINO_T_EMBED_CC1101)
+#if defined(ARDUINO_T_EMBED_PLUS)
     state = instance.setRFFrequencyBand(params.freq);
 #else
     state = radio.setFrequency(params.freq);

@@ -2,12 +2,12 @@
   <img src="../.github/LilyGo_logo.png" alt="LilyGo logo" width="100"/>
 </div>
 
-<h1 align = "center">🌟LilyGo T-Embed-CC1101🌟</h1>
+<h1 align = "center">🌟LilyGo T-Embed-Plus🌟</h1>
 
 ## `1` Overview
 
-* This page explains how to use the `LILYGO T-Embed-CC1101` with LilyGoLib.
-* See the [T-Embed-CC1101 hardware reference](./hardware/lilygo-t-embed-cc1101.md)
+* This page explains how to use the `LILYGO T-Embed-Plus` with LilyGoLib.
+* See the [T-Embed-Plus hardware reference](./hardware/lilygo-t-embed-plus.md)
   for hardware specifications, interfaces, GPIO assignments, and I2C addresses.
 
 ## `2` Arduino IDE Quick Start
@@ -17,14 +17,14 @@
    through Boards Manager.
    * Espressif stable Boards Manager URL:
      `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
-3. Check whether `LilyGo T-Embed-CC1101` is available under `Tools` > `Board`.
+3. Check whether `LilyGo T-Embed-Plus` is available under `Tools` > `Board`.
    * If it is available, select it and continue with step 6.
    * If it is not available, add the following URL under `File` > `Preferences`
      > `Additional Boards Manager URLs`:
-     * `https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed_cc1101/package_lilygo_t_embed_cc1101_index.json`
+     * `https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed_plus/package_lilygo_tembed_plus_index.json`
 4. Open Boards Manager, search for
-   `LILYGO T-Embed-CC1101 Temporary Support`, and install it.
-5. Select `LilyGo T-Embed-CC1101` under `Tools` > `Board`.
+   `LILYGO T-Embed-Plus Temporary Support`, and install it.
+5. Select `LilyGo T-Embed-Plus` under `Tools` > `Board`.
 6. [Download the LilyGoLib library](https://github.com/Xinyuan-LilyGO/LilyGoLib/archive/refs/heads/master.zip).
 7. In Arduino IDE, select `Sketch` > `Include Library` > `Add .ZIP Library`,
    then select the LilyGoLib ZIP file downloaded in step 6.
@@ -44,14 +44,14 @@
 > LilyGoLib-ThirdParty contains tested dependency versions, which may not be the
 > latest available. Confirm that the hardware works before updating them. If an
 > update causes a problem, restore the tested version listed under
-> [T-Embed-CC1101 third-party libraries](./third_party.md#t-embed-cc1101-third-party).
+> [T-Embed-Plus third-party libraries](./third_party.md#t-embed-plus-third-party).
 
 9. Open `File` > `Examples` > `LilyGoLib` > `helloworld`.
 10. Configure the options under `Tools` as shown below.
 
     | Arduino IDE Setting                  | Value                                 |
     | ------------------------------------ | ------------------------------------- |
-    | Board                                | **LilyGo T-Embed-CC1101**             |
+    | Board                                | **LilyGo T-Embed-Plus**                |
     | Port                                 | Your port                             |
     | USB CDC On Boot                      | Enabled                               |
     | CPU Frequency                        | 240 MHz (WiFi)                        |
@@ -69,7 +69,7 @@
 11. Select the device under `Tools` > `Port`.
 12. Click **Upload** and wait for compilation and flashing to finish.
 13. If the upload fails or the USB serial port repeatedly connects and
-    disconnects, [manually enter download mode](#t-embed-cc1101-enter-download-mode)
+    disconnects, [manually enter download mode](#t-embed-plus-enter-download-mode)
     and try again.
 
 > [!TIP]
@@ -78,23 +78,23 @@
 >   produce compilation errors.
 > * The temporary board package supplies the board macros, pin definition,
 >   16 MB flash setting, and 8 MB OPI PSRAM setting required by LilyGoLib.
-> * When an official `LilyGo T-Embed-CC1101` board becomes available, uninstall
+> * When an official `LilyGo T-Embed-Plus` board becomes available, uninstall
 >   the temporary package and select the official board.
 
 ### Migrating to the Official Board Definition
 
-After T-Embed-CC1101 support is included in a stable Arduino-ESP32 release:
+After T-Embed-Plus support is included in a stable Arduino-ESP32 release:
 
 1. Open Boards Manager and uninstall
-   `LILYGO T-Embed-CC1101 Temporary Support`.
+   `LILYGO T-Embed-Plus Temporary Support`.
 2. Update `esp32 by Espressif Systems` to the stable version containing
-   T-Embed-CC1101 support.
-3. Select the official `LilyGo T-Embed-CC1101` board under `Tools` > `Board`.
+   T-Embed-Plus support.
+3. Select the official `LilyGo T-Embed-Plus` board under `Tools` > `Board`.
 4. Recompile the sketch.
 
-<a id="t-embed-cc1101-enter-download-mode"></a>
+<a id="t-embed-plus-enter-download-mode"></a>
 
-## `3` Entering Download Mode on the T-Embed-CC1101
+## `3` Entering Download Mode on the T-Embed-Plus
 
 Use these steps if the board cannot be uploaded normally:
 

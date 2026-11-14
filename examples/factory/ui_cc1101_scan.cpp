@@ -1,10 +1,10 @@
 /**
  * @file      ui_cc1101_scan.cpp
- * @brief     CC1101 RSSI scan for the T-Embed-CC1101.
+ * @brief     CC1101 RSSI scan for the T-Embed-Plus.
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_CC1101) && !defined(EXCLUDE_CC1101_SCAN)
+#if defined(ARDUINO_T_EMBED_PLUS) && !defined(EXCLUDE_CC1101_SCAN)
 
 #include <math.h>
 

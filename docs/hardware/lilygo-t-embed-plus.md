@@ -2,11 +2,11 @@
   <img src="../../.github/LilyGo_logo.png" alt="LilyGo logo" width="100"/>
 </div>
 
-<h1 align = "center">🌟LilyGo T-Embed-CC1101🌟</h1>
+<h1 align = "center">🌟LilyGo T-Embed-Plus🌟</h1>
 
 ## `1` Overview
 
-* This page lists the hardware specifications for the `LILYGO T-Embed-CC1101`.
+* This page lists the hardware specifications for the `LILYGO T-Embed-Plus`.
 * The documented hardware revision is V1.0.
 * The built-in Sub-GHz transceiver is a CC1101. Some source-level pin names
   retain the common `LORA` prefix for compatibility, but the device is not a
@@ -38,7 +38,7 @@
 | Display                    | ST7789 LCD, 170 x 320 native resolution, SPI                     |
 | Sub-GHz radio              | [TI CC1101][2]                                                   |
 | Supported radio bands      | 300-348 MHz, 387-464 MHz, and 779-928 MHz                        |
-| 2.4G radio                 | [nRF24L01][6] **Only Plus version**                              |
+| 2.4G radio                 | [nRF24L01][6]                                                   |
 | NFC                        | PN532, 13.56 MHz, I2C                                            |
 | Storage                    | MicroSD card socket, SPI                                         |
 | Input                      | Rotary encoder with center switch and one user button            |
@@ -78,7 +78,7 @@
 ### Pin Map
 
 The LilyGoLib board definition is available in the
-[temporary T-Embed-CC1101 Arduino variant](../../arduino/temporary_t_embed_cc1101/variants/lilygo_t_embed_cc1101/pins_arduino.h).
+[temporary T-Embed-Plus Arduino variant](../../arduino/temporary_t_embed_plus/variants/lilygo_tembed_plus/pins_arduino.h).
 
 | Function                         | GPIO          | Notes                                                        |
 | -------------------------------- | ------------- | ------------------------------------------------------------ |
@@ -183,7 +183,7 @@ and transmit completion handling.
 
 ### Resources
 
-* [LILYGO T-Embed-CC1101 product page](https://www.lilygo.cc/products/t-embed-cc1101)
-* [LILYGO T-Embed-CC1101 reference repository](https://github.com/Xinyuan-LilyGO/T-Embed-CC1101)
-* [T-Embed-CC1101 V1.0 schematic](https://github.com/Xinyuan-LilyGO/T-Embed-CC1101/blob/master/hardware/T-Embed-CC1101%20V1.0%2024-07-29.pdf)
-* [LilyGoLib T-Embed-CC1101 board class](../../src/LilyGo_T_Embed_CC1101.h)
+* [LILYGO T-Embed-Plus product page](https://www.lilygo.cc/products/t-embed-cc1101-plus)
+* [LILYGO T-Embed-Plus reference repository](https://github.com/Xinyuan-LilyGO/T-Embed-CC1101)
+* [T-Embed-Plus V1.0 schematic](https://github.com/Xinyuan-LilyGO/T-Embed-CC1101/blob/master/hardware/T-Embed-CC1101%20V1.0%2024-07-29.pdf)
+* [LilyGoLib T-Embed-Plus board class](../../src/LilyGo_T_Embed_Plus.h)

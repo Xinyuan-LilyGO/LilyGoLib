@@ -23,7 +23,7 @@ extern void setupGui();
 #if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
 extern void ui_ws2812_init(void);
 #endif
-#if defined(ARDUINO_T_EMBED_CC1101)
+#if defined(ARDUINO_T_EMBED_PLUS)
 extern void ui_t_embed_ws2812_init(void);
 #endif
 
@@ -149,7 +149,7 @@ void setup()
 #if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
     ui_ws2812_init();
 #endif
-#if defined(ARDUINO_T_EMBED_CC1101)
+#if defined(ARDUINO_T_EMBED_PLUS)
     ui_t_embed_ws2812_init();
 #endif
 

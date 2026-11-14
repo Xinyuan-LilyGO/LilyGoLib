@@ -1,0 +1,171 @@
+menu.UploadSpeed=Upload Speed
+menu.USBMode=USB Mode
+menu.CDCOnBoot=USB CDC On Boot
+menu.MSCOnBoot=USB Firmware MSC On Boot
+menu.DFUOnBoot=USB DFU On Boot
+menu.UploadMode=Upload Mode
+menu.CPUFreq=CPU Frequency
+menu.PartitionScheme=Partition Scheme
+menu.DebugLevel=Core Debug Level
+menu.LoopCore=Arduino Runs On
+menu.EventsCore=Events Run On
+menu.EraseFlash=Erase All Flash Before Sketch Upload
+menu.JTAGAdapter=JTAG Adapter
+
+#######################################################################
+# Temporary board definition for the LILYGO T-Embed-Plus.             #
+# Remove this package after T-Embed-Plus support is released by       #
+# Arduino-ESP32.                                                       #
+#######################################################################
+
+lilygo_tembed_plus.name=LilyGo T-Embed-Plus
+
+lilygo_tembed_plus.bootloader.tool=esp32:esptool_py
+lilygo_tembed_plus.bootloader.tool.default=esp32:esptool_py
+
+lilygo_tembed_plus.upload.tool=esp32:esptool_py
+lilygo_tembed_plus.upload.tool.default=esp32:esptool_py
+lilygo_tembed_plus.upload.tool.network=esp32:esp_ota
+
+lilygo_tembed_plus.upload.maximum_size=3145728
+lilygo_tembed_plus.upload.maximum_data_size=327680
+lilygo_tembed_plus.upload.flags=
+lilygo_tembed_plus.upload.erase_cmd=
+lilygo_tembed_plus.upload.extra_flags=
+lilygo_tembed_plus.upload.use_1200bps_touch=false
+lilygo_tembed_plus.upload.wait_for_upload_port=false
+
+lilygo_tembed_plus.serial.disableDTR=false
+lilygo_tembed_plus.serial.disableRTS=false
+
+lilygo_tembed_plus.build.tarch=xtensa
+lilygo_tembed_plus.build.bootloader_addr=0x0
+lilygo_tembed_plus.build.target=esp32s3
+lilygo_tembed_plus.build.mcu=esp32s3
+lilygo_tembed_plus.build.core=esp32:esp32
+lilygo_tembed_plus.build.variant=lilygo_tembed_plus
+lilygo_tembed_plus.build.board=LILYGO_T_EMBED_PLUS
+lilygo_tembed_plus.runtime.use_core_platform_path_for_runtime_platform_path=true
+
+lilygo_tembed_plus.build.usb_mode=1
+lilygo_tembed_plus.build.cdc_on_boot=1
+lilygo_tembed_plus.build.msc_on_boot=0
+lilygo_tembed_plus.build.dfu_on_boot=0
+lilygo_tembed_plus.build.f_cpu=240000000L
+lilygo_tembed_plus.build.flash_size=16MB
+lilygo_tembed_plus.build.flash_freq=80m
+lilygo_tembed_plus.build.flash_mode=qio
+lilygo_tembed_plus.build.boot=qio
+lilygo_tembed_plus.build.boot_freq=80m
+lilygo_tembed_plus.build.partitions=app3M_fat9M_16MB
+lilygo_tembed_plus.build.defines=-DBOARD_HAS_PSRAM -DARDUINO_T_EMBED_PLUS -DARDUINO_LILYGO_LORA_CC1101
+lilygo_tembed_plus.build.loop_core=
+lilygo_tembed_plus.build.event_core=
+lilygo_tembed_plus.build.psram_type=opi
+lilygo_tembed_plus.build.memory_type={build.boot}_{build.psram_type}
+
+## IDE 2.0 seems not to update the value.
+lilygo_tembed_plus.menu.JTAGAdapter.default=Disabled
+lilygo_tembed_plus.menu.JTAGAdapter.default.build.copy_jtag_files=0
+lilygo_tembed_plus.menu.JTAGAdapter.builtin=Integrated USB JTAG
+lilygo_tembed_plus.menu.JTAGAdapter.builtin.build.openocdscript=esp32s3-builtin.cfg
+lilygo_tembed_plus.menu.JTAGAdapter.builtin.build.copy_jtag_files=1
+
+lilygo_tembed_plus.menu.LoopCore.1=Core 1
+lilygo_tembed_plus.menu.LoopCore.1.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_tembed_plus.menu.LoopCore.0=Core 0
+lilygo_tembed_plus.menu.LoopCore.0.build.loop_core=-DARDUINO_RUNNING_CORE=0
+
+lilygo_tembed_plus.menu.EventsCore.1=Core 1
+lilygo_tembed_plus.menu.EventsCore.1.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_tembed_plus.menu.EventsCore.0=Core 0
+lilygo_tembed_plus.menu.EventsCore.0.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=0
+
+lilygo_tembed_plus.menu.USBMode.hwcdc=Hardware CDC and JTAG
+lilygo_tembed_plus.menu.USBMode.hwcdc.build.usb_mode=1
+lilygo_tembed_plus.menu.USBMode.default=USB-OTG (TinyUSB)
+lilygo_tembed_plus.menu.USBMode.default.build.usb_mode=0
+
+lilygo_tembed_plus.menu.CDCOnBoot.default=Enabled
+lilygo_tembed_plus.menu.CDCOnBoot.default.build.cdc_on_boot=1
+lilygo_tembed_plus.menu.CDCOnBoot.cdc=Disabled
+lilygo_tembed_plus.menu.CDCOnBoot.cdc.build.cdc_on_boot=0
+
+lilygo_tembed_plus.menu.MSCOnBoot.default=Disabled
+lilygo_tembed_plus.menu.MSCOnBoot.default.build.msc_on_boot=0
+lilygo_tembed_plus.menu.MSCOnBoot.msc=Enabled (Requires USB-OTG Mode)
+lilygo_tembed_plus.menu.MSCOnBoot.msc.build.msc_on_boot=1
+
+lilygo_tembed_plus.menu.DFUOnBoot.default=Disabled
+lilygo_tembed_plus.menu.DFUOnBoot.default.build.dfu_on_boot=0
+lilygo_tembed_plus.menu.DFUOnBoot.dfu=Enabled (Requires USB-OTG Mode)
+lilygo_tembed_plus.menu.DFUOnBoot.dfu.build.dfu_on_boot=1
+
+lilygo_tembed_plus.menu.UploadMode.default=UART0 / Hardware CDC
+lilygo_tembed_plus.menu.UploadMode.default.upload.use_1200bps_touch=false
+lilygo_tembed_plus.menu.UploadMode.default.upload.wait_for_upload_port=false
+lilygo_tembed_plus.menu.UploadMode.cdc=USB-OTG CDC (TinyUSB)
+lilygo_tembed_plus.menu.UploadMode.cdc.upload.use_1200bps_touch=true
+lilygo_tembed_plus.menu.UploadMode.cdc.upload.wait_for_upload_port=true
+
+lilygo_tembed_plus.menu.PartitionScheme.app3M_fat9M_16MB=16M Flash (3MB APP/9.9MB FATFS)
+lilygo_tembed_plus.menu.PartitionScheme.app3M_fat9M_16MB.build.partitions=app3M_fat9M_16MB
+lilygo_tembed_plus.menu.PartitionScheme.app3M_fat9M_16MB.upload.maximum_size=3145728
+lilygo_tembed_plus.menu.PartitionScheme.fatflash=16M Flash (2MB APP/12.5MB FATFS)
+lilygo_tembed_plus.menu.PartitionScheme.fatflash.build.partitions=ffat
+lilygo_tembed_plus.menu.PartitionScheme.fatflash.upload.maximum_size=2097152
+lilygo_tembed_plus.menu.PartitionScheme.rainmaker=RainMaker
+lilygo_tembed_plus.menu.PartitionScheme.rainmaker.build.partitions=rainmaker
+lilygo_tembed_plus.menu.PartitionScheme.rainmaker.upload.maximum_size=1966080
+lilygo_tembed_plus.menu.PartitionScheme.esp_sr_16=ESP SR 16M (3MB APP/6MB SPIFFS/3.9MB MODEL)
+lilygo_tembed_plus.menu.PartitionScheme.esp_sr_16.upload.maximum_size=3145728
+lilygo_tembed_plus.menu.PartitionScheme.esp_sr_16.upload.extra_flags=0xC10000 {build.path}/srmodels.bin
+lilygo_tembed_plus.menu.PartitionScheme.esp_sr_16.build.partitions=esp_sr_16
+lilygo_tembed_plus.menu.PartitionScheme.custom=Custom
+lilygo_tembed_plus.menu.PartitionScheme.custom.build.partitions=
+lilygo_tembed_plus.menu.PartitionScheme.custom.upload.maximum_size=16777216
+
+lilygo_tembed_plus.menu.CPUFreq.240=240MHz (WiFi)
+lilygo_tembed_plus.menu.CPUFreq.240.build.f_cpu=240000000L
+lilygo_tembed_plus.menu.CPUFreq.160=160MHz (WiFi)
+lilygo_tembed_plus.menu.CPUFreq.160.build.f_cpu=160000000L
+lilygo_tembed_plus.menu.CPUFreq.80=80MHz (WiFi)
+lilygo_tembed_plus.menu.CPUFreq.80.build.f_cpu=80000000L
+lilygo_tembed_plus.menu.CPUFreq.40=40MHz
+lilygo_tembed_plus.menu.CPUFreq.40.build.f_cpu=40000000L
+lilygo_tembed_plus.menu.CPUFreq.20=20MHz
+lilygo_tembed_plus.menu.CPUFreq.20.build.f_cpu=20000000L
+lilygo_tembed_plus.menu.CPUFreq.10=10MHz
+lilygo_tembed_plus.menu.CPUFreq.10.build.f_cpu=10000000L
+
+lilygo_tembed_plus.menu.UploadSpeed.921600=921600
+lilygo_tembed_plus.menu.UploadSpeed.921600.upload.speed=921600
+lilygo_tembed_plus.menu.UploadSpeed.115200=115200
+lilygo_tembed_plus.menu.UploadSpeed.115200.upload.speed=115200
+lilygo_tembed_plus.menu.UploadSpeed.256000.windows=256000
+lilygo_tembed_plus.menu.UploadSpeed.256000.upload.speed=256000
+lilygo_tembed_plus.menu.UploadSpeed.230400.windows.upload.speed=256000
+lilygo_tembed_plus.menu.UploadSpeed.230400=230400
+lilygo_tembed_plus.menu.UploadSpeed.230400.upload.speed=230400
+lilygo_tembed_plus.menu.UploadSpeed.460800.linux=460800
+lilygo_tembed_plus.menu.UploadSpeed.460800.macosx=460800
+lilygo_tembed_plus.menu.UploadSpeed.460800.upload.speed=460800
+lilygo_tembed_plus.menu.UploadSpeed.512000.windows=512000
+lilygo_tembed_plus.menu.UploadSpeed.512000.upload.speed=512000
+
+lilygo_tembed_plus.menu.DebugLevel.none=None
+lilygo_tembed_plus.menu.DebugLevel.none.build.code_debug=0
+lilygo_tembed_plus.menu.DebugLevel.error=Error
+lilygo_tembed_plus.menu.DebugLevel.error.build.code_debug=1
+lilygo_tembed_plus.menu.DebugLevel.warn=Warn
+lilygo_tembed_plus.menu.DebugLevel.warn.build.code_debug=2
+lilygo_tembed_plus.menu.DebugLevel.info=Info
+lilygo_tembed_plus.menu.DebugLevel.info.build.code_debug=3
+lilygo_tembed_plus.menu.DebugLevel.debug=Debug
+lilygo_tembed_plus.menu.DebugLevel.debug.build.code_debug=4
+lilygo_tembed_plus.menu.DebugLevel.verbose=Verbose
+lilygo_tembed_plus.menu.DebugLevel.verbose.build.code_debug=5
+
+lilygo_tembed_plus.menu.EraseFlash.none=Disabled
+lilygo_tembed_plus.menu.EraseFlash.all=Enabled
+lilygo_tembed_plus.menu.EraseFlash.all.upload.erase_cmd=-e

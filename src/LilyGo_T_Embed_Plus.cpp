@@ -1,6 +1,6 @@
-#ifdef ARDUINO_T_EMBED_CC1101
+#ifdef ARDUINO_T_EMBED_PLUS
 
-#include "LilyGo_T_Embed_CC1101.h"
+#include "LilyGo_T_Embed_Plus.h"
 #include "LilyGoLog.h"
 #include "core/LilyGoGeneral.h"
 #include <SensorWireHelper.h>
@@ -49,7 +49,7 @@ nRF24 nrf24 = new Module(BOARD_NRF24_CS, BOARD_NRF24_IRQ, BOARD_NRF24_CE,
 #endif
 extern void setupMSC(lock_callback_t lock_cb, lock_callback_t ulock_cb);
 
-LilyGoTEmbedCC1101::LilyGoTEmbedCC1101() :
+LilyGoTEmbedPlus::LilyGoTEmbedPlus() :
     LilyGo_Display(SPI_DRIVER, false),
     LilyGoDispArduinoSPI(170, 320, st7789Init,
                          sizeof(st7789Init) / sizeof(st7789Init[0]), rotationConfig),
@@ -59,15 +59,15 @@ LilyGoTEmbedCC1101::LilyGoTEmbedCC1101() :
     brightnessLevel = 0;
 }
 
-const char *LilyGoTEmbedCC1101::getName()
+const char *LilyGoTEmbedPlus::getName()
 {
-    return "LilyGo T-Embed-CC1101";
+    return "LilyGo T-Embed-Plus";
 }
 
-const LilyGoDeviceCapability &LilyGoTEmbedCC1101::getCapability() const
+const LilyGoDeviceCapability &LilyGoTEmbedPlus::getCapability() const
 {
     static const LilyGoDeviceCapability capability = {
-        "LilyGo T-Embed-CC1101", "CC1101", "BQ25896", "BQ27220",
+        "LilyGo T-Embed-Plus", "CC1101", "BQ25896", "BQ27220",
         true,  // SD card
         false, // GPS
         false, // GPS runtime probe
@@ -94,7 +94,7 @@ const LilyGoDeviceCapability &LilyGoTEmbedCC1101::getCapability() const
     return capability;
 }
 
-LilyGoDeviceInitOptions LilyGoTEmbedCC1101::getDefaultInitOptions() const
+LilyGoDeviceInitOptions LilyGoTEmbedPlus::getDefaultInitOptions() const
 {
     LilyGoDeviceInitOptions options = lilygo_init_options_from_capability(getCapability());
     options.initFatfs = true;
@@ -105,17 +105,17 @@ LilyGoDeviceInitOptions LilyGoTEmbedCC1101::getDefaultInitOptions() const
     return options;
 }
 
-uint32_t LilyGoTEmbedCC1101::begin()
+uint32_t LilyGoTEmbedPlus::begin()
 {
     return begin(getDefaultInitOptions());
 }
 
-uint32_t LilyGoTEmbedCC1101::begin(uint32_t disable_hw_init)
+uint32_t LilyGoTEmbedPlus::begin(uint32_t disable_hw_init)
 {
     return begin(lilygo_init_options_from_disable_mask(getDefaultInitOptions(), disable_hw_init));
 }
 
-void LilyGoTEmbedCC1101::initSharedSpiPins()
+void LilyGoTEmbedPlus::initSharedSpiPins()
 {
     const int csPins[] = {DISPLAY_CS, BOARD_SD_CS, BOARD_LORA_CS, BOARD_NRF24_CS};
     for (int pin : csPins) {
@@ -124,7 +124,7 @@ void LilyGoTEmbedCC1101::initSharedSpiPins()
     }
 }
 
-uint32_t LilyGoTEmbedCC1101::begin(const LilyGoDeviceInitOptions &options)
+uint32_t LilyGoTEmbedPlus::begin(const LilyGoDeviceInitOptions &options)
 {
     // Power on the shared CC1101, WS2812 and MAX98357 rail before probing peripherals.
     pinMode(BOARD_PERIPHERAL_POWER_EN, OUTPUT);
@@ -192,7 +192,7 @@ uint32_t LilyGoTEmbedCC1101::begin(const LilyGoDeviceInitOptions &options)
     return devicesProbe;
 }
 
-bool LilyGoTEmbedCC1101::initPMU()
+bool LilyGoTEmbedPlus::initPMU()
 {
     if (!pmic.begin(Wire, BQ25896_SLAVE_ADDRESS, BOARD_I2C_SDA, BOARD_I2C_SCL)) {
         return false;
@@ -202,7 +202,7 @@ bool LilyGoTEmbedCC1101::initPMU()
     return true;
 }
 
-bool LilyGoTEmbedCC1101::initLoRa()
+bool LilyGoTEmbedPlus::initLoRa()
 {
     pinMode(LORA_IRQ, INPUT);
     pinMode(LORA_BUSY, INPUT);
@@ -217,7 +217,7 @@ bool LilyGoTEmbedCC1101::initLoRa()
 }
 
 #ifndef RADIOLIB_EXCLUDE_NRF24
-bool LilyGoTEmbedCC1101::initNRF24()
+bool LilyGoTEmbedPlus::initNRF24()
 {
     const int state = nrf24.begin();
     if (state != RADIOLIB_ERR_NONE) {
@@ -230,7 +230,7 @@ bool LilyGoTEmbedCC1101::initNRF24()
 }
 #endif
 
-int16_t LilyGoTEmbedCC1101::setRFFrequencyBand(float frequency)
+int16_t LilyGoTEmbedPlus::setRFFrequencyBand(float frequency)
 {
     if (frequency >= 779.0f) {
         digitalWrite(BOARD_LORA_SW1, LOW);
@@ -245,7 +245,7 @@ int16_t LilyGoTEmbedCC1101::setRFFrequencyBand(float frequency)
     return radio.setFrequency(frequency);
 }
 
-bool LilyGoTEmbedCC1101::initNFC()
+bool LilyGoTEmbedPlus::initNFC()
 {
     Wire.beginTransmission(0x24);
     if (Wire.endTransmission() != 0 || !nfc.begin()) {
@@ -260,7 +260,7 @@ bool LilyGoTEmbedCC1101::initNFC()
     return true;
 }
 
-bool LilyGoTEmbedCC1101::installSD(uint32_t spiFrequency)
+bool LilyGoTEmbedPlus::installSD(uint32_t spiFrequency)
 {
     if (!spiFrequency) spiFrequency = kSdFrequency;
     SD.end();
@@ -276,31 +276,31 @@ bool LilyGoTEmbedCC1101::installSD(uint32_t spiFrequency)
     return true;
 }
 
-void LilyGoTEmbedCC1101::uninstallSD()
+void LilyGoTEmbedPlus::uninstallSD()
 {
     SD.end();
     devicesProbe &= ~HW_SD_ONLINE;
 }
 
-void LilyGoTEmbedCC1101::setRotation(uint8_t rotation) { LilyGoDispArduinoSPI::setRotation(rotation); }
-uint8_t LilyGoTEmbedCC1101::getRotation() { return LilyGoDispArduinoSPI::getRotation(); }
-uint16_t LilyGoTEmbedCC1101::width() { return LilyGoDispArduinoSPI::_width; }
-uint16_t LilyGoTEmbedCC1101::height() { return LilyGoDispArduinoSPI::_height; }
-void LilyGoTEmbedCC1101::pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color)
+void LilyGoTEmbedPlus::setRotation(uint8_t rotation) { LilyGoDispArduinoSPI::setRotation(rotation); }
+uint8_t LilyGoTEmbedPlus::getRotation() { return LilyGoDispArduinoSPI::getRotation(); }
+uint16_t LilyGoTEmbedPlus::width() { return LilyGoDispArduinoSPI::_width; }
+uint16_t LilyGoTEmbedPlus::height() { return LilyGoDispArduinoSPI::_height; }
+void LilyGoTEmbedPlus::pushColors(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t *color)
 {
     LilyGoDispArduinoSPI::pushColors(x1, y1, x2, y2, color);
 }
 
-void LilyGoTEmbedCC1101::setBrightness(uint8_t level)
+void LilyGoTEmbedPlus::setBrightness(uint8_t level)
 {
     brightnessLevel = min<uint8_t>(level, DEVICE_MAX_BRIGHTNESS_LEVEL);
     backlight.setBrightness(brightnessLevel);
 }
 
-void LilyGoTEmbedCC1101::sleepDisplay() { LilyGoDispArduinoSPI::sleep(); }
-void LilyGoTEmbedCC1101::wakeupDisplay() { LilyGoDispArduinoSPI::wakeup(); }
+void LilyGoTEmbedPlus::sleepDisplay() { LilyGoDispArduinoSPI::sleep(); }
+void LilyGoTEmbedPlus::wakeupDisplay() { LilyGoDispArduinoSPI::wakeup(); }
 
-void LilyGoTEmbedCC1101::powerControl(PowerCtrlChannel_t channel, bool enable)
+void LilyGoTEmbedPlus::powerControl(PowerCtrlChannel_t channel, bool enable)
 {
     switch (channel) {
     case POWER_DISPLAY_BACKLIGHT:
@@ -317,7 +317,7 @@ void LilyGoTEmbedCC1101::powerControl(PowerCtrlChannel_t channel, bool enable)
     }
 }
 
-RotaryMsg_t LilyGoTEmbedCC1101::getRotary()
+RotaryMsg_t LilyGoTEmbedPlus::getRotary()
 {
     static bool centerBtnPressed = false;
     RotaryMsg_t message = {};
@@ -331,14 +331,14 @@ RotaryMsg_t LilyGoTEmbedCC1101::getRotary()
     return message;
 }
 
-void LilyGoTEmbedCC1101::clearRotaryMsg()
+void LilyGoTEmbedPlus::clearRotaryMsg()
 {
     if (rotaryMsg) {
         xQueueReset(rotaryMsg);
     }
 }
 
-bool LilyGoTEmbedCC1101::initRotary()
+bool LilyGoTEmbedPlus::initRotary()
 {
     if (rotaryHandler) {
         return true;
@@ -366,7 +366,7 @@ bool LilyGoTEmbedCC1101::initRotary()
     return false;
 }
 
-void LilyGoTEmbedCC1101::enableRotary()
+void LilyGoTEmbedPlus::enableRotary()
 {
     if (rotaryHandler) {
         if (digitalRead(ENCODER_KEY) == LOW) {
@@ -376,26 +376,26 @@ void LilyGoTEmbedCC1101::enableRotary()
     }
 }
 
-void LilyGoTEmbedCC1101::disableRotary()
+void LilyGoTEmbedPlus::disableRotary()
 {
     if (rotaryHandler) {
         vTaskSuspend(rotaryHandler);
     }
 }
 
-void LilyGoTEmbedCC1101::setRotaryStepDivider(uint8_t divider) { rotaryStepDivider = constrain(divider, 1, 8); }
+void LilyGoTEmbedPlus::setRotaryStepDivider(uint8_t divider) { rotaryStepDivider = constrain(divider, 1, 8); }
 
-void LilyGoTEmbedCC1101::loop()
+void LilyGoTEmbedPlus::loop()
 {
     userButton.loop();
 }
 
-void LilyGoTEmbedCC1101::rotaryTaskEntry(void *param)
+void LilyGoTEmbedPlus::rotaryTaskEntry(void *param)
 {
-    static_cast<LilyGoTEmbedCC1101 *>(param)->rotaryTaskLoop();
+    static_cast<LilyGoTEmbedPlus *>(param)->rotaryTaskLoop();
 }
 
-bool LilyGoTEmbedCC1101::getRotaryButtonState()
+bool LilyGoTEmbedPlus::getRotaryButtonState()
 {
     static uint8_t buttonState = HIGH;
     static uint8_t lastReading = HIGH;
@@ -422,7 +422,7 @@ bool LilyGoTEmbedCC1101::getRotaryButtonState()
     return buttonState == LOW;
 }
 
-void LilyGoTEmbedCC1101::rotaryTaskLoop()
+void LilyGoTEmbedPlus::rotaryTaskLoop()
 {
     bool lastButtonState = false;
     uint8_t pendingDirection = DIR_NONE;
@@ -471,7 +471,7 @@ void LilyGoTEmbedCC1101::rotaryTaskLoop()
     }
 }
 
-bool LilyGoTEmbedCC1101::readPowerSnapshot(LilyGoPowerSnapshot &snapshot)
+bool LilyGoTEmbedPlus::readPowerSnapshot(LilyGoPowerSnapshot &snapshot)
 {
     LilyGoPowerManageInf::readPowerSnapshot(snapshot);
     if (!(devicesProbe & HW_GAUGE_ONLINE)) return snapshot.pmuPresent;
@@ -488,23 +488,23 @@ bool LilyGoTEmbedCC1101::readPowerSnapshot(LilyGoPowerSnapshot &snapshot)
     return true;
 }
 
-float LilyGoTEmbedCC1101::getBattVoltage() { return gauge.getVoltage(); }
-float LilyGoTEmbedCC1101::getBatteryPercent() { return gauge.getStateOfCharge(); }
-float LilyGoTEmbedCC1101::getTemperature() { return gauge.getTemperature(); }
-bool LilyGoTEmbedCC1101::hasOTG() { return devicesProbe & HW_PMU_ONLINE; }
-bool LilyGoTEmbedCC1101::isOTGEnabled() { return pmic.power().isBoostEnabled(); }
-bool LilyGoTEmbedCC1101::enableOTG() { return pmic.power().enableBoost(true); }
-bool LilyGoTEmbedCC1101::disableOTG() { return pmic.power().enableBoost(false); }
-bool LilyGoTEmbedCC1101::shutdown()
+float LilyGoTEmbedPlus::getBattVoltage() { return gauge.getVoltage(); }
+float LilyGoTEmbedPlus::getBatteryPercent() { return gauge.getStateOfCharge(); }
+float LilyGoTEmbedPlus::getTemperature() { return gauge.getTemperature(); }
+bool LilyGoTEmbedPlus::hasOTG() { return devicesProbe & HW_PMU_ONLINE; }
+bool LilyGoTEmbedPlus::isOTGEnabled() { return pmic.power().isBoostEnabled(); }
+bool LilyGoTEmbedPlus::enableOTG() { return pmic.power().enableBoost(true); }
+bool LilyGoTEmbedPlus::disableOTG() { return pmic.power().enableBoost(false); }
+bool LilyGoTEmbedPlus::shutdown()
 {
     if (pmic.charger().getStatus().vbusPresent) return false;
     return pmic.power().enableShipMode(true);
 }
 
-bool LilyGoTEmbedCC1101::lockSPI(TickType_t ticksToWait) { return LilyGoDispArduinoSPI::lock(ticksToWait); }
-void LilyGoTEmbedCC1101::unlockSPI() { LilyGoDispArduinoSPI::unlock(); }
+bool LilyGoTEmbedPlus::lockSPI(TickType_t ticksToWait) { return LilyGoDispArduinoSPI::lock(ticksToWait); }
+void LilyGoTEmbedPlus::unlockSPI() { LilyGoDispArduinoSPI::unlock(); }
 
-uint64_t LilyGoTEmbedCC1101::getWakeupPinMask(WakeupSource_t wakeupSource) const
+uint64_t LilyGoTEmbedPlus::getWakeupPinMask(WakeupSource_t wakeupSource) const
 {
     uint64_t pins = 0;
     if (wakeupSource & (WAKEUP_SRC_BOOT_BUTTON | WAKEUP_SRC_ROTARY_BUTTON)) {
@@ -516,7 +516,7 @@ uint64_t LilyGoTEmbedCC1101::getWakeupPinMask(WakeupSource_t wakeupSource) const
     return pins;
 }
 
-void LilyGoTEmbedCC1101::lightSleep(WakeupSource_t wakeupSource)
+void LilyGoTEmbedPlus::lightSleep(WakeupSource_t wakeupSource)
 {
     const uint64_t wakeupPins = getWakeupPinMask(wakeupSource);
     if (wakeupPins == 0) {
@@ -552,7 +552,7 @@ void LilyGoTEmbedCC1101::lightSleep(WakeupSource_t wakeupSource)
     }
 }
 
-void LilyGoTEmbedCC1101::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSeconds)
+void LilyGoTEmbedPlus::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSeconds)
 {
     const bool timerWakeup = wakeupSource & WAKEUP_SRC_TIMER;
     const WakeupSource_t physicalSources = static_cast<WakeupSource_t>(
@@ -598,8 +598,8 @@ void LilyGoTEmbedCC1101::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleep
 }
 
 namespace {
-LilyGoTEmbedCC1101 &getInstanceRef() { return *LilyGoTEmbedCC1101::getInstance(); }
+LilyGoTEmbedPlus &getInstanceRef() { return *LilyGoTEmbedPlus::getInstance(); }
 }
-LilyGoTEmbedCC1101 &instance = getInstanceRef();
+LilyGoTEmbedPlus &instance = getInstanceRef();
 
-#endif // ARDUINO_T_EMBED_CC1101
+#endif // ARDUINO_T_EMBED_PLUS

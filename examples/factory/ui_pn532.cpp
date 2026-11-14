@@ -8,7 +8,7 @@
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO) && (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_CC1101)) && !defined(EXCLUDE_PN532)
+#if defined(ARDUINO) && (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && !defined(EXCLUDE_PN532)
 
 static lv_obj_t *page_container = nullptr;
 static lv_obj_t *status_label = nullptr;

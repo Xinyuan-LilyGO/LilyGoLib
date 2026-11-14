@@ -47,7 +47,7 @@
 | [T-Vibe-Dev][5]               | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Watch-2020-V3][7]          | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]             | twatch-2019-factory-xxxx-0x0.bin         |
-| [T-Embed-CC1101 or Plus][9]        | tembed-cc1101-factory-xxxx-0x0.bin   |
+| [T-Embed-Plus][9]                   | tembed-plus-factory-xxxx-0x0.bin   |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -72,7 +72,7 @@
 > * [让 T-Watch-S3-Plus 进入下载模式](../docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus)
 > * [让 T-Watch-Ultra 进入下载模式](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [让 T-LoRa-Pager 或 T-Vibe-Pager 进入下载模式](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
-> * [让 T-Embed-CC1101 或 Plus 版本进入下载模式](../docs/lilygo-t-embed-cc1101.md#3-entering-download-mode-on-the-t-embed-cc1101)
+> * [让 T-Embed-Plus 进入下载模式](../docs/lilygo-t-embed-plus.md#3-entering-download-mode-on-the-t-embed-plus)
 
 > ⚠️ 烧录完成后，必须按一次复位按钮，否则设备会一直停留在下载模式.
 >

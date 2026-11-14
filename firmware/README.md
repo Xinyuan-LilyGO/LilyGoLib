@@ -49,7 +49,7 @@
 | [T-Vibe-Dev][5]                    | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
-| [T-Embed-CC1101 or Plus][9]        | tembed-cc1101-factory-xxxx-0x0.bin   |
+| [T-Embed-Plus][9]                   | tembed-plus-factory-xxxx-0x0.bin   |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -74,7 +74,7 @@
 > * [How to put T-Watch-S3-Plus into download mode](../docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus)
 > * [How to put T-Watch-Ultra into download mode](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [How to put T-LoRa-Pager or T-Vibe-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
-> * [How to put T-Embed-CC1101 or Plus version into download mode](../docs/lilygo-t-embed-cc1101.md#3-entering-download-mode-on-the-t-embed-cc1101)
+> * [How to put T-Embed-Plus into download mode](../docs/lilygo-t-embed-plus.md#3-entering-download-mode-on-the-t-embed-plus)
 >
 > ⚠️ After the download is complete, you must press the reset button once; otherwise, the device will remain in download mode.
 >

@@ -1,7 +1,7 @@
 {
   "packages": [
     {
-      "name": "lilygo_t_embed_cc1101_temp",
+      "name": "lilygo_tembed_plus_temp",
       "maintainer": "LILYGO",
       "websiteURL": "https://github.com/Xinyuan-LilyGO/LilyGoLib",
       "email": "lewishe@outlook.com",
@@ -10,20 +10,20 @@
       },
       "platforms": [
         {
-          "name": "LILYGO T-Embed-CC1101 Temporary Support",
+          "name": "LILYGO T-Embed-Plus Temporary Support",
           "architecture": "esp32",
           "version": "0.1.0",
           "category": "Contributed",
           "help": {
             "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
           },
-          "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed_cc1101/dist/lilygo-t-embed-cc1101-temp-0.1.0.zip",
-          "archiveFileName": "lilygo-t-embed-cc1101-temp-0.1.0.zip",
+          "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed_plus/dist/lilygo-t-embed-plus-temp-0.1.0.zip",
+          "archiveFileName": "lilygo-t-embed-plus-temp-0.1.0.zip",
           "checksum": "SHA-256:0122a429a570ce28361e4f8d063cdf9b4aa98c37833863b592a51ba13427be36",
           "size": "2887",
           "boards": [
             {
-              "name": "LilyGo T-Embed-CC1101"
+              "name": "LilyGo T-Embed-Plus"
             }
           ],
           "toolsDependencies": []

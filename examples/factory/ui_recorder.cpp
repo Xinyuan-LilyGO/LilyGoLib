@@ -29,7 +29,7 @@ static constexpr int kMicSensitivity = 1000;
 #if defined(USING_PDM_MICROPHONE) && \
     (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_TWATCH_2020_V3) || \
      defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
-     defined(ARDUINO_T_EMBED_CC1101))
+     defined(ARDUINO_T_EMBED_PLUS))
 static constexpr bool kRemoveMicDcOffset = true;
 #else
 static constexpr bool kRemoveMicDcOffset = false;
