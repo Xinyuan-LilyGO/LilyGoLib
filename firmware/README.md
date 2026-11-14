@@ -49,6 +49,7 @@
 | [T-Vibe-Dev][5]                    | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
+| [T-Embed-CC1101 or Plus][9]        | tembed-cc1101-factory-xxxx-0x0.bin   |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -58,6 +59,7 @@
 [6]: https://lilygo.cc/products/t-deck-plus
 [7]: https://lilygo.cc/products/t-watch-2020-v3
 [8]: https://lilygo.cc/products
+[9]: https://lilygo.cc/products/t-embed-cc1101-plus
 
 ## 2️⃣How to Flash ?
 
@@ -72,6 +74,7 @@
 > * [How to put T-Watch-S3-Plus into download mode](../docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus)
 > * [How to put T-Watch-Ultra into download mode](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [How to put T-LoRa-Pager or T-Vibe-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
+> * [How to put T-Embed-CC1101 or Plus version into download mode](../docs/lilygo-t-embed-cc1101.md#3-entering-download-mode-on-the-t-embed-cc1101)
 >
 > ⚠️ After the download is complete, you must press the reset button once; otherwise, the device will remain in download mode.
 >
@@ -127,10 +130,10 @@ In order to launch esptool.py, exec directly with this:
 python3 -m esptool
 ```
 
-For ESP32-S3 use the following command to write
+Use the following command to write
 
 ```bash
-esptool --chip esp32s3  --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m 0x0 firmware.bin
+esptool --port /dev/tty.usbmodexxxx --baud 115200 write-flash 0x0 firmware.bin
 
 ```
 

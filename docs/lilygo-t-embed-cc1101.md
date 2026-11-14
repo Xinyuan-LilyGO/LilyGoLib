@@ -94,15 +94,14 @@ After T-Embed-CC1101 support is included in a stable Arduino-ESP32 release:
 
 <a id="t-embed-cc1101-enter-download-mode"></a>
 
-## `3` Entering Download Mode
+## `3` Entering Download Mode on the T-Embed-CC1101
 
 Use these steps if the board cannot be uploaded normally:
 
 1. Connect the board to the computer through USB-C.
 2. Press and hold the center of the rotary encoder. This is the BOOT switch on
    GPIO0.
-3. While holding BOOT, press and release the reset button on the back of the
-   device.
+3. While holding BOOT, press and release the reset button.
 4. Release the rotary encoder.
 5. Start the upload again.
 
@@ -110,3 +109,8 @@ Use these steps if the board cannot be uploaded normally:
 >
 > The rotary encoder center switch is also the normal application input on
 > GPIO0. Keep it released during a normal reset.
+>
+> If you have the version with a built-in antenna, then to access the reset button you have to open the back cover; you'll find the reset button on the side near the ESP32 module.
+>
+> If the device doesn't work after pressing the reset button following a firmware upload, it's necessary to disconnect the battery and just power the device through USB-C to test if it can start normally. If it still won't start at this step, it means there's a problem with the device.
+>

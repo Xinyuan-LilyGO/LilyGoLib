@@ -47,6 +47,7 @@
 | [T-Vibe-Dev][5]               | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Watch-2020-V3][7]          | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]             | twatch-2019-factory-xxxx-0x0.bin         |
+| [T-Embed-CC1101 or Plus][9]        | tembed-cc1101-factory-xxxx-0x0.bin   |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -56,6 +57,7 @@
 [6]: https://lilygo.cc/products/t-deck-plus
 [7]: https://lilygo.cc/products/t-watch-2020-v3
 [8]: https://lilygo.cc/products
+[9]: https://lilygo.cc/products/t-embed-cc1101-plus
 
 ## 2️⃣ 如何烧录固件？
 
@@ -70,7 +72,8 @@
 > * [让 T-Watch-S3-Plus 进入下载模式](../docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus)
 > * [让 T-Watch-Ultra 进入下载模式](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [让 T-LoRa-Pager 或 T-Vibe-Pager 进入下载模式](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
->
+> * [让 T-Embed-CC1101 或 Plus 版本进入下载模式](../docs/lilygo-t-embed-cc1101.md#3-entering-download-mode-on-the-t-embed-cc1101)
+
 > ⚠️ 烧录完成后，必须按一次复位按钮，否则设备会一直停留在下载模式.
 >
 > ⚠️ 烧录地址必须是 0，不能使用默认的 0x1000.
@@ -123,10 +126,10 @@ python3 -m pip install esptool
 python3 -m esptool
 ```
 
-对于 ESP32-S3，使用以下命令烧录固件：
+使用以下命令烧录固件：
 
 ```bash
-esptool --chip esp32s3  --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m 0x0 firmware.bin
+esptool --port /dev/tty.usbmodexxxx --baud 115200 write-flash 0x0 firmware.bin
 ```
 
 # 如何查看设备的串口启动日志
