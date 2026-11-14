@@ -2365,7 +2365,7 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_HAS_AXP2602_GUAGE
-#if defined(USING_AXP2602_GUAGE) || defined(T_DECK_V2_REV06) || defined(T_DECK_V2_REV07)
+#if defined(USING_AXP2602_GAUGE) || defined(T_DECK_V2_REV06) || defined(T_DECK_V2_REV07)
 #define FACTORY_HAS_AXP2602_GUAGE      1
 #else
 #define FACTORY_HAS_AXP2602_GUAGE      0
@@ -2721,16 +2721,16 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #if FACTORY_HAS_AXP2602_GUAGE
-#ifndef USING_AXP2602_GUAGE
-#define USING_AXP2602_GUAGE
+#ifndef USING_AXP2602_GAUGE
+#define USING_AXP2602_GAUGE
 #endif
 #endif
 
 #if defined(ARDUINO_T_DECK_V2) && defined(GAUGE_CHIP_AXP2602)
-#error "T-Deck V2 uses USING_AXP2602_GUAGE; do not define GAUGE_CHIP_AXP2602."
+#error "T-Deck V2 uses USING_AXP2602_GAUGE; do not define GAUGE_CHIP_AXP2602."
 #endif
 
-#if defined(ARDUINO_T_DECK_V2) && defined(USING_BQ_GAUGE) && defined(USING_AXP2602_GUAGE)
+#if defined(ARDUINO_T_DECK_V2) && defined(USING_BQ_GAUGE) && defined(USING_AXP2602_GAUGE)
 #error "T-Deck V2 uses an AXP2602 gauge; do not define USING_BQ_GAUGE for this board."
 #endif
 
