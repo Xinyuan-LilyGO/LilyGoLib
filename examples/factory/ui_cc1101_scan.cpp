@@ -26,9 +26,12 @@ static constexpr float kScanFrequencies[] = {
 static constexpr uint8_t kRangeStart[] = {0, 24, 48, 0};
 static constexpr uint8_t kRangeEnd[] = {23, 47, 56, 56};
 static constexpr const char *kRangeNames[] = {
-    "300-350 MHz", "387-468 MHz", "779-928 MHz", "All ranges"
+    "300-348 MHz", "387-464 MHz", "779-928 MHz", "All ranges"
 };
 static constexpr size_t kFrequencyCount = sizeof(kScanFrequencies) / sizeof(kScanFrequencies[0]);
+static constexpr int kRssiFloor = -95;
+static constexpr int kRssiCeiling = -20;
+static constexpr int kBarMaxHeight = 75;
 
 static lv_obj_t *page_container = nullptr;
 static lv_obj_t *chart = nullptr;
@@ -43,8 +46,19 @@ static uint8_t scan_index = 0;
 static bool scanning = false;
 static bool radio_ready = false;
 static bool scroll_mode = false;
+static uint8_t bar_heights[kFrequencyCount];
 static float rssi_values[kFrequencyCount];
 static float peak_rssi[kFrequencyCount];
+
+static uint8_t range_start()
+{
+    return kRangeStart[range_index];
+}
+
+static uint8_t range_count()
+{
+    return kRangeEnd[range_index] - range_start() + 1;
+}
 
 static void set_status(const char *text)
 {
@@ -54,11 +68,23 @@ static void set_status(const char *text)
 static void clear_samples()
 {
     for (size_t i = 0; i < kFrequencyCount; ++i) {
-        rssi_values[i] = -100.0f;
-        peak_rssi[i] = -100.0f;
-        if (series) lv_chart_set_value_by_id(chart, series, i, -100);
+        bar_heights[i] = 0;
+        rssi_values[i] = kRssiFloor;
+        peak_rssi[i] = kRssiFloor;
+    }
+    if (series) {
+        for (uint8_t i = 0; i < range_count(); ++i) {
+            lv_chart_set_value_by_id(chart, series, i, 0);
+        }
     }
     if (chart) lv_chart_refresh(chart);
+}
+
+static void configure_chart_range()
+{
+    if (!chart || !series) return;
+    lv_chart_set_point_count(chart, range_count());
+    clear_samples();
 }
 
 static bool prepare_radio()
@@ -68,7 +94,7 @@ static bool prepare_radio()
         return false;
     }
 
-    const float frequency = kScanFrequencies[kRangeStart[range_index]];
+    const float frequency = kScanFrequencies[range_start()];
     instance.lockSPI();
     int16_t state = instance.setRFFrequencyBand(frequency);
     if (state == RADIOLIB_ERR_NONE) state = radio.setOOK(true);
@@ -122,7 +148,7 @@ static void start_scan()
 {
     stop_scan();
     clear_samples();
-    scan_index = kRangeStart[range_index];
+    scan_index = 0;
     if (!prepare_radio()) return;
     scanning = true;
     if (scan_timer) lv_timer_resume(scan_timer);
@@ -134,23 +160,28 @@ static void scan_tick(lv_timer_t *timer)
     (void)timer;
     if (!scanning) return;
 
-    const uint8_t start = kRangeStart[range_index];
-    const uint8_t end = kRangeEnd[range_index];
-    if (scan_index < start || scan_index > end) scan_index = start;
+    const uint8_t start = range_start();
+    const uint8_t count = range_count();
+    if (scan_index >= count) scan_index = 0;
 
-    const int rssi = read_rssi(kScanFrequencies[scan_index]);
-    const size_t index = scan_index;
+    const size_t index = start + scan_index;
+    const int rssi = read_rssi(kScanFrequencies[index]);
     rssi_values[index] = (float)rssi;
     if (rssi > peak_rssi[index]) peak_rssi[index] = (float)rssi;
 
-    // Keep a visible bar for a little longer to make short peaks easier to see.
-    int display_rssi = (int)rssi_values[index];
-    if (display_rssi < -100) display_rssi = -100;
-    lv_chart_set_value_by_id(chart, series, index, display_rssi);
+    // Hold stronger samples and decay weaker samples slowly.
+    const int sample_height = map(constrain(rssi, kRssiFloor, kRssiCeiling),
+                                  kRssiFloor, kRssiCeiling, 0, kBarMaxHeight);
+    if (sample_height > bar_heights[index]) {
+        bar_heights[index] = sample_height;
+    } else {
+        bar_heights[index] -= (bar_heights[index] - sample_height) / 2;
+    }
+    lv_chart_set_value_by_id(chart, series, scan_index, bar_heights[index]);
     lv_chart_refresh(chart);
 
     int strongest = start;
-    for (uint8_t i = start; i <= end; ++i) {
+    for (uint8_t i = start; i <= kRangeEnd[range_index]; ++i) {
         if (peak_rssi[i] > peak_rssi[strongest]) strongest = i;
     }
     char message[96];
@@ -163,7 +194,7 @@ static void scan_tick(lv_timer_t *timer)
     }
 
     ++scan_index;
-    if (scan_index > end) scan_index = start;
+    if (scan_index >= count) scan_index = 0;
 }
 
 static void range_changed(lv_event_t *event)
@@ -171,8 +202,8 @@ static void range_changed(lv_event_t *event)
     if (lv_event_get_code(event) != LV_EVENT_VALUE_CHANGED) return;
     lv_obj_t *dropdown = (lv_obj_t *)lv_event_get_target(event);
     range_index = (uint8_t)lv_dropdown_get_selected(dropdown);
+    configure_chart_range();
     if (scanning) start_scan();
-    else clear_samples();
     lv_label_set_text_fmt(peak_label, "Range: %s", kRangeNames[range_index]);
 }
 
@@ -271,8 +302,8 @@ static void ui_cc1101_scan_enter(lv_obj_t *parent)
     chart = lv_chart_create(state_card);
     lv_obj_set_size(chart, LV_PCT(100), 84);
     lv_chart_set_type(chart, LV_CHART_TYPE_BAR);
-    lv_chart_set_point_count(chart, kFrequencyCount);
-    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, -100, -20);
+    lv_chart_set_point_count(chart, range_count());
+    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, kBarMaxHeight);
     lv_chart_set_div_line_count(chart, 4, 0);
     lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_CIRCULAR);
     lv_obj_add_flag(chart, LV_OBJ_FLAG_CLICKABLE);
@@ -286,6 +317,7 @@ static void ui_cc1101_scan_enter(lv_obj_t *parent)
     lv_obj_set_style_bg_color(chart, UI_COLOR_BG, 0);
     lv_obj_set_style_border_width(chart, 1, 0);
     lv_obj_set_style_border_color(chart, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_pad_column(chart, 2, LV_PART_MAIN);
     series = lv_chart_add_series(chart, UI_COLOR_ACCENT, LV_CHART_AXIS_PRIMARY_Y);
     clear_samples();
 
