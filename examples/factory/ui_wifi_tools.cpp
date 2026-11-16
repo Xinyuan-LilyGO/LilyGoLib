@@ -27,8 +27,9 @@ static lv_obj_t *target_ta = NULL;
 static lv_obj_t *port_dd = NULL;
 static lv_obj_t *result_label = NULL;
 static lv_obj_t *keyboard = NULL;
+static ui_soft_keyboard_lift_t keyboard_lift = {NULL, NULL, -1};
 
-#if defined(USING_TOUCHPAD) || defined(USING_INPUT_DEV_TOUCHPAD) || defined(HAS_TOUCHSCREEN)
+#if FACTORY_HAS_SOFT_KEYBOARD
 #define WIFI_TOOLS_HAS_SOFT_KEYBOARD 1
 #else
 #define WIFI_TOOLS_HAS_SOFT_KEYBOARD 0
@@ -146,8 +147,7 @@ static void show_input_keyboard(lv_obj_t *ta)
     enable_keyboard();
 #if WIFI_TOOLS_HAS_SOFT_KEYBOARD
     if (keyboard) {
-        lv_keyboard_set_textarea(keyboard, ta);
-        lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+        ui_soft_keyboard_show(keyboard, ta, lv_obj_get_parent(ta), &keyboard_lift);
     }
 #else
     (void)keyboard;
@@ -162,8 +162,7 @@ static void hide_input_keyboard(lv_obj_t *ta)
     }
 #if WIFI_TOOLS_HAS_SOFT_KEYBOARD
     if (keyboard) {
-        lv_keyboard_set_textarea(keyboard, NULL);
-        lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+        ui_soft_keyboard_hide(keyboard, &keyboard_lift);
     }
 #else
     (void)keyboard;
@@ -185,12 +184,16 @@ static void target_ta_cb(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *ta = lv_event_get_target_obj(e);
 
-    if (code == LV_EVENT_CLICKED && target_event_indev_type(e) == LV_INDEV_TYPE_POINTER) {
+    if (code == LV_EVENT_CLICKED &&
+            (target_event_indev_type(e) == LV_INDEV_TYPE_POINTER ||
+             target_event_indev_type(e) == LV_INDEV_TYPE_ENCODER ||
+             target_event_indev_type(e) == LV_INDEV_TYPE_KEYPAD)) {
         hide_input_keyboard(ta);
         show_input_keyboard(ta);
     } else if (code == LV_EVENT_FOCUSED) {
         lv_obj_scroll_to_view_recursive(ta, LV_ANIM_ON);
-    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DEFOCUSED) {
+    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL ||
+               (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
         hide_input_keyboard(ta);
 #if WIFI_TOOLS_HAS_SOFT_KEYBOARD
     } else if (code == LV_EVENT_DELETE && keyboard) {

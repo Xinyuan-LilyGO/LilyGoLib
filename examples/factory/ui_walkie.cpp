@@ -164,9 +164,8 @@ static constexpr int    kRippleGrow  = 36;   // how far the rings expand
 // Setup-page widgets
 static lv_obj_t        *s_nick_ta    = NULL;
 static lv_obj_t        *s_chan_dd    = NULL;
-#ifdef USING_TOUCHPAD
 static lv_obj_t        *s_keyboard   = NULL;
-#endif
+static ui_soft_keyboard_lift_t s_keyboard_lift = {NULL, NULL, -1};
 
 static AudioInputIf    *audioInput   = NULL;
 static AudioOutputIf   *audioOutput  = NULL;
@@ -662,8 +661,9 @@ static void reset_setup_widgets()
 
 static void delete_setup_keyboard()
 {
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     if (s_keyboard) {
+        ui_soft_keyboard_hide(s_keyboard, &s_keyboard_lift);
         lv_obj_delete(s_keyboard);
         s_keyboard = NULL;
     }
@@ -1203,6 +1203,7 @@ static void nick_ta_event_cb(lv_event_t *e)
         lv_key_t key = *(lv_key_t *)lv_event_get_param(e);
         if (key == LV_KEY_ENTER) {
             lv_group_set_editing((lv_group_t *)lv_obj_get_group(ta), false);
+            ui_soft_keyboard_hide(s_keyboard, &s_keyboard_lift);
             disable_keyboard();
             lv_event_stop_processing(e);
             return;
@@ -1212,16 +1213,20 @@ static void nick_ta_event_cb(lv_event_t *e)
     if (type == LV_INDEV_TYPE_ENCODER) {
         if (code == LV_EVENT_CLICKED && edited) {
             lv_group_set_editing((lv_group_t *)lv_obj_get_group(ta), false);
+            ui_soft_keyboard_hide(s_keyboard, &s_keyboard_lift);
             disable_keyboard();
+        } else if (code == LV_EVENT_CLICKED && !edited) {
+            lv_group_set_editing((lv_group_t *)lv_obj_get_group(ta), true);
+            enable_keyboard();
+            ui_soft_keyboard_show(s_keyboard, ta, lv_obj_get_parent(ta), &s_keyboard_lift);
         } else if (code == LV_EVENT_FOCUSED && edited) {
             enable_keyboard();
         }
     }
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     else if (type == LV_INDEV_TYPE_POINTER && s_keyboard) {
         if (code == LV_EVENT_CLICKED) {
-            lv_keyboard_set_textarea(s_keyboard, ta);
-            lv_obj_remove_flag(s_keyboard, LV_OBJ_FLAG_HIDDEN);
+            ui_soft_keyboard_show(s_keyboard, ta, lv_obj_get_parent(ta), &s_keyboard_lift);
         }
     }
 #endif
@@ -1307,7 +1312,7 @@ static void build_setup_ui(lv_obj_t *parent)
     lv_obj_center(start_label);
     lv_obj_set_style_text_color(start_label, lv_color_white(), 0);
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     s_keyboard = lv_keyboard_create(lv_scr_act());
     lv_obj_set_style_bg_color(s_keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(s_keyboard, LV_OPA_COVER, 0);

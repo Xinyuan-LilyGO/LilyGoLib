@@ -402,7 +402,7 @@ lv_obj_t *create_syncword_textarea(lv_obj_t *card)
     snprintf(buf, sizeof(buf), "%d", radio_params_copy.syncWord);
     lv_textarea_set_text(ta, buf);
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     /* Show soft keyboard on touch devices when textarea is clicked */
     static lv_obj_t *sync_kb = NULL;
     lv_obj_add_event_cb(ta, [](lv_event_t *e) {
@@ -416,10 +416,24 @@ lv_obj_t *create_syncword_textarea(lv_obj_t *card)
             }
             lv_keyboard_set_textarea(sync_kb, ta);
             lv_obj_remove_flag(sync_kb, LV_OBJ_FLAG_HIDDEN);
+            lv_indev_t *indev = lv_indev_active();
+            if (indev && (lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER ||
+                          lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD)) {
+                lv_group_t *group = (lv_group_t *)lv_obj_get_group(ta);
+                if (group && lv_obj_get_group(sync_kb) != group) {
+                    if (lv_obj_get_group(sync_kb)) lv_group_remove_obj(sync_kb);
+                    lv_group_add_obj(group, sync_kb);
+                }
+                if (group) {
+                    lv_group_focus_obj(sync_kb);
+                    lv_group_set_editing(group, true);
+                }
+            }
         } else if (code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
             if (sync_kb) {
                 lv_keyboard_set_textarea(sync_kb, NULL);
                 lv_obj_add_flag(sync_kb, LV_OBJ_FLAG_HIDDEN);
+                if (lv_obj_get_group(sync_kb)) lv_group_remove_obj(sync_kb);
             }
             const char *text = lv_textarea_get_text(ta);
             if (text[0] != '\0') {

@@ -14,10 +14,18 @@ static lv_obj_t *page_container = NULL;
 static uint32_t nec_code = 0x12345678;  // LilyGo Factory ir remote test nec code
 static lv_obj_t *keyboard = NULL;
 static lv_obj_t *input_textarea = NULL;
+static ui_soft_keyboard_lift_t keyboard_lift = {NULL, NULL, -1};
 
 
 static void back_event_handler(lv_event_t *e)
 {
+    if (keyboard && ui_soft_keyboard_should_open()) {
+        ui_soft_keyboard_hide(keyboard, &keyboard_lift);
+    }
+    if (keyboard) {
+        lv_obj_delete(keyboard);
+        keyboard = NULL;
+    }
     if (page_container) {
         ui_destroy_app_page(page_container);
         page_container = NULL;
@@ -36,9 +44,14 @@ static void _msg_ta_cb(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *ta = (lv_obj_t *)lv_event_get_target(e);
     bool edited =  lv_obj_has_state(ta, LV_STATE_EDITED);
-    if (code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
-        lv_keyboard_set_textarea(keyboard, NULL);
-        lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+    if (code == LV_EVENT_READY ||
+            (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
+        if (ui_soft_keyboard_should_open()) {
+            ui_soft_keyboard_hide(keyboard, &keyboard_lift);
+        } else {
+            lv_keyboard_set_textarea(keyboard, NULL);
+            lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+        }
         const char *txt = lv_textarea_get_text(input_textarea);
         if (txt[0] == '0' && (txt[1] == 'x' || txt[1] == 'X')) {
             nec_code = (uint32_t)strtoul(&txt[2], NULL, 16);
@@ -52,8 +65,12 @@ static void _msg_ta_cb(lv_event_t *e)
             lv_group_set_editing((lv_group_t *)lv_obj_get_group(ta), false);
             disable_keyboard();
         } else {
-            lv_keyboard_set_textarea(keyboard, ta);
-            lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+            if (ui_soft_keyboard_should_open()) {
+                ui_soft_keyboard_show(keyboard, ta, lv_obj_get_parent(ta), &keyboard_lift);
+            } else {
+                lv_keyboard_set_textarea(keyboard, ta);
+                lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+            }
         }
     } else if (code == LV_EVENT_FOCUSED) {
         if (edited) {

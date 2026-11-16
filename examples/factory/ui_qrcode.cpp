@@ -24,6 +24,7 @@ static lv_obj_t *type_dd = NULL;
 static lv_obj_t *content_ta = NULL;
 static lv_obj_t *status_label = NULL;
 static lv_obj_t *keyboard = NULL;
+static ui_soft_keyboard_lift_t keyboard_lift = {NULL, NULL, -1};
 
 static char qr_content[256];
 
@@ -170,10 +171,15 @@ static void content_ta_cb(lv_event_t *e)
     lv_obj_t *ta = (lv_obj_t *)lv_event_get_target(e);
     bool edited = lv_obj_has_state(ta, LV_STATE_EDITED);
 
-    if (code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
+    if (code == LV_EVENT_READY ||
+            (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
         if (keyboard) {
-            lv_keyboard_set_textarea(keyboard, NULL);
-            lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+            if (ui_soft_keyboard_should_open()) {
+                ui_soft_keyboard_hide(keyboard, &keyboard_lift);
+            } else {
+                lv_keyboard_set_textarea(keyboard, NULL);
+                lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+            }
         }
         disable_keyboard();
         generate_cb(e);
@@ -183,8 +189,12 @@ static void content_ta_cb(lv_event_t *e)
             disable_keyboard();
         } else {
             if (keyboard) {
-                lv_keyboard_set_textarea(keyboard, ta);
-                lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+                if (ui_soft_keyboard_should_open()) {
+                    ui_soft_keyboard_show(keyboard, ta, lv_obj_get_parent(ta), &keyboard_lift);
+                } else {
+                    lv_keyboard_set_textarea(keyboard, ta);
+                    lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+                }
             }
         }
     } else if (code == LV_EVENT_FOCUSED) {
@@ -217,6 +227,9 @@ static void back_event_handler(lv_event_t *e)
 {
     disable_keyboard();
     if (keyboard) {
+        if (ui_soft_keyboard_should_open()) {
+            ui_soft_keyboard_hide(keyboard, &keyboard_lift);
+        }
         lv_obj_delete(keyboard);
         keyboard = NULL;
     }

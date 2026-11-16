@@ -39,7 +39,7 @@ static uint32_t wifi_connecting_deadline = 0;
 static lv_group_t *connect_prev_group = NULL;
 static lv_group_t *connect_modal_group = NULL;
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
 static lv_obj_t *keyboard = NULL;
 #endif
 static ui_soft_keyboard_lift_t connect_keyboard_lift = {NULL, NULL, -1};
@@ -166,7 +166,7 @@ static bool known_password_for_ssid(const char *ssid, char *out, size_t out_len)
 
 static void hide_keyboard(void)
 {
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     ui_soft_keyboard_hide(keyboard, &connect_keyboard_lift);
 #else
     ui_soft_keyboard_restore(&connect_keyboard_lift);
@@ -275,7 +275,7 @@ static void focus_password_textarea(lv_obj_t *ta)
     }
     password_editing = true;
     enable_keyboard();
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     if (keyboard && ui_soft_keyboard_should_open()) {
         ui_soft_keyboard_show(keyboard, ta, lv_obj_get_parent(ta), &connect_keyboard_lift);
     }
@@ -452,7 +452,8 @@ static void password_ta_event_cb(lv_event_t *e)
     } else if (code == LV_EVENT_CLICKED) {
         lv_indev_t *indev = lv_event_get_indev(e);
         lv_indev_type_t indev_type = indev ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
-        if ((indev_type == LV_INDEV_TYPE_ENCODER || indev_type == LV_INDEV_TYPE_KEYPAD) && password_editing) {
+        if ((indev_type == LV_INDEV_TYPE_ENCODER || indev_type == LV_INDEV_TYPE_KEYPAD) &&
+                password_editing && !ui_soft_keyboard_should_open()) {
             leave_password_textarea(ta);
         } else {
             focus_password_textarea(ta);
@@ -462,7 +463,8 @@ static void password_ta_event_cb(lv_event_t *e)
         if (password_editing) {
             focus_password_textarea(ta);
         }
-    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DEFOCUSED) {
+    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL ||
+               (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
         leave_password_textarea(ta);
     }
 }
@@ -775,7 +777,11 @@ static void ap_row_event_cb(lv_event_t *e)
     if (index < 0 || index >= (int)scan_results.size()) return;
 
     selected_index = index;
-    rebuild_ap_list();
+    /*
+     * Do not rebuild the list from inside its click event.  Rebuilding deletes
+     * the event target while LVGL is still dispatching the event, leaving the
+     * input group's focus pointer stale when the connect modal takes focus.
+     */
     open_connect_modal();
     hw_feedback();
 }
@@ -938,7 +944,7 @@ static void back_event_handler(lv_event_t *e)
 {
     close_connecting_overlay();
     close_connect_modal();
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     if (keyboard) {
         lv_obj_delete(keyboard);
         keyboard = NULL;
@@ -1009,7 +1015,7 @@ void ui_wireless_enter(lv_obj_t *parent)
     add_empty_row(wifi_enabled ? "Tap Scan to discover nearby networks." : "Turn on WiFi to scan.");
     if (!wifi_enabled) lv_obj_add_flag(ap_list_card, LV_OBJ_FLAG_HIDDEN);
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     keyboard = lv_keyboard_create(lv_layer_top());
     lv_obj_set_style_bg_color(keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(keyboard, LV_OPA_COVER, 0);

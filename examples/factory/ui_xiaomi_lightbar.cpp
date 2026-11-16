@@ -27,6 +27,8 @@ constexpr uint16_t COMMAND_RESET = 0x0600;
 
 lv_obj_t *page_container = nullptr;
 lv_obj_t *id_textarea = nullptr;
+lv_obj_t *id_keyboard = nullptr;
+ui_soft_keyboard_lift_t id_keyboard_lift = {nullptr, nullptr, -1};
 lv_obj_t *status_label = nullptr;
 lv_obj_t *brightness_slider = nullptr;
 lv_obj_t *brightness_value = nullptr;
@@ -280,9 +282,11 @@ void id_event_cb(lv_event_t *event)
         }
     }
 
-    if (code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
+    if (code == LV_EVENT_READY ||
+            (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
         commit_remote_id();
         if (group) lv_group_set_editing(group, false);
+        if (id_keyboard) ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
         disable_keyboard();
         return;
     }
@@ -293,10 +297,21 @@ void id_event_cb(lv_event_t *event)
         if (code == LV_EVENT_CLICKED && edited) {
             commit_remote_id();
             if (group) lv_group_set_editing(group, false);
+            if (id_keyboard) ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
             disable_keyboard();
+        } else if (code == LV_EVENT_CLICKED && !edited) {
+            if (group) lv_group_set_editing(group, true);
+            enable_keyboard();
+            ui_soft_keyboard_show(id_keyboard, textarea, lv_obj_get_parent(textarea),
+                                  &id_keyboard_lift);
         } else if (code == LV_EVENT_FOCUSED && edited) {
             enable_keyboard();
         }
+    } else if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER &&
+               code == LV_EVENT_CLICKED) {
+        enable_keyboard();
+        ui_soft_keyboard_show(id_keyboard, textarea, lv_obj_get_parent(textarea),
+                              &id_keyboard_lift);
     }
 }
 
@@ -386,6 +401,11 @@ void reset_cb(lv_event_t *event)
 void back_event_handler(lv_event_t *event)
 {
     (void)event;
+    if (id_keyboard) {
+        ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
+        lv_obj_delete(id_keyboard);
+        id_keyboard = nullptr;
+    }
     disable_keyboard();
     stop_remote_capture();
     if (capture_timer) {
@@ -457,6 +477,14 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     lv_textarea_set_text(id_textarea, id_text);
     lv_obj_add_event_cb(id_textarea, id_event_cb, LV_EVENT_ALL, nullptr);
     ui_create_card_item(card, LV_SYMBOL_EDIT, "Remote ID", id_textarea);
+
+#if FACTORY_HAS_SOFT_KEYBOARD
+    id_keyboard = lv_keyboard_create(lv_layer_top());
+    lv_obj_set_style_bg_color(id_keyboard, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(id_keyboard, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(id_keyboard, lv_color_white(), 0);
+    lv_obj_add_flag(id_keyboard, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     status_label = lv_label_create(card);
     lv_label_set_text(status_label, "Ready");

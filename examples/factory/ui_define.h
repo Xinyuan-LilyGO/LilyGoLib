@@ -26,6 +26,19 @@ static inline uint32_t millis(void) { return lv_tick_get(); }
 #include <string.h>
 #include "hal_interface.h"
 
+/*
+ * A soft keyboard is useful on touch devices and on T-Embed-Plus, which has
+ * no physical keyboard but can navigate LVGL widgets with its rotary encoder.
+ * Keep this separate from the touch capability macros: defining a touch macro
+ * would incorrectly enable touch-specific layout and input code on Embed Plus.
+ */
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(USING_TOUCHPAD) || \
+    defined(USING_INPUT_DEV_TOUCHPAD) || defined(HAS_TOUCHSCREEN)
+#define FACTORY_HAS_SOFT_KEYBOARD 1
+#else
+#define FACTORY_HAS_SOFT_KEYBOARD 0
+#endif
+
 #if defined(LILYGO_FACTORY_ENABLE_WALKIE) && LILYGO_FACTORY_ENABLE_WALKIE
 #define FACTORY_HAS_WALKIE_DEPS 1
 #elif defined(ARDUINO) && __has_include(<PCMFlow.h>) && __has_include(<PCMFlowG722.h>)
@@ -209,6 +222,7 @@ typedef struct {
     int32_t original_index;
 } ui_soft_keyboard_lift_t;
 bool ui_soft_keyboard_should_open(void);
+bool ui_soft_keyboard_focus_transition_active(void);
 void ui_soft_keyboard_show(lv_obj_t *keyboard, lv_obj_t *textarea,
                            lv_obj_t *lift_obj, ui_soft_keyboard_lift_t *lift);
 void ui_soft_keyboard_hide(lv_obj_t *keyboard, ui_soft_keyboard_lift_t *lift);

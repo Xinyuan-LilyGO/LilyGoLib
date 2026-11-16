@@ -13,6 +13,7 @@ LV_FONT_DECLARE(font_alibaba_24);
 
 static lv_group_t *msg_group = NULL;
 static lv_group_t *prev_group;
+static bool ui_soft_keyboard_focus_in_progress = false;
 
 #define UI_NAV_AUTO_HIDE_HOT_ZONE_PX    28
 #define UI_NAV_AUTO_HIDE_SWIPE_MIN_PX   8
@@ -513,11 +514,16 @@ void ui_prepare_textarea_for_encoder(lv_obj_t *textarea)
 
 bool ui_soft_keyboard_should_open(void)
 {
-#if defined(USING_TOUCHPAD) || defined(USING_INPUT_DEV_TOUCHPAD) || defined(HAS_TOUCHSCREEN)
+#if FACTORY_HAS_SOFT_KEYBOARD
     return !hw_has_keyboard();
 #else
     return false;
 #endif
+}
+
+bool ui_soft_keyboard_focus_transition_active(void)
+{
+    return ui_soft_keyboard_focus_in_progress;
 }
 
 void ui_soft_keyboard_restore(ui_soft_keyboard_lift_t *lift)
@@ -553,6 +559,30 @@ void ui_soft_keyboard_show(lv_obj_t *keyboard, lv_obj_t *textarea,
     lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
     lv_obj_update_layout(keyboard);
 
+    /*
+     * LVGL's keyboard is a button matrix.  On a rotary-only board it must be
+     * in the same group as the textarea and receive focus while editing so
+     * rotation selects keys and the center button activates them.
+     */
+    lv_group_t *group = lv_obj_get_group(textarea);
+    lv_group_t *keyboard_group = lv_obj_get_group(keyboard);
+    if (group) {
+        if (keyboard_group != group) {
+            if (keyboard_group) lv_group_remove_obj(keyboard);
+            lv_group_add_obj(group, keyboard);
+        }
+        lv_indev_t *indev = lv_indev_active();
+        lv_indev_type_t type = indev ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
+        if ((type == LV_INDEV_TYPE_ENCODER || type == LV_INDEV_TYPE_KEYPAD) &&
+                !ui_soft_keyboard_focus_in_progress) {
+            ui_soft_keyboard_focus_in_progress = true;
+            lv_group_set_editing(group, true);
+            lv_group_focus_obj(keyboard);
+            lv_group_set_editing(group, true);
+            ui_soft_keyboard_focus_in_progress = false;
+        }
+    }
+
     if (lift && lift_obj) {
         if (lift->lifted_obj && lift->lifted_obj != lift_obj) {
             ui_soft_keyboard_restore(lift);
@@ -577,6 +607,11 @@ void ui_soft_keyboard_hide(lv_obj_t *keyboard, ui_soft_keyboard_lift_t *lift)
     if (keyboard && lv_obj_is_valid(keyboard)) {
         lv_keyboard_set_textarea(keyboard, NULL);
         lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+        lv_group_t *group = lv_obj_get_group(keyboard);
+        if (group) {
+            lv_group_set_editing(group, false);
+            lv_group_remove_obj(keyboard);
+        }
     }
     ui_soft_keyboard_restore(lift);
 }

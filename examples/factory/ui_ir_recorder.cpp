@@ -23,6 +23,23 @@ static lv_obj_t *proto_lbl = NULL;
 static lv_obj_t *value_lbl = NULL;
 static lv_obj_t *raw_lbl = NULL;
 static lv_obj_t *filename_ta = NULL;
+static lv_obj_t *filename_keyboard = NULL;
+static ui_soft_keyboard_lift_t filename_keyboard_lift = {NULL, NULL, -1};
+
+static void filename_ta_event_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *ta = lv_event_get_target_obj(e);
+    if (!filename_keyboard || !ui_soft_keyboard_should_open()) return;
+
+    if (code == LV_EVENT_CLICKED) {
+        ui_soft_keyboard_show(filename_keyboard, ta, lv_obj_get_parent(ta),
+                              &filename_keyboard_lift);
+    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL ||
+               (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
+        ui_soft_keyboard_hide(filename_keyboard, &filename_keyboard_lift);
+    }
+}
 
 /* Captured data */
 static uint16_t *captured_raw = NULL;
@@ -224,6 +241,12 @@ static void back_event_handler(lv_event_t *e)
 
     clear_capture();
 
+    if (filename_keyboard) {
+        ui_soft_keyboard_hide(filename_keyboard, &filename_keyboard_lift);
+        lv_obj_delete(filename_keyboard);
+        filename_keyboard = NULL;
+    }
+
     if (page_container) {
         ui_destroy_app_page(page_container);
         page_container = NULL;
@@ -289,7 +312,19 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
     lv_obj_set_style_border_color(filename_ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(filename_ta, 1, 0);
     lv_obj_set_style_radius(filename_ta, 8, 0);
+    lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_CANCEL, NULL);
+    lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_DEFOCUSED, NULL);
     ui_create_card_item(save_card, LV_SYMBOL_FILE, "Filename", filename_ta);
+
+#if FACTORY_HAS_SOFT_KEYBOARD
+    filename_keyboard = lv_keyboard_create(lv_layer_top());
+    lv_obj_set_style_bg_color(filename_keyboard, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_opa(filename_keyboard, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(filename_keyboard, lv_color_white(), 0);
+    lv_obj_add_flag(filename_keyboard, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     /* Save button */
     lv_obj_t *save_btn = lv_btn_create(save_card);

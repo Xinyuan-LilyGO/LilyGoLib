@@ -161,7 +161,7 @@ static lv_obj_t *edit_sync_custom_divider = NULL;
 static lv_obj_t *edit_sync_ta = NULL;
 static ui_soft_keyboard_lift_t keyboard_lift = {NULL, NULL, -1};
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
 static lv_obj_t *keyboard = NULL;
 #endif
 
@@ -835,7 +835,7 @@ static lv_obj_t *textarea_lift_obj(lv_obj_t *ta)
 
 static void hide_keyboard(void)
 {
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     ui_soft_keyboard_hide(keyboard, &keyboard_lift);
 #else
     restore_lifted_input_position();
@@ -850,7 +850,7 @@ static void focus_textarea(lv_obj_t *ta)
     lv_group_t *group = (lv_group_t *)lv_obj_get_group(ta);
     if (group) lv_group_set_editing(group, true);
     enable_keyboard();
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     if (keyboard && ui_soft_keyboard_should_open()) {
         ui_soft_keyboard_show(keyboard, ta, textarea_lift_obj(ta), &keyboard_lift);
     }
@@ -1539,9 +1539,13 @@ static void textarea_event_cb(lv_event_t *e)
         edit_dirty = true;
     }
 
-    if (code == LV_EVENT_CLICKED && event_indev_type(e) == LV_INDEV_TYPE_POINTER) {
+    if (code == LV_EVENT_CLICKED &&
+            (event_indev_type(e) == LV_INDEV_TYPE_POINTER ||
+             event_indev_type(e) == LV_INDEV_TYPE_ENCODER ||
+             event_indev_type(e) == LV_INDEV_TYPE_KEYPAD)) {
         focus_textarea(ta);
-    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DEFOCUSED) {
+    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL ||
+               (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
         hide_keyboard();
     }
 }
@@ -2363,7 +2367,7 @@ static void cleanup(void)
     stop_radio_session();
     delete_add_button();
     delete_nav_edit_button();
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     if (keyboard) {
         lv_obj_delete(keyboard);
         keyboard = NULL;
@@ -2501,7 +2505,7 @@ void ui_lora_hub_enter(lv_obj_t *parent)
     register_profile_filter_shortcut();
 #endif
 
-#ifdef USING_TOUCHPAD
+#if FACTORY_HAS_SOFT_KEYBOARD
     keyboard = lv_keyboard_create(lv_layer_top());
     lv_obj_set_size(keyboard, LV_PCT(100), LV_PCT(45));
     lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
