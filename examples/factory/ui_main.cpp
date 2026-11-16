@@ -1888,6 +1888,8 @@ void setupGui()
         register_app("NFC Read", &img_nfc, &ui_pn532_main);
         extern app_t ui_pn532_write_main;
         register_app("NFC Write", &img_nfc, &ui_pn532_write_main);
+        extern app_t ui_pn532_erase_main;
+        register_app("NFC Erase", &img_nfc, &ui_pn532_erase_main);
     }
 #endif
 #if !defined(EXCLUDE_NFC_EMULATION)
