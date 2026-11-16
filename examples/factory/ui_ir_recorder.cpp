@@ -69,6 +69,25 @@ static void set_status(const char *text, lv_color_t color)
     lv_obj_set_style_text_color(status_lbl, color, 0);
 }
 
+/* Information cards contain no native input widget, so expose them to the
+ * encoder group explicitly. Their scroll-on-focus flag keeps the card visible
+ * while stepping through the page. */
+static void make_card_encoder_focusable(lv_obj_t *card)
+{
+#ifndef USING_TOUCHPAD
+    if (!card) return;
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    ui_add_accent_focus_style(card);
+    lv_group_t *group = lv_group_get_default();
+    if (group && lv_obj_get_group(card) != group) {
+        lv_group_add_obj(group, card);
+    }
+#else
+    (void)card;
+#endif
+}
+
 /* IR file header */
 typedef struct {
     char magic[4];        // "IRAW"
@@ -273,6 +292,7 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
 
     /* ── Status card ── */
     lv_obj_t *status_card = ui_create_card(page_container, "Status");
+    make_card_encoder_focusable(status_card);
     status_lbl = lv_label_create(status_card);
     lv_label_set_text(status_lbl, "Waiting for IR signal...");
     lv_obj_set_style_text_color(status_lbl, UI_COLOR_TEXT_SECONDARY, 0);
@@ -280,6 +300,7 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
 
     /* ── Capture info card ── */
     lv_obj_t *info_card = ui_create_card(page_container, "Captured Data");
+    make_card_encoder_focusable(info_card);
 
     proto_lbl = lv_label_create(info_card);
     lv_label_set_text(proto_lbl, "Protocol: --");
@@ -301,6 +322,10 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
 
     /* Filename input */
     filename_ta = lv_textarea_create(save_card);
+    /* ui_create_card_item reparents this widget into a horizontal row. Use a
+     * flex-growing width so the input stays inside the row on narrow screens. */
+    lv_obj_set_width(filename_ta, 1);
+    lv_obj_set_flex_grow(filename_ta, 1);
     lv_textarea_set_one_line(filename_ta, true);
     lv_textarea_set_max_length(filename_ta, 32);
     char default_name[32];
@@ -327,6 +352,8 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
 #endif
 
     /* Save button */
+    lv_obj_set_flex_align(save_card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     lv_obj_t *save_btn = lv_btn_create(save_card);
     lv_obj_set_size(save_btn, LV_PCT(60), 36);
     lv_obj_set_style_bg_color(save_btn, UI_COLOR_ACCENT, 0);

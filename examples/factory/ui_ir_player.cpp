@@ -367,6 +367,13 @@ void ui_ir_player_enter(lv_obj_t *parent)
 
     /* Ensure SD card is mounted */
     if (!hw_is_sd_insert()) {
+        lv_obj_t *required_card = ui_create_card(page_container, "SD Card Required");
+        status_lbl = lv_label_create(required_card);
+        lv_label_set_text(status_lbl, "IR Player requires an SD card.");
+        lv_obj_set_width(status_lbl, LV_PCT(100));
+        lv_label_set_long_mode(status_lbl, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_color(status_lbl, UI_COLOR_TEXT_SECONDARY, 0);
+        lv_obj_set_style_text_font(status_lbl, &lv_font_montserrat_12, 0);
         return;
     }
 
