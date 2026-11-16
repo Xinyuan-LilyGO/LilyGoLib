@@ -1885,7 +1885,9 @@ void setupGui()
 #if defined(ARDUINO) && (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && !defined(EXCLUDE_PN532)
     if (hw_get_device_online() & HW_NFC_ONLINE) {
         extern app_t ui_pn532_main;
-        register_app("PN532", &img_nfc, &ui_pn532_main);
+        register_app("NFC Read", &img_nfc, &ui_pn532_main);
+        extern app_t ui_pn532_write_main;
+        register_app("NFC Write", &img_nfc, &ui_pn532_write_main);
     }
 #endif
 #if !defined(EXCLUDE_NFC_EMULATION)

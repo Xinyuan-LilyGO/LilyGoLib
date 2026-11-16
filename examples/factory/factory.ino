@@ -132,9 +132,11 @@ void setup()
     // Examples of different ways to register wifi events;
     // these handlers will be called from another thread.
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
-    WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(false);
-    WiFi.disconnect(true);
+    // Keep WiFi off until the user opens the WiFi app. Starting STA and then
+    // immediately stopping it races the asynchronous driver teardown and can
+    // produce ESP_ERR_WIFI_STOP_STATE (12308) during netstack registration.
+    WiFi.mode(WIFI_OFF);
 
 #if defined(USING_BHI260_SENSOR)
     // Disabling sensor initialization is time-consuming; 
