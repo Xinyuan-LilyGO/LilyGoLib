@@ -91,6 +91,7 @@ The repository currently provides these environments:
 
 | Board | Environment |
 | --- | --- |
+| T-Embed | `t_embed` |
 | T-Embed-Plus | `t_embed_plus` |
 | T-Deck with SX1262 | `tdeck_sx1262` |
 | T-Vibe Dev (T-Deck without LoRa or GNSS) | `tvibe_dev` |

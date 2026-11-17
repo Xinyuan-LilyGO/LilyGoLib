@@ -88,6 +88,7 @@ src_dir = examples/factory
 
 | 开发板 | 环境名称 |
 | --- | --- |
+| T-Embed | `t_embed` |
 | T-Embed-Plus | `t_embed_plus` |
 | 搭载 SX1262 的 T-Deck | `tdeck_sx1262` |
 | T-Vibe Dev（无 LoRa、无 GNSS 的 T-Deck） | `tvibe_dev` |
