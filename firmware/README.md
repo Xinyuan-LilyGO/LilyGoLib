@@ -50,6 +50,7 @@
 | [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
 | [T-Embed-Plus][9]                  | tembed-plus-factory-xxxx-0x0.bin         |
+| [T-Embed][10]                      | tembed-factory-xxxx-0x0.bin              |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
@@ -60,6 +61,7 @@
 [7]: https://lilygo.cc/products/t-watch-2020-v3
 [8]: https://lilygo.cc/products
 [9]: https://lilygo.cc/products/t-embed-cc1101-plus
+[10]: https://lilygo.cc/products/t-embed-si4732
 
 ## 2️⃣How to Flash ?
 
@@ -75,6 +77,7 @@
 > * [How to put T-Watch-Ultra into download mode](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [How to put T-LoRa-Pager or T-Vibe-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
 > * [How to put T-Embed-Plus into download mode](../docs/lilygo-t-embed-plus.md#3-entering-download-mode-on-the-t-embed-plus)
+> * [How to put T-Embed into download mode](../docs/lilygo-t-embed.md#3-entering-download-mode-on-the-t-embed)
 >
 > ⚠️ After the download is complete, you must press the reset button once; otherwise, the device will remain in download mode.
 >
