@@ -13,7 +13,8 @@
 #include <math.h>
 #include <string.h>
 
-#if defined(ARDUINO) && defined(ARDUINO_T_LORA_PAGER) && \
+#if defined(ARDUINO) && \
+        (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_VIBE_PAGER)) && \
         __has_include(<Adafruit_NeoPixel.h>)
 #include <Adafruit_NeoPixel.h>
 #define MUSIC_EYES_HAS_PIXELS 1
@@ -496,7 +497,9 @@ static void update_face(uint32_t now)
 static void start_pixels()
 {
     /* Pager LED accessories reuse radio BUSY/RST pins. Never contend with a radio. */
+#if !defined(ARDUINO_T_VIBE_PAGER)
     if (hw_has_lora_hardware()) return;
+#endif
     left_pixels.begin();
     right_pixels.begin();
     left_pixels.clear();

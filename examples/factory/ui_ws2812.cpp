@@ -5,15 +5,15 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-09-02
  * 
- * T-LoRa Pager no-radio WS2812 strip test.
+ * T-LoRa Pager no-radio and T-Vibe Pager WS2812 strip test.
  */
 #include <LilyGoLog.h>
 #include "ui_define.h"
 #include <math.h>
 
-#if defined(ARDUINO_T_LORA_PAGER)
+#if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_VIBE_PAGER)
 
-#if defined(ARDUINO) && defined(ARDUINO_T_LORA_PAGER) && __has_include(<Adafruit_NeoPixel.h>)
+#if defined(ARDUINO) && __has_include(<Adafruit_NeoPixel.h>)
 #include <Adafruit_NeoPixel.h>
 #define UI_WS2812_ENABLED 1
 #else
@@ -225,9 +225,11 @@ static void stop_expression_imu_process(void);
 void ui_ws2812_init(void)
 {
 #if UI_WS2812_ENABLED
+#if !defined(ARDUINO_T_VIBE_PAGER)
     if (hw_has_lora_hardware()) {
         return;
     }
+#endif
 
     left_strip.begin();
     right_strip.begin();
@@ -2363,11 +2365,13 @@ void ui_ws2812_enter(lv_obj_t *parent)
     page_container = ui_create_app_page(parent, "LED Strip", back_event_handler);
     set_low_power_mode_flag(false);
 
+#if !defined(ARDUINO_T_VIBE_PAGER)
     if (hw_has_lora_hardware()) {
         lv_obj_t *card = ui_create_card(page_container, "Unavailable");
         ui_create_card_info(card, LV_SYMBOL_WARNING, "Status", "LoRa detected");
         return;
     }
+#endif
 
 #if !UI_WS2812_ENABLED
     lv_obj_t *card = ui_create_card(page_container, "Unavailable");
@@ -2428,4 +2432,4 @@ app_t ui_ws2812_main = {
     .user_data = nullptr,
 };
 
-#endif /* ARDUINO_T_LORA_PAGER */
+#endif /* ARDUINO_T_LORA_PAGER || ARDUINO_T_VIBE_PAGER */

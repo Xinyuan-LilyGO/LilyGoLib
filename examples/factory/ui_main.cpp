@@ -1812,7 +1812,8 @@ void setupGui()
 #if !defined(EXCLUDE_WIFI_TOOLS)
     extern app_t ui_wifi_tools_main;
 #endif
-#if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
+#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_VIBE_PAGER)) && \
+    !defined(EXCLUDE_WS2812_STRIP)
     extern app_t ui_ws2812_main;
 #endif
 #if defined(ARDUINO_T_EMBED_PLUS)
@@ -1969,11 +1970,14 @@ void setupGui()
     register_app("NES", &img_game, &ui_nes_main);
 #endif
 
-#if (defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)) || !defined(EXCLUDE_LORA)
+#if (defined(ARDUINO_T_LORA_PAGER) && !defined(ARDUINO_T_VIBE_PAGER) && \
+     !defined(EXCLUDE_WS2812_STRIP)) || !defined(EXCLUDE_LORA)
     const bool has_lora_hardware = hw_has_lora_hardware();
 #endif
 
-#if defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
+#if defined(ARDUINO_T_VIBE_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
+    register_app("LED Strip", &img_led, &ui_ws2812_main);
+#elif defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
     if (!has_lora_hardware) {
         register_app("LED Strip", &img_led, &ui_ws2812_main);
     }
