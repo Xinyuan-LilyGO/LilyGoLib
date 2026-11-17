@@ -16,7 +16,11 @@ typedef enum {
     HW_ES7210_MIC2 = (1U << 1),
     HW_ES7210_MIC3 = (1U << 2),
     HW_ES7210_MIC4 = (1U << 3),
+#if defined(ARDUINO_T_EMBED)
+    HW_ES7210_DEFAULT_MIC_MASK = HW_ES7210_MIC1 | HW_ES7210_MIC2,
+#else
     HW_ES7210_DEFAULT_MIC_MASK = HW_ES7210_MIC1 | HW_ES7210_MIC3,
+#endif
 } hw_es7210_mic_mask_t;
 
 typedef struct {

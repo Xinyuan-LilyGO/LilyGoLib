@@ -7,7 +7,7 @@
 
 #include <string.h>
 
-#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK)
+#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_EMBED)
 #include <LilyGoLib.h>
 #include <LilyGoLog.h>
 #include <math.h>
@@ -62,7 +62,7 @@ static void extract_waveform(uint8_t slot, int16_t *samples, uint16_t *level)
 
 bool hw_set_mic_waveform_start()
 {
-#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK)
+#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_EMBED)
     AudioInputIf *mic = instance.getAudioInput();
     if (!mic) {
         LILYGO_LOG_E("Audio input is unavailable");
@@ -85,7 +85,7 @@ bool hw_set_mic_waveform_start()
 
 void hw_set_mic_waveform_stop()
 {
-#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK)
+#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_EMBED)
     if (!s_running) return;
     AudioInputIf *mic = instance.getAudioInput();
     if (mic) mic->close();
@@ -98,7 +98,7 @@ bool hw_audio_get_waveform_data(MicrophoneWaveformData *waveform_data)
     if (!waveform_data) return false;
     memset(waveform_data, 0, sizeof(*waveform_data));
 
-#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK)
+#if defined(ARDUINO) && !defined(EXCLUDE_MICROPHONE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_EMBED)
     AudioInputIf *mic = instance.getAudioInput();
     size_t read_size = MIC_WAVEFORM_CAPTURE_FRAMES * s_channels * sizeof(int16_t);
     if (!mic || !s_running ||

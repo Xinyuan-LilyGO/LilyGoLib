@@ -188,11 +188,13 @@ static void saveFmTunedState() {}
 void hw_si4735_set_power(bool powerOn)
 {
 #if  defined(ARDUINO) && defined(USING_SI473X_RADIO)
+#if !defined(ARDUINO_T_EMBED)
     AudioOutputIf *audioOutput = instance.getAudioOutput();
     if (!audioOutput) {
         LILYGO_LOG_PRINTLN("Audio output not initialized");
         return;
     }
+#endif
 
     if (powerOn) {
         loadFmTunedState();
@@ -201,13 +203,18 @@ void hw_si4735_set_power(bool powerOn)
             LILYGO_LOG_PRINTLN("Si4735 power on failed");
             return;
         }
+#if !defined(ARDUINO_T_EMBED)
         band[bandIdx].bandType = FM_BAND_TYPE;
+#endif
         useBand();
         delay(100);
         instance.si4735.setFrequency(currentFrequency);
         instance.si4735.setFrequencyStep(currentStep);
         LILYGO_LOG_PRINTF("Power on , set freq = %u step : %u\n", currentFrequency, currentStep);
 
+#if defined(ARDUINO_T_EMBED)
+        instance.si4735.setVolume(43);
+#else
         // Setting SI473X Sample rate to 48K.
         instance.si4735.digitalOutputSampleRate(48000);
 
@@ -217,10 +224,13 @@ void hw_si4735_set_power(bool powerOn)
         instance.si4735.digitalOutputFormat(0 /* OSIZE */, 0 /* OMONO */, 0 /* OMODE */, 0 /* OFALL*/);
 
         instance.si4735.setVolume(63);
+#endif
 
     } else {
         saveFmTunedState();
+#if !defined(ARDUINO_T_EMBED)
         audioOutput->close();
+#endif
         instance.powerControl(POWER_SI4735_RADIO, false);
     }
 #endif /*defined(ARDUINO) && defined(USING_SI473X_RADIO)*/
@@ -229,26 +239,32 @@ void hw_si4735_set_power(bool powerOn)
 void hw_si4735_set_volume(uint8_t vol)
 {
 #if  defined(ARDUINO) && defined(USING_SI473X_RADIO)
-    // instance.si4735.setVolume(vol);
+#if defined(ARDUINO_T_EMBED)
+    if (instance.si4735Enabled()) instance.si4735.setVolume(vol);
+#else
     AudioOutputIf *audioOutput = instance.getAudioOutput();
     if (!audioOutput) {
         LILYGO_LOG_PRINTLN("Audio output not initialized");
         return;
     }
     audioOutput->setVolume(vol);
+#endif
 #endif /*defined(ARDUINO) && defined(USING_SI473X_RADIO)*/
 }
 
 uint8_t hw_si4735_get_volume(void)
 {
 #if  defined(ARDUINO) && defined(USING_SI473X_RADIO)
-    // return  instance.si4735.getVolume();
+#if defined(ARDUINO_T_EMBED)
+    return instance.si4735Enabled() ? instance.si4735.getVolume() : 0;
+#else
     AudioOutputIf *audioOutput = instance.getAudioOutput();
     if (!audioOutput) {
         LILYGO_LOG_PRINTLN("Audio output not initialized");
         return 0;
     }
     return audioOutput->getVolume();
+#endif
 #else
     return 10;
 #endif /*defined(ARDUINO) && defined(USING_SI473X_RADIO)*/

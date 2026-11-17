@@ -2322,7 +2322,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_HAS_AUDIO_IN
-#if defined(USING_AUDIO_CODEC) || defined(USING_PDM_MICROPHONE) || defined(ARDUINO_TWATCH_2020_V3) || \
+#if defined(USING_AUDIO_CODEC) || defined(USING_ES7210) || defined(USING_PDM_MICROPHONE) || \
+    defined(ARDUINO_TWATCH_2020_V3) || \
     defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
     defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED_PLUS)
 #define FACTORY_HAS_AUDIO_IN           1

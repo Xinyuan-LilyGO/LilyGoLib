@@ -1,12 +1,17 @@
 /**
  * @file      ui_t_embed_ws2812.cpp
- * @brief     T-Embed-Plus WS2812 effects and production test.
+ * @brief     T-Embed LED strip effects and production test.
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
 
+#if defined(ARDUINO_T_EMBED_PLUS)
 #include <Adafruit_NeoPixel.h>
+#define TEMBED_LED_COUNT WS2812_NUM_LEDS
+#else
+#define TEMBED_LED_COUNT APA102_NUM_LEDS
+#endif
 
 namespace {
 
@@ -42,11 +47,13 @@ const char *effectNames[EFFECT_COUNT] = {
     "Theater", "Comet", "Scanner", "Sparkle",
 };
 
-Adafruit_NeoPixel strip(WS2812_NUM_LEDS, WS2812_DATA_PIN, NEO_GRB + NEO_KHZ800);
+#if defined(ARDUINO_T_EMBED_PLUS)
+Adafruit_NeoPixel strip(TEMBED_LED_COUNT, WS2812_DATA_PIN, NEO_GRB + NEO_KHZ800);
+#endif
 lv_obj_t *pageContainer = nullptr;
 lv_obj_t *statusLabel = nullptr;
 lv_timer_t *effectTimer = nullptr;
-uint32_t colors[WS2812_NUM_LEDS] = {};
+uint32_t colors[TEMBED_LED_COUNT] = {};
 uint16_t phase = 0;
 uint8_t effectMode = EFFECT_RAINBOW;
 uint8_t brightnessLevel = 4;
@@ -57,9 +64,41 @@ bool stripInitialized = false;
 void beginStripOnce()
 {
     if (!stripInitialized) {
+#if defined(ARDUINO_T_EMBED_PLUS)
         stripInitialized = strip.begin();
+#else
+        pinMode(APA102_DATA_PIN, OUTPUT);
+        pinMode(APA102_CLOCK_PIN, OUTPUT);
+        digitalWrite(APA102_DATA_PIN, LOW);
+        digitalWrite(APA102_CLOCK_PIN, LOW);
+        stripInitialized = true;
+#endif
     }
 }
+
+#if defined(ARDUINO_T_EMBED)
+void apa102WriteByte(uint8_t value)
+{
+    for (uint8_t mask = 0x80; mask; mask >>= 1) {
+        digitalWrite(APA102_DATA_PIN, value & mask ? HIGH : LOW);
+        digitalWrite(APA102_CLOCK_PIN, HIGH);
+        digitalWrite(APA102_CLOCK_PIN, LOW);
+    }
+}
+
+void apa102Show(uint8_t brightness)
+{
+    for (uint8_t i = 0; i < 4; ++i) apa102WriteByte(0x00);
+    const uint8_t globalBrightness = max<uint8_t>(1, brightness * 31 / kBrightnessLevels);
+    for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
+        apa102WriteByte(0xE0 | globalBrightness);
+        apa102WriteByte(colors[i] & 0xFF);
+        apa102WriteByte((colors[i] >> 8) & 0xFF);
+        apa102WriteByte((colors[i] >> 16) & 0xFF);
+    }
+    for (uint8_t i = 0; i < 4; ++i) apa102WriteByte(0xFF);
+}
+#endif
 
 uint32_t rgbColor(uint8_t red, uint8_t green, uint8_t blue)
 {
@@ -95,7 +134,7 @@ void clearColors()
 
 void fillColors(uint32_t color)
 {
-    for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
+    for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
         colors[i] = color;
     }
 }
@@ -119,34 +158,34 @@ void renderEffect()
         break;
     }
     case EFFECT_RAINBOW:
-        for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
-            colors[i] = colorWheel(phase8 + i * 256 / WS2812_NUM_LEDS);
+        for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
+            colors[i] = colorWheel(phase8 + i * 256 / TEMBED_LED_COUNT);
         }
         break;
     case EFFECT_COLOR_WIPE: {
-        const uint8_t lit = (phase / 24) % (WS2812_NUM_LEDS + 1);
+        const uint8_t lit = (phase / 24) % (TEMBED_LED_COUNT + 1);
         for (uint8_t i = 0; i < lit; ++i) colors[i] = base;
         break;
     }
     case EFFECT_THEATER:
-        for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
+        for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
             if (((i + phase / 8) % 3) == 0) colors[i] = base;
         }
         break;
     case EFFECT_COMET: {
-        const uint8_t head = (phase / 12) % WS2812_NUM_LEDS;
-        for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
-            const uint8_t distance = (head + WS2812_NUM_LEDS - i) % WS2812_NUM_LEDS;
+        const uint8_t head = (phase / 12) % TEMBED_LED_COUNT;
+        for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
+            const uint8_t distance = (head + TEMBED_LED_COUNT - i) % TEMBED_LED_COUNT;
             const uint8_t tail = distance == 0 ? 255 : (distance == 1 ? 120 : (distance == 2 ? 40 : 0));
             if (tail) colors[i] = scaleColor(base, tail);
         }
         break;
     }
     case EFFECT_SCANNER: {
-        const uint8_t span = (WS2812_NUM_LEDS - 1) * 2;
+        const uint8_t span = (TEMBED_LED_COUNT - 1) * 2;
         uint8_t position = (phase / 12) % span;
-        if (position >= WS2812_NUM_LEDS) position = span - position;
-        for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
+        if (position >= TEMBED_LED_COUNT) position = span - position;
+        for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
             const uint8_t distance = i > position ? i - position : position - i;
             const uint8_t level = distance == 0 ? 255 : (distance == 1 ? 80 : 0);
             if (level) colors[i] = scaleColor(base, level);
@@ -155,7 +194,7 @@ void renderEffect()
     }
     case EFFECT_SPARKLE:
         fillColors(scaleColor(base, 20));
-        colors[random(WS2812_NUM_LEDS)] = base;
+        colors[random(TEMBED_LED_COUNT)] = base;
         break;
     default:
         fillColors(base);
@@ -166,11 +205,15 @@ void renderEffect()
 void refreshOutput()
 {
     renderEffect();
+#if defined(ARDUINO_T_EMBED_PLUS)
     strip.setBrightness(brightnessLevel * 255 / kBrightnessLevels);
-    for (uint8_t i = 0; i < WS2812_NUM_LEDS; ++i) {
+    for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
         strip.setPixelColor(i, colors[i]);
     }
     strip.show();
+#else
+    apa102Show(brightnessLevel);
+#endif
     if (statusLabel) {
         lv_label_set_text_fmt(statusLabel, "%s  B:%u/32  S:%u",
                               effectNames[effectMode], brightnessLevel, speed);
@@ -216,10 +259,15 @@ void stopOutput()
         lv_timer_delete(effectTimer);
         effectTimer = nullptr;
     }
+#if defined(ARDUINO_T_EMBED_PLUS)
     strip.clear();
     strip.show();
     // Keep GPIO14 attached to RMT. Reconfiguring it would invalidate the
     // Adafruit NeoPixel driver's cached RMT allocation.
+#else
+    clearColors();
+    apa102Show(1);
+#endif
 }
 
 void backEventCb(lv_event_t *)
@@ -238,8 +286,13 @@ void backEventCb(lv_event_t *)
 void ui_t_embed_ws2812_init()
 {
     beginStripOnce();
+#if defined(ARDUINO_T_EMBED_PLUS)
     strip.clear();
     strip.show();
+#else
+    clearColors();
+    apa102Show(1);
+#endif
 }
 
 void ui_t_embed_ws2812_enter(lv_obj_t *parent)
@@ -258,8 +311,13 @@ void ui_t_embed_ws2812_enter(lv_obj_t *parent)
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Hue", 0, 255, hue, hueCb);
 
     card = ui_create_card(pageContainer, "Output");
+#if defined(ARDUINO_T_EMBED_PLUS)
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Strip", "GPIO14 x 8");
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Format", "WS2812B GRB");
+#else
+    ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Strip", "GPIO42/45 x 7");
+    ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Format", "APA102 BGR");
+#endif
 
     refreshOutput();
     effectTimer = lv_timer_create(effectTimerCb, kEffectIntervalMs, nullptr);
@@ -276,4 +334,4 @@ app_t ui_t_embed_ws2812_main = {
     .user_data = nullptr,
 };
 
-#endif // ARDUINO_T_EMBED_PLUS
+#endif

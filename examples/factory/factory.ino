@@ -24,7 +24,7 @@ extern void setupGui();
     !defined(EXCLUDE_WS2812_STRIP)
 extern void ui_ws2812_init(void);
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
 extern void ui_t_embed_ws2812_init(void);
 #endif
 
@@ -153,7 +153,7 @@ void setup()
     !defined(EXCLUDE_WS2812_STRIP)
     ui_ws2812_init();
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
     ui_t_embed_ws2812_init();
 #endif
 

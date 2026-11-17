@@ -2212,6 +2212,7 @@ void hw_init()
     // Restore the persisted timezone for localtime()/mktime() after reboot.
     configTime(timezone_offset_sec, daylight_offset_sec, "pool.ntp.org", "time.nist.gov");
 
+#if FACTORY_HAS_POWER_MANAGE
     user_setting.charger_current = hw_get_charger_current();
     app_settings.user = user_setting;
 
@@ -2219,6 +2220,7 @@ void hw_init()
                              device_limits.max_charge_current_ma,
                              device_limits.charge_current_step_ma,
                              device_limits.max_charge_level_index);
+#endif
     print_user_setting("INIT", user_setting);
 
     // Attach device event
@@ -3181,6 +3183,8 @@ uint32_t hw_get_sd_default_spi_freq()
     return LILYGO_DECK_V2_SD_SPI_FREQ;
 #elif defined(ARDUINO_T_DECK)
     return LILYGO_TDECK_SD_SPI_FREQ;
+#elif defined(ARDUINO_T_EMBED)
+    return LILYGO_TEMBED_SD_SPI_FREQ;
 #elif defined(ARDUINO_T_LORA_PAGER)
     return LILYGO_LORA_PAGER_SD_SPI_FREQ;
 #elif defined(ARDUINO_TWATCH_BASE)
@@ -3241,7 +3245,7 @@ void hw_unmount_sd()
 #if defined(ARDUINO) && defined(HAS_SD_CARD_SOCKET)
     LILYGO_LOG_PRINTLN("[SD] unmount requested");
 #if defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_DECK_V2) || \
-    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK)
+    defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)
     instance.uninstallSD();
 #else
     SD.end();
@@ -3660,7 +3664,7 @@ bool hw_set_otg(bool enable)
 
 bool hw_get_charge_enable()
 {
-#ifdef ARDUINO
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
     return  instance.isEnableCharge();
 #endif
     return false;
@@ -3668,7 +3672,7 @@ bool hw_get_charge_enable()
 
 void hw_set_charger(bool enable)
 {
-#ifdef ARDUINO
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
     if (enable) {
         instance.enableCharge();
     } else {
@@ -3679,7 +3683,7 @@ void hw_set_charger(bool enable)
 
 uint16_t hw_get_charger_current()
 {
-#ifdef ARDUINO
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
     return  instance.getChargeCurrent();
 #else
     return 0;
@@ -3688,7 +3692,7 @@ uint16_t hw_get_charger_current()
 
 uint8_t hw_get_charger_current_level()
 {
-#ifdef ARDUINO
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
     return instance.getChargeCurrentToLevel();
 #else
     return 0;
@@ -3697,7 +3701,7 @@ uint8_t hw_get_charger_current_level()
 
 uint16_t hw_set_charger_current_level(uint8_t level)
 {
-#ifdef ARDUINO
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
 
     uint16_t current =  instance.getChargeLevelToCurrent(level);
 

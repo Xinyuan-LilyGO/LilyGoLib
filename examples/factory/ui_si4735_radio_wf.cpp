@@ -7,7 +7,7 @@
  */
 #include "ui_define.h"
 
-#if !defined(EXCLUDE_SI4735_RADIO_WF)
+#if !defined(EXCLUDE_SI4735_RADIO_WF) && !defined(ARDUINO_T_EMBED)
 
 #include <esp_heap_caps.h>
 #include "dsps_fft2r.h"

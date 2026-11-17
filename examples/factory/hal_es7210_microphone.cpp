@@ -1,12 +1,12 @@
 /**
  * @file      hal_es7210_microphone.cpp
- * @brief     ES7210 four-channel microphone monitor support for the original T-Deck.
+ * @brief     ES7210 four-channel microphone monitor support.
  */
 #include "hal_es7210_microphone.h"
 
 #include <string.h>
 
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
 #include <LilyGoLib.h>
 #include <LilyGoLog.h>
 #include <math.h>
@@ -72,7 +72,7 @@ static int32_t channel_rms(uint8_t slot)
 
 bool hw_has_es7210_mic_array()
 {
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     return true;
 #else
     return false;
@@ -82,7 +82,7 @@ bool hw_has_es7210_mic_array()
 bool hw_set_es7210_mic_mask(uint8_t mic_mask)
 {
     mic_mask &= HW_ES7210_MIC1 | HW_ES7210_MIC2 | HW_ES7210_MIC3 | HW_ES7210_MIC4;
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     if (mic_mask == 0 || !instance.configureEs7210Microphones(mic_mask, true)) {
         return false;
     }
@@ -96,7 +96,7 @@ bool hw_set_es7210_mic_mask(uint8_t mic_mask)
 
 uint8_t hw_get_es7210_mic_mask()
 {
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     return s_mic_mask;
 #else
     return 0;
@@ -105,7 +105,7 @@ uint8_t hw_get_es7210_mic_mask()
 
 bool hw_set_es7210_mic_start(uint8_t mic_mask)
 {
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     AudioInputIf *mic = instance.getAudioInput();
     if (!mic || !hw_set_es7210_mic_mask(mic_mask) ||
             !mic->open(16, ES7210_MIC_CHANNELS, ES7210_SAMPLE_RATE)) {
@@ -124,7 +124,7 @@ bool hw_set_es7210_mic_start(uint8_t mic_mask)
 
 void hw_set_es7210_mic_stop()
 {
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     if (!s_running) {
         return;
     }
@@ -144,7 +144,7 @@ bool hw_audio_get_es7210_waveform_data(ES7210WaveformData *waveform_data)
         return false;
     }
     memset(waveform_data, 0, sizeof(*waveform_data));
-#if defined(ARDUINO_T_DECK) && !defined(EXCLUDE_MICROPHONE)
+#if (defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED)) && !defined(EXCLUDE_MICROPHONE)
     AudioInputIf *mic = instance.getAudioInput();
     if (!mic || !s_running ||
             mic->read((uint8_t *)s_tdm_buffer, sizeof(s_tdm_buffer)) != (int)sizeof(s_tdm_buffer)) {
