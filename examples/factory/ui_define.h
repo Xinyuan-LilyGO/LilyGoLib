@@ -183,6 +183,10 @@ void menu_show();
 void menu_hidden();
 void set_default_group(lv_group_t *group);
 
+typedef void (*ui_nfc_child_back_cb_t)(void);
+void ui_nfc_set_child_back(ui_nfc_child_back_cb_t cb);
+void ui_nfc_child_back(void);
+
 lv_obj_t *ui_create_process_bar(lv_obj_t *parent, const char *title);
 
 void theme_init();

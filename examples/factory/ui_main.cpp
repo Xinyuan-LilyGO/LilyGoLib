@@ -1878,23 +1878,23 @@ void setupGui()
     // extern app_t ui_paw_mouse_main;
 #endif
 
+#if defined(ARDUINO)
+#if (!defined(EXCLUDE_NFC) && !defined(ARDUINO_T_EMBED_PLUS)) || \
+    ((defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
+     !defined(EXCLUDE_PN532))
+    extern app_t ui_nfc_menu_main;
+    bool nfc_menu_available = false;
 #if !defined(EXCLUDE_NFC) && !defined(ARDUINO_T_EMBED_PLUS)
-    extern app_t ui_nfc_main;
-    register_app("NFC", &img_nfc, &ui_nfc_main);
+    nfc_menu_available = true;
 #endif
-#if defined(ARDUINO) && (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && !defined(EXCLUDE_PN532)
-    if (hw_get_device_online() & HW_NFC_ONLINE) {
-        extern app_t ui_pn532_main;
-        register_app("NFC Read", &img_nfc, &ui_pn532_main);
-        extern app_t ui_pn532_write_main;
-        register_app("NFC Write", &img_nfc, &ui_pn532_write_main);
-        extern app_t ui_pn532_erase_main;
-        register_app("NFC Erase", &img_nfc, &ui_pn532_erase_main);
+#if (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
+    !defined(EXCLUDE_PN532)
+    nfc_menu_available = nfc_menu_available || (hw_get_device_online() & HW_NFC_ONLINE);
+#endif
+    if (nfc_menu_available) {
+        register_app("NFC", &img_nfc, &ui_nfc_menu_main);
     }
 #endif
-#if !defined(EXCLUDE_NFC_EMULATION)
-    extern app_t ui_nfc_emulation_main;
-    register_app("NFC Card", &img_nfc, &ui_nfc_emulation_main);
 #endif
 
 #if !defined(EXCLUDE_AUDIO_RECORDER)

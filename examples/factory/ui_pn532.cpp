@@ -299,7 +299,7 @@ static void back_event_handler(lv_event_t *event)
 {
     (void)event;
     close_page();
-    menu_show();
+    ui_nfc_child_back();
 }
 
 static void ui_pn532_enter(lv_obj_t *parent)

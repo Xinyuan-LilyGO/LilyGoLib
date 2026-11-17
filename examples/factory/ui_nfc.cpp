@@ -318,7 +318,7 @@ static void back_event_handler(lv_event_t *e)
     record_body = NULL;
     raw_value = NULL;
     hint_value = NULL;
-    menu_show();
+    ui_nfc_child_back();
 }
 
 void ui_nfc_enter(lv_obj_t *parent)
