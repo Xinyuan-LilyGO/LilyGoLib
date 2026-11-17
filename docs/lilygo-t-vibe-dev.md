@@ -12,7 +12,7 @@
 
 > [!TIP]
 > 
-> **T-Vibe-Dev** 是 **T-Deck** 的 **无LoRa** 版本,所以下方的设置是按照 **T-Deck** 来设置的,所以这不是文档错误,请知悉.💕
+> **T-Vibe-Dev** 是 **T-Deck** 的 **无 LoRa、无 GPS/GNSS** 版本，所以下方的设置是按照 **T-Deck** 来设置的，这不是文档错误.
 >
 
 ## `2` Arduino IDE 快速入门

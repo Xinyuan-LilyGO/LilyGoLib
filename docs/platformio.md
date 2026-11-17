@@ -93,7 +93,7 @@ The repository currently provides these environments:
 | --- | --- |
 | T-Embed-Plus | `t_embed_plus` |
 | T-Deck with SX1262 | `tdeck_sx1262` |
-| T-Vibe Dev (T-Deck without LoRa) | `tvibe_dev` |
+| T-Vibe Dev (T-Deck without LoRa or GNSS) | `tvibe_dev` |
 | T-Watch-S3 with SX1262 | `twatchs3_sx1262` |
 | T-Watch-S3 with SX1280 | `twatchs3_sx1280` |
 | T-Watch-S3 with CC1101 | `twatchs3_cc1101` |
@@ -105,7 +105,9 @@ The repository currently provides these environments:
 
 The T-Vibe environments do not define a radio module and compile with
 `EXCLUDE_LORA`. Their board capability tables report no radio, so the default
-`instance.begin()` path does not probe or initialize LoRa hardware.
+`instance.begin()` path does not probe or initialize LoRa hardware. T-Vibe Dev
+also has no GNSS module and compiles with `EXCLUDE_GPS`; its default
+initialization skips GNSS probing, and the factory example omits the GNSS apps.
 
 To build another example, change only `src_dir`. For example:
 

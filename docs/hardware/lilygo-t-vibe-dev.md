@@ -8,6 +8,7 @@
 ## `1` 概述
 
 * 本文列出初代 `LILYGO T-Vibe-Dev` 的硬件规格.
+* T-Vibe-Dev 不搭载 LoRa 和 GPS/GNSS 模块
 
 
 ### 控件和接口
@@ -41,7 +42,7 @@
 | 显示屏背光 | 16 级脉冲控制背光驱动器 |
 | 存储 | MicroSD 卡槽，SPI 接口 |
 | 电池监测 | ADC GPIO4 连接到 2:1 电阻分压器 |
-| GNSS | 通过 Grove UART 连接外部模块|
+| GPS/GNSS | 无板载模块；Grove 接口仍可作为通用 UART 使用 |
 
 [1]: https://www.espressif.com/en/products/socs/esp32-s3 "ESP32-S3"
 
@@ -133,5 +134,5 @@
 
 > [!TIP]
 > 
-> **T-Vibe-Dev** 是 **T-Deck** 的 **无LoRa** 版本,原理图和**T-Deck**一样,只是没有焊接LoRa功能芯片,请知悉.💕
+> **T-Vibe-Dev** 是 **T-Deck** 的 **无 LoRa、无 GPS/GNSS** 版本，未焊接 LoRa 和 GPS/GNSS 功能芯片。
 >

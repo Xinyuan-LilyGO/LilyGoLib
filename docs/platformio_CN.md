@@ -90,7 +90,7 @@ src_dir = examples/factory
 | --- | --- |
 | T-Embed-Plus | `t_embed_plus` |
 | 搭载 SX1262 的 T-Deck | `tdeck_sx1262` |
-| T-Vibe Dev（无 LoRa 的 T-Deck） | `tvibe_dev` |
+| T-Vibe Dev（无 LoRa、无 GNSS 的 T-Deck） | `tvibe_dev` |
 | 搭载 SX1262 的 T-Watch-S3 | `twatchs3_sx1262` |
 | 搭载 SX1280 的 T-Watch-S3 | `twatchs3_sx1280` |
 | 搭载 CC1101 的 T-Watch-S3 | `twatchs3_cc1101` |
@@ -102,6 +102,8 @@ src_dir = examples/factory
 
 两个 T-Vibe 环境都不会定义无线模块，并在编译时设置 `EXCLUDE_LORA`。其板级能力表
 也会声明无无线模块，因此默认的 `instance.begin()` 不会探测或初始化 LoRa 硬件。
+T-Vibe Dev 同时没有 GNSS 模块，并设置 `EXCLUDE_GPS`；默认初始化会跳过 GNSS 探测，
+Factory 示例也不会显示 GNSS 相关应用。
 
 需要编译其他示例时，只修改 `src_dir`。例如：
 
