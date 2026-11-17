@@ -1,0 +1,96 @@
+menu.UploadSpeed=Upload Speed
+menu.USBMode=USB Mode
+menu.CDCOnBoot=USB CDC On Boot
+menu.PartitionScheme=Partition Scheme
+menu.DebugLevel=Core Debug Level
+menu.LoopCore=Arduino Runs On
+menu.EventsCore=Events Run On
+menu.EraseFlash=Erase All Flash Before Sketch Upload
+
+lilygo_tembed.name=LilyGo T-Embed
+
+lilygo_tembed.bootloader.tool=esp32:esptool_py
+lilygo_tembed.bootloader.tool.default=esp32:esptool_py
+lilygo_tembed.upload.tool=esp32:esptool_py
+lilygo_tembed.upload.tool.default=esp32:esptool_py
+lilygo_tembed.upload.tool.network=esp32:esp_ota
+lilygo_tembed.upload.maximum_size=3145728
+lilygo_tembed.upload.maximum_data_size=327680
+lilygo_tembed.upload.flags=
+lilygo_tembed.upload.erase_cmd=
+lilygo_tembed.upload.extra_flags=
+lilygo_tembed.upload.use_1200bps_touch=false
+lilygo_tembed.upload.wait_for_upload_port=false
+lilygo_tembed.serial.disableDTR=false
+lilygo_tembed.serial.disableRTS=false
+
+lilygo_tembed.build.tarch=xtensa
+lilygo_tembed.build.bootloader_addr=0x0
+lilygo_tembed.build.target=esp32s3
+lilygo_tembed.build.mcu=esp32s3
+lilygo_tembed.build.core=esp32:esp32
+lilygo_tembed.build.variant=lilygo_tembed
+lilygo_tembed.build.board=LILYGO_T_EMBED
+lilygo_tembed.runtime.use_core_platform_path_for_runtime_platform_path=true
+lilygo_tembed.build.usb_mode=1
+lilygo_tembed.build.cdc_on_boot=1
+lilygo_tembed.build.f_cpu=240000000L
+lilygo_tembed.build.flash_size=16MB
+lilygo_tembed.build.flash_freq=80m
+lilygo_tembed.build.flash_mode=qio
+lilygo_tembed.build.boot=qio
+lilygo_tembed.build.boot_freq=80m
+lilygo_tembed.build.partitions=app3M_fat9M_16MB
+lilygo_tembed.build.defines=-DBOARD_HAS_PSRAM -DARDUINO_T_EMBED
+lilygo_tembed.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_tembed.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_tembed.build.psram_type=opi
+lilygo_tembed.build.memory_type={build.boot}_{build.psram_type}
+
+lilygo_tembed.menu.USBMode.hwcdc=Hardware CDC and JTAG
+lilygo_tembed.menu.USBMode.hwcdc.build.usb_mode=1
+lilygo_tembed.menu.USBMode.default=USB-OTG (TinyUSB)
+lilygo_tembed.menu.USBMode.default.build.usb_mode=0
+
+lilygo_tembed.menu.CDCOnBoot.enabled=Enabled
+lilygo_tembed.menu.CDCOnBoot.enabled.build.cdc_on_boot=1
+lilygo_tembed.menu.CDCOnBoot.disabled=Disabled
+lilygo_tembed.menu.CDCOnBoot.disabled.build.cdc_on_boot=0
+
+lilygo_tembed.menu.PartitionScheme.app3M_fat9M_16MB=16M Flash (3MB APP/9.9MB FATFS)
+lilygo_tembed.menu.PartitionScheme.app3M_fat9M_16MB.build.partitions=app3M_fat9M_16MB
+lilygo_tembed.menu.PartitionScheme.app3M_fat9M_16MB.upload.maximum_size=3145728
+lilygo_tembed.menu.PartitionScheme.fatflash=16M Flash (2MB APP/12.5MB FATFS)
+lilygo_tembed.menu.PartitionScheme.fatflash.build.partitions=ffat
+lilygo_tembed.menu.PartitionScheme.fatflash.upload.maximum_size=2097152
+
+lilygo_tembed.menu.LoopCore.1=Core 1
+lilygo_tembed.menu.LoopCore.1.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_tembed.menu.LoopCore.0=Core 0
+lilygo_tembed.menu.LoopCore.0.build.loop_core=-DARDUINO_RUNNING_CORE=0
+lilygo_tembed.menu.EventsCore.1=Core 1
+lilygo_tembed.menu.EventsCore.1.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_tembed.menu.EventsCore.0=Core 0
+lilygo_tembed.menu.EventsCore.0.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=0
+
+lilygo_tembed.menu.UploadSpeed.921600=921600
+lilygo_tembed.menu.UploadSpeed.921600.upload.speed=921600
+lilygo_tembed.menu.UploadSpeed.115200=115200
+lilygo_tembed.menu.UploadSpeed.115200.upload.speed=115200
+
+lilygo_tembed.menu.DebugLevel.none=None
+lilygo_tembed.menu.DebugLevel.none.build.code_debug=0
+lilygo_tembed.menu.DebugLevel.error=Error
+lilygo_tembed.menu.DebugLevel.error.build.code_debug=1
+lilygo_tembed.menu.DebugLevel.warn=Warn
+lilygo_tembed.menu.DebugLevel.warn.build.code_debug=2
+lilygo_tembed.menu.DebugLevel.info=Info
+lilygo_tembed.menu.DebugLevel.info.build.code_debug=3
+lilygo_tembed.menu.DebugLevel.debug=Debug
+lilygo_tembed.menu.DebugLevel.debug.build.code_debug=4
+lilygo_tembed.menu.DebugLevel.verbose=Verbose
+lilygo_tembed.menu.DebugLevel.verbose.build.code_debug=5
+
+lilygo_tembed.menu.EraseFlash.none=Disabled
+lilygo_tembed.menu.EraseFlash.all=Enabled
+lilygo_tembed.menu.EraseFlash.all.upload.erase_cmd=-e

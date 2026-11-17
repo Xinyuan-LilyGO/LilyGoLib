@@ -1,0 +1,35 @@
+{
+  "packages": [
+    {
+      "name": "lilygo_tembed_temp",
+      "maintainer": "LILYGO",
+      "websiteURL": "https://github.com/Xinyuan-LilyGO/LilyGoLib",
+      "email": "lewishe@outlook.com",
+      "help": {
+        "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
+      },
+      "platforms": [
+        {
+          "name": "LILYGO T-Embed Temporary Support",
+          "architecture": "esp32",
+          "version": "0.1.0",
+          "category": "Contributed",
+          "help": {
+            "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
+          },
+          "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed/dist/lilygo-t-embed-temp-0.1.0.zip",
+          "archiveFileName": "lilygo-t-embed-temp-0.1.0.zip",
+          "checksum": "SHA-256:2b142d3fd91d78b20a82573c2efd8e677137369795e1f7fb48196e94825a82f5",
+          "size": "1887",
+          "boards": [
+            {
+              "name": "LilyGo T-Embed"
+            }
+          ],
+          "toolsDependencies": []
+        }
+      ],
+      "tools": []
+    }
+  ]
+}
