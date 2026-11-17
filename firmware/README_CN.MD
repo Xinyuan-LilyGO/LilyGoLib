@@ -35,7 +35,7 @@
 | ----------------------------- | ---------------------------------------- |
 | [T-LoRa-Pager SX1262版本][1]  | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
 | [T-LoRa-Pager LR1121版本][1]  | tlora-pager-lr1121-factory-xxxx-0x0.bin  |
-| [T-Vibe-Pager][1]             | tlora-pager-sx1262-factory-xxxx-0x0.bin  |
+| [T-Vibe-Pager][1]             | tvibe-pager-factory-xxxx-0x0.bin         |
 | [T-Watch-Ultra SX1280版本][2] | twatch-ultra-sx1280-factory-xxxx-0x0.bin |
 | [T-Watch-Ultra SX1262版本][2] | twatch-ultra-sx1262-factory-xxxx-0x0.bin |
 | [T-Watch-S3 SX1262版本][3]    | twatchs3-sx1262-factory-xxxx-0x0.bin     |
@@ -47,7 +47,7 @@
 | [T-Vibe-Dev][5]               | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Watch-2020-V3][7]          | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]             | twatch-2019-factory-xxxx-0x0.bin         |
-| [T-Embed-Plus][9]                   | tembed-plus-factory-xxxx-0x0.bin   |
+| [T-Embed-Plus][9]             | tembed-plus-factory-xxxx-0x0.bin         |
 
 [1]: https://lilygo.cc/products/t-lora-pager
 [2]: https://lilygo.cc/products/t-watch-ultra
