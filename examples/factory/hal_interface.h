@@ -2433,8 +2433,9 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_HAS_GPS
-#if defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
-    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK)
+#if !defined(ARDUINO_T_VIBE_DEV) && \
+    (defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
+     defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK))
 #define FACTORY_HAS_GPS                1
 #else
 #define FACTORY_HAS_GPS                0
@@ -2442,7 +2443,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_GPS_RUNTIME_PROBE
-#if defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_DECK)
+#if !defined(ARDUINO_T_VIBE_DEV) && \
+    (defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_DECK))
 #define FACTORY_GPS_RUNTIME_PROBE      1
 #else
 #define FACTORY_GPS_RUNTIME_PROBE      0

@@ -169,7 +169,13 @@ const LilyGoDeviceCapability &LilyGoDeck::getCapability() const
 #else
         "LilyGo T-Deck", USING_RADIO_NAME " (optional)", "None", "None",
 #endif
-        true, false, true, true, true, true, false,
+        true, false,
+#if defined(ARDUINO_T_VIBE_DEV)
+        false,
+#else
+        true,
+#endif
+        true, true, true, false,
         false, false, false, false, false, false, false,
         true, true, false, true, false, true, true,
         PMIC_TYPE_UNKNOWN, true, false,
@@ -252,9 +258,11 @@ uint32_t LilyGoDeck::begin(const LilyGoDeviceInitOptions &initOptions)
     if (initOptions.initRadio) {
         initLoRa();
     }
+#if !defined(ARDUINO_T_VIBE_DEV)
     if (initOptions.initGps) {
         initGPS();
     }
+#endif
     if (initOptions.initAudio) {
         initAmplifier();
         if (initOptions.initCodec) {
@@ -292,11 +300,13 @@ void LilyGoDeck::loop()
         }
     }
 
+#if !defined(ARDUINO_T_VIBE_DEV)
     if (gps.probeDone() && gps.probeSuccess()) {
         while (Serial1.available()) {
             gps.encode(static_cast<char>(Serial1.read()));
         }
     }
+#endif
 }
 
 bool LilyGoDeck::isDeviceOnline(uint32_t mask) const
@@ -616,6 +626,10 @@ void LilyGoDeck::gpsProbeCallback(bool success, const char *model, void *userDat
 
 bool LilyGoDeck::initGPS()
 {
+#if defined(ARDUINO_T_VIBE_DEV)
+    devicesProbe &= ~HW_GPS_ONLINE;
+    return false;
+#else
     Serial1.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
     const GPSProbe probe = static_cast<GPSProbe>(GPS_PROBE_UBLOX | GPS_PROBE_QUECTEL_L76K);
     const bool started = gps.beginAsyncProbe(&Serial1, probe, gpsProbeCallback, this);
@@ -623,6 +637,7 @@ bool LilyGoDeck::initGPS()
         devicesProbe &= ~HW_GPS_ONLINE;
     }
     return started;
+#endif
 }
 
 bool LilyGoDeck::hasGPS()
