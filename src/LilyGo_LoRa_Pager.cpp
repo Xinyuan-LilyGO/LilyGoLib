@@ -956,7 +956,17 @@ void LilyGoLoRaPager::sleepDisplay()
 
 void LilyGoLoRaPager::wakeupDisplay()
 {
+#if defined(ARDUINO_T_VIBE_PAGER)
+    // Allow the ST7796 oscillator and scanning circuit to stabilize after
+    // light sleep. Repeating SLPOUT makes wakeup more tolerant of the first
+    // command being missed while the panel is still resuming.
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        LilyGoDispArduinoSPI::wakeup();
+        delay(120);
+    }
+#else
     LilyGoDispArduinoSPI::wakeup();
+#endif
 }
 
 uint64_t LilyGoLoRaPager::checkWakeupPins(WakeupSource_t wakeup_src)
