@@ -13,9 +13,7 @@ static lv_obj_t *nfc_parent = nullptr;
 static ui_nfc_child_back_cb_t nfc_child_back_cb = nullptr;
 
 static void show_nfc_menu();
-static void show_other_menu();
 static void return_to_nfc_menu();
-static void return_to_other_menu();
 
 #if !defined(EXCLUDE_NFC) && !defined(ARDUINO_T_EMBED_PLUS)
 extern app_t ui_nfc_main;
@@ -26,6 +24,7 @@ extern app_t ui_nfc_main;
 extern app_t ui_pn532_main;
 extern app_t ui_pn532_write_main;
 extern app_t ui_pn532_erase_main;
+extern app_t ui_pn532_copy_main;
 #endif
 #endif
 
@@ -97,6 +96,17 @@ static app_t *erase_app()
     return nullptr;
 }
 
+static app_t *copy_app()
+{
+#if (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
+    !defined(EXCLUDE_PN532)
+    if (hw_get_device_online() & HW_NFC_ONLINE) {
+        return &ui_pn532_copy_main;
+    }
+#endif
+    return nullptr;
+}
+
 static void launch_app(app_t *app, ui_nfc_child_back_cb_t back_cb)
 {
     if (!app || !app->setup_func_cb || !nfc_parent) return;
@@ -124,9 +134,14 @@ static void nfc_menu_button_cb(lv_event_t *event)
         app_t *app = write_app();
         if (app) launch_app(app, return_to_nfc_menu);
         else unavailable("Write");
-    } else if (strcmp(text, "Other") == 0) {
-        destroy_nfc_page();
-        show_other_menu();
+    } else if (strcmp(text, "Erase") == 0) {
+        app_t *app = erase_app();
+        if (app) launch_app(app, return_to_nfc_menu);
+        else unavailable("Erase");
+    } else if (strcmp(text, "Copy Tag") == 0) {
+        app_t *app = copy_app();
+        if (app) launch_app(app, return_to_nfc_menu);
+        else unavailable("Copy Tag");
     }
 }
 
@@ -136,22 +151,10 @@ static void nfc_menu_back_cb(lv_event_t *)
     menu_show();
 }
 
-static void other_menu_back_cb(lv_event_t *)
-{
-    destroy_nfc_page();
-    show_nfc_menu();
-}
-
 static void return_to_nfc_menu()
 {
     destroy_nfc_page();
     show_nfc_menu();
-}
-
-static void return_to_other_menu()
-{
-    destroy_nfc_page();
-    show_other_menu();
 }
 
 static lv_obj_t *create_primary_button(lv_obj_t *parent, const char *text,
@@ -165,6 +168,7 @@ static lv_obj_t *create_primary_button(lv_obj_t *parent, const char *text,
     lv_obj_set_style_radius(button, 8, 0);
     lv_obj_set_style_border_width(button, 0, 0);
     lv_obj_set_style_pad_all(button, 4, 0);
+    lv_obj_add_flag(button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     ui_add_accent_focus_style(button);
     lv_obj_add_event_cb(button, event_cb, LV_EVENT_CLICKED, nullptr);
     if (lv_group_t *group = lv_group_get_default()) {
@@ -185,21 +189,8 @@ static void show_nfc_menu()
     lv_obj_set_style_pad_row(card, 8, 0);
     create_primary_button(card, "Read", nfc_menu_button_cb);
     create_primary_button(card, "Write", nfc_menu_button_cb);
-    create_primary_button(card, "Other", nfc_menu_button_cb);
-}
-
-static void show_other_menu()
-{
-    nfc_page = ui_create_app_page(nfc_parent, "Other", other_menu_back_cb);
-    lv_obj_t *card = ui_create_card(nfc_page, "Other");
-    ui_create_card_button(card, LV_SYMBOL_TRASH, nullptr, "Erase", [](lv_event_t *) {
-        app_t *app = erase_app();
-        if (app) launch_app(app, return_to_other_menu);
-        else unavailable("Erase");
-    });
-    ui_create_card_button(card, LV_SYMBOL_LIST, nullptr, "Copy Tag", [](lv_event_t *) {
-        ui_msg_pop_up("Copy Tag", "Function not available yet.");
-    });
+    create_primary_button(card, "Erase", nfc_menu_button_cb);
+    create_primary_button(card, "Copy Tag", nfc_menu_button_cb);
 }
 
 static void ui_nfc_menu_enter(lv_obj_t *parent)
