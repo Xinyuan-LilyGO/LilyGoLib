@@ -349,6 +349,16 @@ static void monitor_create_overview(lv_obj_t *parent, const power_monitor_snapsh
     lv_obj_t *card = ui_create_card(parent, NULL);
     lv_obj_set_style_pad_row(card, 8, 0);
 
+    if (hw_has_encoder()) {
+        lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+        ui_add_accent_focus_style(card);
+        lv_group_t *group = lv_group_get_default();
+        if (group && lv_obj_get_group(card) != group) {
+            lv_group_add_obj(group, card);
+        }
+    }
+
     lv_obj_t *top = lv_obj_create(card);
     lv_obj_set_size(top, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(top, LV_OPA_TRANSP, 0);
