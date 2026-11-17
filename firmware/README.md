@@ -30,7 +30,7 @@
 >
 > The T-Vibe-Pager comes with the T-LoRa-Pager firmware installed by default; therefore, to restore it to its factory state, you must flash the T-LoRa-Pager firmware.
 >
-> The T-Vibe-Dev comes with the T-Deck firmware installed by default; therefore, to restore it to its factory state, you must flash the T-Deck firmware.
+> To restore T-Vibe-Dev to its factory state, flash the dedicated T-Vibe-Dev firmware.
 >
 
 | Product                            | Factory firmware                         |
@@ -44,9 +44,9 @@
 | [T-Watch-S3 SX1280 version][3]     | twatchs3-sx1280-factory-xxxx-0x0.bin     |
 | [T-Watch-S3 CC1101][3]             | twatchs3-cc1101-factory-xxxx-0x0.bin     |
 | [T-Watch-S3-Plus][4]               | Same T-Watch-S3 firmware                 |
-| [T-Deck or T-Vibe-Dev][5]          | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Deck][5]                        | tdeck-sx1262-factory-xxxx-0x0.bin        |
 | [T-Deck-Plus][6]                   | tdeck-sx1262-factory-xxxx-0x0.bin        |
-| [T-Vibe-Dev][5]                    | tdeck-sx1262-factory-xxxx-0x0.bin        |
+| [T-Vibe-Dev][5]                    | tvibe-dev-factory-xxxx-0x0.bin           |
 | [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
 | [T-Embed-Plus][9]                  | tembed-plus-factory-xxxx-0x0.bin         |
