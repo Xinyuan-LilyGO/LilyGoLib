@@ -12,6 +12,7 @@
 
 #if FACTORY_HAS_WIRELESS_MIC_DEPS
 
+#include <LilyGoLog.h>
 #include "wireless_mic_protocol.h"
 
 #include <PCMFlowG722.h>
@@ -28,6 +29,11 @@ static constexpr size_t kControlQueueDepth = 4;
 static constexpr uint32_t kDiscoverIntervalMs = 350;
 static constexpr uint32_t kHeartbeatIntervalMs = 1000;
 static constexpr uint32_t kPeerTimeoutMs = 5000;
+static constexpr uint32_t kMicClickGuardMs = 400;
+static constexpr uint32_t kSendDoneTimeoutMs = 250;
+static constexpr uint32_t kSendFailureLogIntervalMs = 1000;
+static constexpr uint8_t kSessionControlSendAttempts = 3;
+static constexpr uint8_t kDcEstimateShift = 6;
 #if defined(ARDUINO_T_EMBED_PLUS)
 static constexpr int32_t kMicGainMinDb = 0;
 static constexpr int32_t kMicGainMaxDb = 24;
@@ -70,14 +76,22 @@ static char s_receiver_name[kDeviceNameLength] = "T-Dongle-S3";
 static uint32_t s_session_id = 0;
 static uint32_t s_audio_sequence = 0;
 static uint32_t s_control_sequence = 0;
-static uint32_t s_last_peer_ms = 0;
+static volatile uint32_t s_last_peer_ms = 0;
 static uint32_t s_last_discover_ms = 0;
 static uint32_t s_last_heartbeat_ms = 0;
+static uint32_t s_last_mic_click_ms = 0;
+static uint32_t s_last_stats_log_ms = 0;
+static uint32_t s_last_send_failure_log_ms = 0;
 static uint32_t s_frames_sent = 0;
 static uint32_t s_frames_dropped = 0;
 static uint32_t s_send_failures = 0;
+static volatile uint32_t s_receiver_packets_received = 0;
+static volatile uint32_t s_receiver_packets_lost = 0;
+static volatile uint32_t s_receiver_packets_dropped = 0;
+static volatile uint32_t s_receiver_pcm_underruns = 0;
+static volatile uint32_t s_receiver_usb_short_writes = 0;
 #if defined(ARDUINO_T_EMBED_PLUS)
-static int32_t s_mic_gain_db = kMicGainDefaultDb;
+static volatile int32_t s_mic_gain_db = kMicGainDefaultDb;
 #endif
 
 static lv_obj_t *s_page = nullptr;
@@ -95,7 +109,8 @@ static lv_obj_t *s_gain_slider = nullptr;
 #endif
 static lv_timer_t *s_ui_timer = nullptr;
 
-static bool queuePacket(const uint8_t *destination, const void *packet, size_t size)
+static bool queuePacket(const uint8_t *destination, const void *packet,
+                        size_t size, bool urgent = false)
 {
     if (!s_tx_queue || !destination || !packet || size > sizeof(TxItem::data)) {
         return false;
@@ -104,7 +119,9 @@ static bool queuePacket(const uint8_t *destination, const void *packet, size_t s
     memcpy(item.destination, destination, sizeof(item.destination));
     item.size = static_cast<uint16_t>(size);
     memcpy(item.data, packet, size);
-    return xQueueSend(s_tx_queue, &item, 0) == pdTRUE;
+    BaseType_t result = urgent ? xQueueSendToFront(s_tx_queue, &item, 0) :
+                        xQueueSend(s_tx_queue, &item, 0);
+    return result == pdTRUE;
 }
 
 static bool addPeer(const uint8_t *address)
@@ -130,15 +147,34 @@ static void onEspNowReceive(const esp_now_recv_info_t *info,
                             const uint8_t *data, int length)
 {
     if (!info || !info->src_addr || !data ||
-        length != static_cast<int>(sizeof(ControlPacket))) {
+        length < static_cast<int>(sizeof(PacketHeader))) {
         return;
     }
+    const PacketHeader *header = reinterpret_cast<const PacketHeader *>(data);
+    if (!validHeader(*header, static_cast<size_t>(length))) {
+        return;
+    }
+
+    PacketType type = static_cast<PacketType>(header->type);
+    if (type == PacketType::Stats) {
+        if (length != static_cast<int>(sizeof(StatsPacket)) ||
+            !s_peer_ready || memcmp(info->src_addr, s_receiver, 6) != 0) {
+            return;
+        }
+        const StatsPacket *packet = reinterpret_cast<const StatsPacket *>(data);
+        s_receiver_packets_received = packet->stats.packets_received;
+        s_receiver_packets_lost = packet->stats.packets_lost;
+        s_receiver_packets_dropped = packet->stats.packets_dropped;
+        s_receiver_pcm_underruns = packet->stats.pcm_underruns;
+        s_receiver_usb_short_writes = packet->stats.usb_short_writes;
+        s_last_peer_ms = millis();
+        return;
+    }
+
+    if (type != PacketType::Offer ||
+        length != static_cast<int>(sizeof(ControlPacket))) return;
     const ControlPacket *packet = reinterpret_cast<const ControlPacket *>(data);
-    if (!validHeader(packet->header, sizeof(*packet)) ||
-        !validDevice(packet->device) ||
-        packet->header.type != static_cast<uint8_t>(PacketType::Offer)) {
-        return;
-    }
+    if (!validDevice(packet->device)) return;
 
     ControlEvent event = {};
     memcpy(event.source, info->src_addr, sizeof(event.source));
@@ -155,12 +191,48 @@ static void radioTask(void *)
         }
         if (s_exiting) break;
 
-        while (xSemaphoreTake(s_send_done, 0) == pdTRUE) {}
-        esp_err_t result = esp_now_send(item.destination, item.data, item.size);
-        if (result != ESP_OK ||
-            xSemaphoreTake(s_send_done, pdMS_TO_TICKS(60)) != pdTRUE ||
-            !s_send_success) {
+        const PacketHeader *header =
+            reinterpret_cast<const PacketHeader *>(item.data);
+        PacketType type = static_cast<PacketType>(header->type);
+        if (type == PacketType::Audio && !s_streaming) continue;
+
+        const bool session_control = type == PacketType::Start ||
+                                     type == PacketType::Stop;
+        const uint8_t attempts = session_control ?
+                                 kSessionControlSendAttempts : 1;
+        esp_err_t result = ESP_FAIL;
+        bool sent = false;
+        for (uint8_t attempt = 0; attempt < attempts && !s_exiting; ++attempt) {
+            while (xSemaphoreTake(s_send_done, 0) == pdTRUE) {}
+            s_send_success = false;
+            result = esp_now_send(item.destination, item.data, item.size);
+            if (result == ESP_OK &&
+                xSemaphoreTake(s_send_done,
+                               pdMS_TO_TICKS(kSendDoneTimeoutMs)) == pdTRUE &&
+                s_send_success) {
+                sent = true;
+                break;
+            }
+            if (attempt + 1 < attempts) vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        if (!sent) {
             ++s_send_failures;
+            const uint32_t now = millis();
+            if (s_last_send_failure_log_ms == 0 ||
+                now - s_last_send_failure_log_ms >=
+                    kSendFailureLogIntervalMs) {
+                s_last_send_failure_log_ms = now;
+                LILYGO_LOG_W(
+                    "Wireless mic send failed: type=%u err=%d failures=%lu",
+                    static_cast<unsigned>(type), static_cast<int>(result),
+                    static_cast<unsigned long>(s_send_failures));
+            }
+        } else if (s_peer_ready &&
+                   memcmp(item.destination, s_receiver,
+                          sizeof(item.destination)) == 0) {
+            // A successful unicast is direct proof that the receiver is alive.
+            s_last_peer_ms = millis();
         }
     }
     s_radio_task = nullptr;
@@ -180,16 +252,51 @@ static bool readAudioFrame(int16_t *pcm)
     return received == wanted;
 }
 
+static void processAudioFrame(int16_t *pcm, int64_t &dc_estimate_q16,
+                              bool &dc_initialized)
+{
+#if defined(ARDUINO_T_EMBED_PLUS)
+    const float gain = powf(10.0f, s_mic_gain_db / 20.0f);
+#else
+    const float gain = 1.0f;
+#endif
+    for (size_t i = 0; i < kFrameSamples; ++i) {
+        int64_t input_q16 = static_cast<int64_t>(pcm[i]) * 65536;
+        if (!dc_initialized) {
+            dc_estimate_q16 = input_q16;
+            dc_initialized = true;
+        } else {
+            dc_estimate_q16 +=
+                (input_q16 - dc_estimate_q16) >> kDcEstimateShift;
+        }
+
+        float value = static_cast<float>(
+            static_cast<int32_t>((input_q16 - dc_estimate_q16) / 65536)) * gain;
+        if (value > 24576.0f) {
+            value = 24576.0f + (value - 24576.0f) * 0.3f;
+        } else if (value < -24576.0f) {
+            value = -24576.0f + (value + 24576.0f) * 0.3f;
+        }
+        pcm[i] = static_cast<int16_t>(constrain(value, -32768.0f, 32767.0f));
+    }
+}
+
 static void captureTask(void *)
 {
     int16_t pcm[kFrameSamples];
     while (!s_exiting) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+        TickType_t frame_wake = xTaskGetTickCount();
+        int64_t dc_estimate_q16 = 0;
+        bool dc_initialized = false;
         while (s_streaming && !s_exiting) {
             if (!readAudioFrame(pcm)) {
                 ++s_frames_dropped;
+                vTaskDelayUntil(&frame_wake, pdMS_TO_TICKS(kFrameDurationMs));
                 continue;
             }
+            vTaskDelayUntil(&frame_wake, pdMS_TO_TICKS(kFrameDurationMs));
+            processAudioFrame(pcm, dc_estimate_q16, dc_initialized);
 
             uint16_t peak = 0;
             for (size_t i = 0; i < kFrameSamples; i += 4) {
@@ -206,6 +313,7 @@ static void captureTask(void *)
                 ++s_frames_dropped;
                 continue;
             }
+            if (!s_streaming) continue;
             packet.header = makeHeader(PacketType::Audio, encoded, s_session_id,
                                        s_audio_sequence++);
             if (!queuePacket(s_receiver, &packet, sizeof(packet))) {
@@ -252,36 +360,70 @@ static bool startRadio()
     return true;
 }
 
-static void sendControl(PacketType type, const uint8_t *destination)
+static bool sendControl(PacketType type, const uint8_t *destination,
+                        bool urgent = false)
 {
     ControlPacket packet = makeControl(type, s_channel, instance.getName(),
                                        s_session_id, s_control_sequence++);
-    queuePacket(destination, &packet, sizeof(packet));
+    return queuePacket(destination, &packet, sizeof(packet), urgent);
 }
 
 static void startStreaming()
 {
     if (!s_peer_ready || s_streaming) return;
+    if (s_tx_queue) xQueueReset(s_tx_queue);
     s_session_id = esp_random();
     if (s_session_id == 0) s_session_id = 1;
     s_audio_sequence = 0;
     s_encoder.reset();
-    sendControl(PacketType::Start, s_receiver);
+    if (!sendControl(PacketType::Start, s_receiver, true)) {
+        LILYGO_LOG_E("Wireless mic start queue failed");
+        return;
+    }
     s_streaming = true;
+#if defined(ARDUINO_T_EMBED_PLUS)
+    LILYGO_LOG_I("Wireless mic started: session=%08lx channel=%u gain=%lddB",
+                 static_cast<unsigned long>(s_session_id), s_channel,
+                 static_cast<long>(s_mic_gain_db));
+#else
+    LILYGO_LOG_I("Wireless mic started: session=%08lx channel=%u",
+                 static_cast<unsigned long>(s_session_id), s_channel);
+#endif
     if (s_capture_task) xTaskNotifyGive(s_capture_task);
 }
 
-static void stopStreaming()
+static void stopStreaming(const char *reason)
 {
     if (!s_streaming) return;
     s_streaming = false;
-    sendControl(PacketType::Stop, s_receiver);
+    s_audio_level = 0;
+    if (s_tx_queue) xQueueReset(s_tx_queue);
+    if (!sendControl(PacketType::Stop, s_receiver, true)) {
+        LILYGO_LOG_E("Wireless mic stop queue failed");
+    }
+    // Periodic Stop controls carry no session while paused. This lets an older
+    // receiver recover even when the first Stop packet is lost.
+    s_session_id = 0;
+    LILYGO_LOG_I("Wireless mic stopped: reason=%s sent=%lu dropped=%lu radio=%lu",
+                 reason ? reason : "unknown",
+                 static_cast<unsigned long>(s_frames_sent),
+                 static_cast<unsigned long>(s_frames_dropped),
+                 static_cast<unsigned long>(s_send_failures));
 }
 
 static void micButtonEvent(lv_event_t *event)
 {
     if (lv_event_get_code(event) != LV_EVENT_CLICKED || !s_peer_ready) return;
-    if (s_streaming) stopStreaming();
+    const uint32_t now = millis();
+    if (s_last_mic_click_ms != 0 &&
+        now - s_last_mic_click_ms < kMicClickGuardMs) {
+        LILYGO_LOG_W("Wireless mic duplicate click ignored: interval=%lums",
+                     static_cast<unsigned long>(now - s_last_mic_click_ms));
+        return;
+    }
+    s_last_mic_click_ms = now;
+    LILYGO_LOG_I("Wireless mic button clicked: streaming=%u", s_streaming ? 1U : 0U);
+    if (s_streaming) stopStreaming("button");
     else startStreaming();
 }
 
@@ -291,9 +433,6 @@ static void gainSliderEvent(lv_event_t *event)
     if (lv_event_get_code(event) != LV_EVENT_VALUE_CHANGED) return;
 
     s_mic_gain_db = lv_slider_get_value(lv_event_get_target_obj(event));
-    if (s_audio_input) {
-        s_audio_input->setMicGain(static_cast<float>(s_mic_gain_db));
-    }
     if (s_gain_label) {
         lv_label_set_text_fmt(s_gain_label, "Gain +%ld dB",
                               static_cast<long>(s_mic_gain_db));
@@ -312,6 +451,8 @@ static void processOffers()
         s_receiver_name[sizeof(s_receiver_name) - 1] = '\0';
         s_peer_ready = true;
         s_last_peer_ms = millis();
+        LILYGO_LOG_D("Wireless mic receiver alive: %s channel=%u",
+                     s_receiver_name, s_channel);
     }
 }
 
@@ -326,14 +467,31 @@ static void updateUi(lv_timer_t *)
     }
     if (s_peer_ready && now - s_last_heartbeat_ms >= kHeartbeatIntervalMs) {
         s_last_heartbeat_ms = now;
-        sendControl(PacketType::Heartbeat, s_receiver);
+        sendControl(s_streaming ? PacketType::Heartbeat : PacketType::Stop,
+                    s_receiver);
     }
     if (s_peer_ready && now - s_last_peer_ms > kPeerTimeoutMs + kHeartbeatIntervalMs) {
-        stopStreaming();
+        LILYGO_LOG_W("Wireless mic receiver timeout: age=%lums",
+                     static_cast<unsigned long>(now - s_last_peer_ms));
+        stopStreaming("peer-timeout");
         if (esp_now_is_peer_exist(s_receiver)) esp_now_del_peer(s_receiver);
         memset(s_receiver, 0, sizeof(s_receiver));
         s_peer_ready = false;
         s_last_discover_ms = 0;
+    }
+
+    if (s_streaming && now - s_last_stats_log_ms >= 1000) {
+        s_last_stats_log_ms = now;
+        LILYGO_LOG_I(
+            "Wireless mic stats: tx=%lu drop=%lu radio=%lu rx=%lu lost=%lu drop=%lu underrun=%lu short=%lu",
+            static_cast<unsigned long>(s_frames_sent),
+            static_cast<unsigned long>(s_frames_dropped),
+            static_cast<unsigned long>(s_send_failures),
+            static_cast<unsigned long>(s_receiver_packets_received),
+            static_cast<unsigned long>(s_receiver_packets_lost),
+            static_cast<unsigned long>(s_receiver_packets_dropped),
+            static_cast<unsigned long>(s_receiver_pcm_underruns),
+            static_cast<unsigned long>(s_receiver_usb_short_writes));
     }
 
     if (s_mic_button) {
@@ -362,10 +520,16 @@ static void updateUi(lv_timer_t *)
         lv_label_set_text_fmt(s_channel_label, "CH %u  16 kHz mono", s_channel);
     }
     if (s_stats_label) {
-        lv_label_set_text_fmt(s_stats_label, "Frames %lu  Drop %lu  Radio %lu",
+        lv_label_set_text_fmt(s_stats_label,
+                              "Tx %lu D%lu F%lu\nRx %lu L%lu D%lu U%lu W%lu",
                               static_cast<unsigned long>(s_frames_sent),
                               static_cast<unsigned long>(s_frames_dropped),
-                              static_cast<unsigned long>(s_send_failures));
+                              static_cast<unsigned long>(s_send_failures),
+                              static_cast<unsigned long>(s_receiver_packets_received),
+                              static_cast<unsigned long>(s_receiver_packets_lost),
+                              static_cast<unsigned long>(s_receiver_packets_dropped),
+                              static_cast<unsigned long>(s_receiver_pcm_underruns),
+                              static_cast<unsigned long>(s_receiver_usb_short_writes));
     }
     if (s_level_bar) {
         int32_t level = (static_cast<uint32_t>(s_audio_level) * 100U) / 32767U;
@@ -570,6 +734,13 @@ static void buildUi(lv_obj_t *parent)
     lv_obj_center(s_mic_icon);
 }
 
+static const char *wirelessMicTitle()
+{
+    int32_t width = lv_display_get_horizontal_resolution(nullptr);
+    int32_t height = lv_display_get_vertical_resolution(nullptr);
+    return width <= 240 && height <= 240 ? "W Mic" : "Wireless Mic";
+}
+
 static bool initializeTransport()
 {
     s_exiting = false;
@@ -578,6 +749,14 @@ static bool initializeTransport()
     s_frames_sent = 0;
     s_frames_dropped = 0;
     s_send_failures = 0;
+    s_last_mic_click_ms = 0;
+    s_last_stats_log_ms = 0;
+    s_last_send_failure_log_ms = 0;
+    s_receiver_packets_received = 0;
+    s_receiver_packets_lost = 0;
+    s_receiver_packets_dropped = 0;
+    s_receiver_pcm_underruns = 0;
+    s_receiver_usb_short_writes = 0;
     s_control_sequence = 0;
 
     s_tx_queue = xQueueCreate(kTxQueueDepth, sizeof(TxItem));
@@ -592,7 +771,9 @@ static bool initializeTransport()
     if (!s_encoder.begin(format)) return false;
 
 #if defined(ARDUINO_T_EMBED_PLUS)
-    s_audio_input->setMicGain(static_cast<float>(s_mic_gain_db));
+    // Apply gain after DC removal in captureTask so the microphone's DC bias
+    // does not consume the available signal range.
+    s_audio_input->setMicGain(0.0f);
 #endif
     if (!s_audio_input->open(kBitsPerSample, kChannels, kSampleRate)) return false;
     s_audio_open = true;
@@ -619,7 +800,7 @@ void ui_wireless_mic_enter(lv_obj_t *parent)
         return;
     }
 
-    s_page = ui_create_app_page(parent, "Wireless Mic", backEvent);
+    s_page = ui_create_app_page(parent, wirelessMicTitle(), backEvent);
     buildUi(s_page);
     if (!initializeTransport()) {
         releaseResources();

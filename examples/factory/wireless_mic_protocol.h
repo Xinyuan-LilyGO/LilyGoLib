@@ -19,6 +19,7 @@ namespace wireless_mic {
 static constexpr uint32_t kMagic = 0x43494D57UL; // "WMIC" on the wire.
 static constexpr uint8_t kVersion = 1;
 static constexpr uint32_t kSampleRate = 16000;
+static constexpr uint32_t kUsbSampleRate = 48000;
 static constexpr uint8_t kChannels = 1;
 static constexpr uint8_t kBitsPerSample = 16;
 static constexpr size_t kFrameSamples = 320;
@@ -36,6 +37,7 @@ enum class PacketType : uint8_t {
     Audio = 4,
     Stop = 5,
     Heartbeat = 6,
+    Stats = 7,
 };
 
 enum class Codec : uint8_t {
@@ -71,8 +73,22 @@ struct __attribute__((packed)) AudioPacket {
     uint8_t audio[kEncodedFrameBytes];
 };
 
+struct __attribute__((packed)) StatsPayload {
+    uint32_t packets_received;
+    uint32_t packets_lost;
+    uint32_t packets_dropped;
+    uint32_t pcm_underruns;
+    uint32_t usb_short_writes;
+};
+
+struct __attribute__((packed)) StatsPacket {
+    PacketHeader header;
+    StatsPayload stats;
+};
+
 static_assert(sizeof(PacketHeader) == 16, "Wireless microphone header changed");
 static_assert(sizeof(AudioPacket) <= 250, "Audio packet must fit ESP-NOW v1");
+static_assert(sizeof(StatsPacket) <= 250, "Stats packet must fit ESP-NOW v1");
 
 inline PacketHeader makeHeader(PacketType type, uint16_t payload_size,
                                uint32_t session_id, uint32_t sequence)
@@ -102,6 +118,22 @@ inline ControlPacket makeControl(PacketType type, uint8_t channel,
     if (name) {
         strncpy(packet.device.name, name, sizeof(packet.device.name) - 1);
     }
+    return packet;
+}
+
+inline StatsPacket makeStats(uint32_t session_id, uint32_t sequence,
+                             uint32_t packets_received, uint32_t packets_lost,
+                             uint32_t packets_dropped, uint32_t pcm_underruns,
+                             uint32_t usb_short_writes)
+{
+    StatsPacket packet = {};
+    packet.header = makeHeader(PacketType::Stats, sizeof(packet.stats),
+                               session_id, sequence);
+    packet.stats.packets_received = packets_received;
+    packet.stats.packets_lost = packets_lost;
+    packet.stats.packets_dropped = packets_dropped;
+    packet.stats.pcm_underruns = pcm_underruns;
+    packet.stats.usb_short_writes = usb_short_writes;
     return packet;
 }
 

@@ -647,6 +647,7 @@ static const char *grid_short_app_name(const char *name)
     if (strcmp(name, "Sub-G Tools") == 0) return "Sub-G";
     if (strcmp(name, "LoRaWAN") == 0) return "WAN";
     if (strcmp(name, "QRCode") == 0) return "QR";
+    if (strcmp(name, "Wireless Mic") == 0) return "W Mic";
 
     return name;
 }
