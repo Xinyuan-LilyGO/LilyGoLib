@@ -1,0 +1,78 @@
+menu.UploadSpeed=Upload Speed
+menu.DebugLevel=Core Debug Level
+menu.LoopCore=Arduino Runs On
+menu.EventsCore=Events Run On
+menu.EraseFlash=Erase All Flash Before Sketch Upload
+
+lilygo_t_dongle_s3.name=LilyGo T-Dongle-S3
+
+lilygo_t_dongle_s3.bootloader.tool=esp32:esptool_py
+lilygo_t_dongle_s3.bootloader.tool.default=esp32:esptool_py
+lilygo_t_dongle_s3.upload.tool=esp32:esptool_py
+lilygo_t_dongle_s3.upload.tool.default=esp32:esptool_py
+lilygo_t_dongle_s3.upload.tool.network=esp32:esp_ota
+lilygo_t_dongle_s3.upload.maximum_size=6553600
+lilygo_t_dongle_s3.upload.maximum_data_size=327680
+lilygo_t_dongle_s3.upload.flags=
+lilygo_t_dongle_s3.upload.erase_cmd=
+lilygo_t_dongle_s3.upload.extra_flags=
+lilygo_t_dongle_s3.upload.use_1200bps_touch=false
+lilygo_t_dongle_s3.upload.wait_for_upload_port=false
+lilygo_t_dongle_s3.serial.disableDTR=false
+lilygo_t_dongle_s3.serial.disableRTS=false
+
+lilygo_t_dongle_s3.build.tarch=xtensa
+lilygo_t_dongle_s3.build.bootloader_addr=0x0
+lilygo_t_dongle_s3.build.target=esp32s3
+lilygo_t_dongle_s3.build.mcu=esp32s3
+lilygo_t_dongle_s3.build.core=esp32:esp32
+lilygo_t_dongle_s3.build.variant=esp32s3
+lilygo_t_dongle_s3.build.board=LILYGO_T_DONGLE_S3
+lilygo_t_dongle_s3.runtime.use_core_platform_path_for_runtime_platform_path=true
+lilygo_t_dongle_s3.build.usb_mode=0
+lilygo_t_dongle_s3.build.cdc_on_boot=0
+lilygo_t_dongle_s3.build.msc_on_boot=0
+lilygo_t_dongle_s3.build.dfu_on_boot=0
+lilygo_t_dongle_s3.build.f_cpu=240000000L
+lilygo_t_dongle_s3.build.flash_size=16MB
+lilygo_t_dongle_s3.build.flash_freq=80m
+lilygo_t_dongle_s3.build.flash_mode=dio
+lilygo_t_dongle_s3.build.boot=qio
+lilygo_t_dongle_s3.build.boot_freq=80m
+lilygo_t_dongle_s3.build.partitions=default_16MB
+lilygo_t_dongle_s3.build.defines=-DARDUINO_DONGLES3
+lilygo_t_dongle_s3.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_t_dongle_s3.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_t_dongle_s3.build.psram_type=qspi
+lilygo_t_dongle_s3.build.memory_type=qio_qspi
+
+lilygo_t_dongle_s3.menu.LoopCore.1=Core 1
+lilygo_t_dongle_s3.menu.LoopCore.1.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_t_dongle_s3.menu.LoopCore.0=Core 0
+lilygo_t_dongle_s3.menu.LoopCore.0.build.loop_core=-DARDUINO_RUNNING_CORE=0
+lilygo_t_dongle_s3.menu.EventsCore.1=Core 1
+lilygo_t_dongle_s3.menu.EventsCore.1.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_t_dongle_s3.menu.EventsCore.0=Core 0
+lilygo_t_dongle_s3.menu.EventsCore.0.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=0
+
+lilygo_t_dongle_s3.menu.UploadSpeed.921600=921600
+lilygo_t_dongle_s3.menu.UploadSpeed.921600.upload.speed=921600
+lilygo_t_dongle_s3.menu.UploadSpeed.115200=115200
+lilygo_t_dongle_s3.menu.UploadSpeed.115200.upload.speed=115200
+
+lilygo_t_dongle_s3.menu.DebugLevel.none=None
+lilygo_t_dongle_s3.menu.DebugLevel.none.build.code_debug=0
+lilygo_t_dongle_s3.menu.DebugLevel.error=Error
+lilygo_t_dongle_s3.menu.DebugLevel.error.build.code_debug=1
+lilygo_t_dongle_s3.menu.DebugLevel.warn=Warn
+lilygo_t_dongle_s3.menu.DebugLevel.warn.build.code_debug=2
+lilygo_t_dongle_s3.menu.DebugLevel.info=Info
+lilygo_t_dongle_s3.menu.DebugLevel.info.build.code_debug=3
+lilygo_t_dongle_s3.menu.DebugLevel.debug=Debug
+lilygo_t_dongle_s3.menu.DebugLevel.debug.build.code_debug=4
+lilygo_t_dongle_s3.menu.DebugLevel.verbose=Verbose
+lilygo_t_dongle_s3.menu.DebugLevel.verbose.build.code_debug=5
+
+lilygo_t_dongle_s3.menu.EraseFlash.none=Disabled
+lilygo_t_dongle_s3.menu.EraseFlash.all=Enabled
+lilygo_t_dongle_s3.menu.EraseFlash.all.upload.erase_cmd=-e

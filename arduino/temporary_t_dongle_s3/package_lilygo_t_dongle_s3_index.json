@@ -1,0 +1,35 @@
+{
+  "packages": [
+    {
+      "name": "lilygo_t_dongle_s3_temp",
+      "maintainer": "LILYGO",
+      "websiteURL": "https://github.com/Xinyuan-LilyGO/LilyGoLib",
+      "email": "lewishe@outlook.com",
+      "help": {
+        "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
+      },
+      "platforms": [
+        {
+          "name": "LILYGO T-Dongle-S3 Temporary Support",
+          "architecture": "esp32",
+          "version": "0.1.0",
+          "category": "Contributed",
+          "help": {
+            "online": "https://github.com/Xinyuan-LilyGO/LilyGoLib"
+          },
+          "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_dongle_s3/dist/lilygo-t-dongle-s3-temp-0.1.0.zip",
+          "archiveFileName": "lilygo-t-dongle-s3-temp-0.1.0.zip",
+          "checksum": "SHA-256:dda3abb97b2b9c6bd44c324d00d338ec40bb1d69dc079724150eaa4d5036e338",
+          "size": "1099",
+          "boards": [
+            {
+              "name": "LilyGo T-Dongle-S3"
+            }
+          ],
+          "toolsDependencies": []
+        }
+      ],
+      "tools": []
+    }
+  ]
+}
