@@ -5,6 +5,8 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
+ * Shared declarations, feature gates, and UI helpers used by the Factory
+ * application pages.
  */
 #ifdef ARDUINO
 #include <Arduino.h>
@@ -51,6 +53,14 @@ static inline uint32_t millis(void) { return lv_tick_get(); }
 #ifndef EXCLUDE_WALKIE
 #define EXCLUDE_WALKIE
 #endif
+#endif
+
+#if defined(LILYGO_FACTORY_ENABLE_WIRELESS_MIC) && LILYGO_FACTORY_ENABLE_WIRELESS_MIC
+#define FACTORY_HAS_WIRELESS_MIC_DEPS 1
+#elif defined(ARDUINO) && __has_include(<PCMFlowG722.h>)
+#define FACTORY_HAS_WIRELESS_MIC_DEPS 1
+#else
+#define FACTORY_HAS_WIRELESS_MIC_DEPS 0
 #endif
 
 #if defined(LILYGO_FACTORY_ENABLE_INA219) && LILYGO_FACTORY_ENABLE_INA219

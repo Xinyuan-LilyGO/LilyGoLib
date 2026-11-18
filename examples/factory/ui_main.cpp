@@ -1,10 +1,12 @@
 /**
- * @file      ui.cpp
+ * @file      ui_main.cpp
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-04
  *
+ * Builds the Factory application launcher, registers device-specific pages,
+ * and manages navigation between the menu and active application.
  */
 #include <LilyGoLog.h>
 #include "ui_define.h"
@@ -1802,6 +1804,9 @@ void setupGui()
 #if !defined(EXCLUDE_BAD_USB)
     extern app_t ui_bad_usb_main;
 #endif
+#if FACTORY_HAS_WIRELESS_MIC_DEPS
+    extern app_t ui_wireless_mic_main;
+#endif
 
 #if !defined(EXCLUDE_CLOCK_TOOLS)
     extern app_t ui_clock_tools_main;
@@ -2022,6 +2027,9 @@ void setupGui()
     (ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(4,0,0))
     extern app_t ui_walkie_main;
     register_app("Walkie", &img_walkie, &ui_walkie_main);
+#endif
+#if FACTORY_HAS_WIRELESS_MIC_DEPS
+    register_app("Wireless Mic", &img_microphone, &ui_wireless_mic_main);
 #endif
 #endif
 #endif
