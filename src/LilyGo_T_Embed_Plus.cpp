@@ -1,3 +1,13 @@
+/**
+ * @file      LilyGo_T_Embed_Plus.cpp
+ * @author    Lewis He (lewishe@outlook.com)
+ * @license   MIT
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-14
+ *
+ * Implements the LilyGo T-Embed-Plus board support and power management.
+ */
+
 #ifdef ARDUINO_T_EMBED_PLUS
 
 #include "LilyGo_T_Embed_Plus.h"
@@ -530,6 +540,12 @@ void LilyGoTEmbedPlus::lightSleep(WakeupSource_t wakeupSource)
     if (wakeupPins & (1ULL << BOARD_USER_KEY)) {
         pinMode(BOARD_USER_KEY, INPUT_PULLUP);
     }
+    delayMicroseconds(50);
+    if (((wakeupPins & (1ULL << ENCODER_KEY)) && digitalRead(ENCODER_KEY) == LOW) ||
+            ((wakeupPins & (1ULL << BOARD_USER_KEY)) && digitalRead(BOARD_USER_KEY) == LOW)) {
+        LILYGO_LOG_W("T-Embed light sleep skipped: wake button is still pressed");
+        return;
+    }
 
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     const esp_err_t wakeupResult = esp_sleep_enable_ext1_wakeup_io(
@@ -541,9 +557,70 @@ void LilyGoTEmbedPlus::lightSleep(WakeupSource_t wakeupSource)
         return;
     }
 
+    const bool radioWasOnline = isDeviceOnline(HW_RADIO_ONLINE);
+#ifndef RADIOLIB_EXCLUDE_NRF24
+    const bool nrf24WasOnline = isDeviceOnline(HW_NRF24_ONLINE);
+#endif
+    const bool nfcWasOnline = isDeviceOnline(HW_NFC_ONLINE);
+    const bool audioWasOnline = isDeviceOnline(HW_CODEC_ONLINE);
+    const bool sdWasOnline = isDeviceOnline(HW_SD_ONLINE);
+
     disableRotary();
+    if (radioWasOnline) {
+        radio.sleep();
+    }
+#ifndef RADIOLIB_EXCLUDE_NRF24
+    if (nrf24WasOnline) {
+        nrf24.sleep();
+    }
+#endif
+    powerControl(POWER_NFC, false);
+    if (audioWasOnline) {
+        audioInput.end();
+        audioOutput.end();
+        devicesProbe &= ~HW_CODEC_ONLINE;
+    }
+    if (sdWasOnline) {
+        uninstallSD();
+    }
+    sleepDisplay();
+    backlight.setBrightness(0);
+
+    // Keep GPIO15 high in light sleep so the CC1101 retains its runtime
+    // configuration. Stopped I2S clocks put the MAX98357 into shutdown.
     const esp_err_t sleepResult = esp_light_sleep_start();
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+
+    wakeupDisplay();
+    delay(120);
+    backlight.setBrightness(brightnessLevel);
+    if (radioWasOnline) {
+        radio.standby();
+    }
+#ifndef RADIOLIB_EXCLUDE_NRF24
+    if (nrf24WasOnline) {
+        nrf24.standby();
+    }
+#endif
+    if (nfcWasOnline) {
+        powerControl(POWER_NFC, true);
+        if (!initNFC()) {
+            devicesProbe &= ~HW_NFC_ONLINE;
+            LILYGO_LOG_W("Failed to restore PN532 after light sleep");
+        }
+    }
+    if (audioWasOnline) {
+        const bool audioInputReady = audioInput.begin();
+        const bool audioOutputReady = audioOutput.begin();
+        if (audioInputReady || audioOutputReady) {
+            devicesProbe |= HW_CODEC_ONLINE;
+        } else {
+            LILYGO_LOG_W("Failed to restore audio after light sleep");
+        }
+    }
+    if (sdWasOnline && !installSD()) {
+        LILYGO_LOG_W("Failed to restore SD card after light sleep");
+    }
     enableRotary();
 
     if (sleepResult != ESP_OK) {
@@ -578,6 +655,12 @@ void LilyGoTEmbedPlus::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSe
     if (wakeupPins & (1ULL << BOARD_USER_KEY)) {
         pinMode(BOARD_USER_KEY, INPUT_PULLUP);
     }
+    delayMicroseconds(50);
+    if (((wakeupPins & (1ULL << ENCODER_KEY)) && digitalRead(ENCODER_KEY) == LOW) ||
+            ((wakeupPins & (1ULL << BOARD_USER_KEY)) && digitalRead(BOARD_USER_KEY) == LOW)) {
+        LILYGO_LOG_W("T-Embed deep sleep skipped: wake button is still pressed");
+        return;
+    }
 
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     esp_err_t wakeupResult = ESP_OK;
@@ -594,6 +677,37 @@ void LilyGoTEmbedPlus::sleep(WakeupSource_t wakeupSource, bool, uint32_t sleepSe
                      esp_err_to_name(wakeupResult));
         return;
     }
+
+    disableRotary();
+    if (isDeviceOnline(HW_RADIO_ONLINE)) {
+        radio.sleep();
+    }
+#ifndef RADIOLIB_EXCLUDE_NRF24
+    if (isDeviceOnline(HW_NRF24_ONLINE)) {
+        nrf24.sleep();
+    }
+#endif
+    powerControl(POWER_NFC, false);
+    if (isDeviceOnline(HW_CODEC_ONLINE)) {
+        audioInput.end();
+        audioOutput.end();
+    }
+    if (isDeviceOnline(HW_SD_ONLINE)) {
+        uninstallSD();
+    }
+
+    sleepDisplay();
+    backlight.setBrightness(0);
+
+    // GPIO15 powers the CC1101, WS2812 and MAX98357. Deep sleep resets the
+    // application, so their runtime state does not need to be retained.
+    digitalWrite(BOARD_PERIPHERAL_POWER_EN, LOW);
+    digitalWrite(BOARD_LORA_SW0, LOW);
+    digitalWrite(BOARD_LORA_SW1, LOW);
+
+    SPI.end();
+    Wire.end();
+    Serial.flush();
     esp_deep_sleep_start();
 }
 

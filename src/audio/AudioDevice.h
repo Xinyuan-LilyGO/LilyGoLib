@@ -309,7 +309,10 @@ public:
     /**
      * @brief Stop the PDM input stream.
      */
-    void end() {}
+    void end() override
+    {
+        i2s.end();
+    }
 
     /**
      * @brief Read PCM bytes and apply software microphone gain.

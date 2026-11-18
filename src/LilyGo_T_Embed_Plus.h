@@ -1,11 +1,11 @@
 /**
  * @file      LilyGo_T_Embed_Plus.h
- * @brief     Board support for the LilyGo T-Embed-Plus.
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-11-14
  *
+ * Declares the LilyGo T-Embed-Plus board support interface.
  */
 #pragma once
 
@@ -422,6 +422,9 @@ public:
      * WAKEUP_SRC_BOOT_BUTTON and WAKEUP_SRC_ROTARY_BUTTON select the shared
      * encoder/BOOT key on GPIO0. WAKEUP_SRC_BUTTON selects the USER key on
      * GPIO6. Multiple supported button sources may be combined.
+     * The display, backlight, radios, NFC, audio, and SD card are suspended and
+     * restored around light sleep. The shared peripheral rail remains enabled
+     * so active radio configuration is retained.
      */
     void lightSleep(WakeupSource_t wakeupSource = WAKEUP_SRC_BOOT_BUTTON);
 
@@ -436,6 +439,8 @@ public:
      *
      * Physical wake-source mappings are the same as lightSleep(). When
      * WAKEUP_SRC_TIMER is selected, sleepSeconds must be non-zero.
+     * Before deep sleep, the display, radios, NFC, audio, SD card, shared
+     * peripheral power rail, SPI bus, and I2C bus are shut down.
      */
     void sleep(WakeupSource_t wakeupSource = WAKEUP_SRC_BOOT_BUTTON,
                bool offRtcBackupDomain = false, uint32_t sleepSeconds = 0);
