@@ -1789,6 +1789,9 @@ void setupGui()
     extern app_t ui_ble_hid_main;
     extern app_t ui_factory_main;
     extern app_t ui_i2c_scanner_main;
+#if FACTORY_HAS_ROTARY
+    extern app_t ui_rotary_test_main;
+#endif
 #if !defined(EXCLUDE_MAX30102)
     extern app_t ui_max30102_main;
     extern bool ui_max30102_probe(void);
@@ -1920,6 +1923,12 @@ void setupGui()
 #endif
 
     register_app("DisplayTest", &img_test, &ui_factory_main);
+
+#if FACTORY_HAS_ROTARY
+    if (hw_has_encoder()) {
+        register_app("Encoder Test", &img_tools, &ui_rotary_test_main);
+    }
+#endif
 
     register_app("I2C Scan", &img_scan, &ui_i2c_scanner_main);
 
