@@ -14,7 +14,7 @@
 
 #define CC1101_MODE_LIST        "Disable\n""Beacon TX\n""RX Capture"
 #define CC1101_INTERVAL_LIST    "1000ms\n""2000ms\n""3000ms"
-#define CC1101_BIT_RATE_LIST    "1kbps\n""5kbps\n""10kbps\n""38.4kbps\n""100kbps"
+#define CC1101_BIT_RATE_LIST    "1.2kbps\n""5kbps\n""10kbps\n""38.4kbps\n""100kbps"
 #define CC1101_MOD_LIST         "OOK\n""2-FSK"
 #define CC1101_TX_POWER_LIST    "0dBm\n""5dBm\n""7dBm\n""10dBm"
 #define CC1101_MAX_PAYLOAD      255

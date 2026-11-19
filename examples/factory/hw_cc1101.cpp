@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-04-24
  *
+ * Implements interrupt-driven CC1101 configuration, transmit, and receive support.
  */
 
 #include <LilyGoLog.h>
@@ -18,26 +19,62 @@
 
 static EventGroupHandle_t radioEvent = NULL;
 static uint32_t last_send_millis = 0;
+static uint32_t last_rx_diagnostic_millis = 0;
 static int16_t last_tx_state = 0;
+static volatile uint32_t rx_irq_count = 0;
+static volatile uint32_t tx_irq_count = 0;
 
-#define LORA_ISR_FLAG                  _BV(0)
+#define LORA_RX_ISR_FLAG               _BV(0)
+#define LORA_TX_ISR_FLAG               _BV(1)
+#define LORA_ISR_FLAGS                 (LORA_RX_ISR_FLAG | LORA_TX_ISR_FLAG)
 
-#define RADIO_DEFAULT_BIT_RATE      38.4    //kbps
-#define RADIO_DEFAULT_DEV_FREQ      20.0
+#define RADIO_DEFAULT_BIT_RATE       1.2    // kbps
+#define RADIO_DEFAULT_DEV_FREQ       5.2    // kHz
 
-static void hw_radio_isr()
+static float hw_get_cc1101_bit_rate(uint16_t value)
+{
+    if (value == 0 || value == 1) {
+        return RADIO_DEFAULT_BIT_RATE;
+    }
+    return value == 38 ? 38.4f : static_cast<float>(value);
+}
+
+static void hw_log_cc1101_step(const char *step, int16_t state)
+{
+    LILYGO_LOG_PRINTF("[CC1101][CFG] %-22s state=%d\n", step, state);
+}
+
+static void IRAM_ATTR hw_radio_rx_isr()
 {
     if (!radioEvent) {
         return;
     }
+    __atomic_add_fetch(&rx_irq_count, 1U, __ATOMIC_RELAXED);
     BaseType_t xHigherPriorityTaskWoken, xResult;
     xHigherPriorityTaskWoken = pdFALSE;
     xResult = xEventGroupSetBitsFromISR(
                   radioEvent,
-                  LORA_ISR_FLAG,
+                  LORA_RX_ISR_FLAG,
                   &xHigherPriorityTaskWoken);
     if ( xResult == pdPASS ) {
         portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+    }
+}
+
+static void IRAM_ATTR hw_radio_tx_isr()
+{
+    if (!radioEvent) {
+        return;
+    }
+    __atomic_add_fetch(&tx_irq_count, 1U, __ATOMIC_RELAXED);
+    BaseType_t xHigherPriorityTaskWoken, xResult;
+    xHigherPriorityTaskWoken = pdFALSE;
+    xResult = xEventGroupSetBitsFromISR(
+                  radioEvent,
+                  LORA_TX_ISR_FLAG,
+                  &xHigherPriorityTaskWoken);
+    if (xResult == pdPASS) {
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 }
 
@@ -49,20 +86,25 @@ void hw_radio_begin()
     // sent IRQ. RadioLib attaches the callbacks to these pins below.
     pinMode(LORA_IRQ, INPUT);
     pinMode(LORA_BUSY, INPUT);
-    radio.setPacketSentAction(hw_radio_isr);
-    radio.setPacketReceivedAction(hw_radio_isr);
+    radio.setPacketSentAction(hw_radio_tx_isr);
+    radio.setPacketReceivedAction(hw_radio_rx_isr);
+    LILYGO_LOG_PRINTF("[CC1101][IRQ] attached GDO0=GPIO%d RX, GDO2=GPIO%d TX\n",
+                      LORA_IRQ, LORA_BUSY);
+    LILYGO_LOG_PRINTF("[CC1101][IRQ] initial levels GDO0=%d GDO2=%d\n",
+                      digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
 }
 
 int16_t hw_set_radio_params(radio_params_t &params)
 {
+    const float bit_rate = hw_get_cc1101_bit_rate(params.cr);
     LILYGO_LOG_PRINTF("Set radio params:\n");
     LILYGO_LOG_PRINTF("Frequency:%.2f MHz\n", params.freq);
     LILYGO_LOG_PRINTF("Bandwidth:%.2f KHz\n", params.bandwidth);
     LILYGO_LOG_PRINTF("TxPower:%u dBm\n", params.power);
     LILYGO_LOG_PRINTF("Interval:%u ms\n", params.interval);
-    LILYGO_LOG_PRINTF("BitRate:%u kbps\n", params.cr);
+    LILYGO_LOG_PRINTF("BitRate:%.1f kbps\n", bit_rate);
     LILYGO_LOG_PRINTF("Modulation:%s\n", params.sf ? "OOK" : "2-FSK");
-    LILYGO_LOG_PRINTF("SyncWord:%u \n", params.syncWord);
+    LILYGO_LOG_PRINTF("SyncWord:0x%02X 0x23\n", params.syncWord);
     LILYGO_LOG_PRINTF("Mode: ");
     switch (params.mode) {
     case RADIO_DISABLE:
@@ -86,48 +128,53 @@ int16_t hw_set_radio_params(radio_params_t &params)
     instance.lockSPI();
 #if defined(ARDUINO_T_EMBED_PLUS)
     state = instance.setRFFrequencyBand(params.freq);
+    hw_log_cc1101_step("set frequency", state);
+    LILYGO_LOG_PRINTF("[CC1101][CFG] RF path SW1=%d SW0=%d\n",
+                      digitalRead(BOARD_LORA_SW1), digitalRead(BOARD_LORA_SW0));
 #else
     state = radio.setFrequency(params.freq);
+    hw_log_cc1101_step("set frequency", state);
 #endif
     if (state == RADIOLIB_ERR_INVALID_FREQUENCY) {
         LILYGO_LOG_PRINTLN(F("Selected frequency is invalid for this module!"));
     }
     // set modulation before output power so the PA table matches ASK/OOK or FSK.
     state = radio.setOOK(params.sf != 0);
+    hw_log_cc1101_step(params.sf ? "set modulation OOK" : "set modulation 2-FSK", state);
     if (state != RADIOLIB_ERR_NONE) {
         LILYGO_LOG_PRINTLN(F("[CC1101] Unable to set modulation!"));
     }
     // set bandwidth
     state = radio.setRxBandwidth(params.bandwidth);
+    hw_log_cc1101_step("set RX bandwidth", state);
     if (state == RADIOLIB_ERR_INVALID_RX_BANDWIDTH) {
         LILYGO_LOG_PRINTLN(F("Selected bandwidth is invalid for this module!"));
     }
-    // set LoRa sync word
+    // set CC1101 sync word
     state = radio.setSyncWord(params.syncWord, 0x23);
+    hw_log_cc1101_step("set sync word", state);
     if (state  != RADIOLIB_ERR_NONE) {
         LILYGO_LOG_PRINTLN(F("Unable to set sync word!"));
     }
     // set output power
     state = radio.setOutputPower(params.power);
+    hw_log_cc1101_step("set output power", state);
     if (state  == RADIOLIB_ERR_INVALID_OUTPUT_POWER) {
         LILYGO_LOG_PRINTLN(F("Selected output power is invalid for this module!"));
     }
     // set bit rate
-    float bit_rate = (params.cr == 0) ? RADIO_DEFAULT_BIT_RATE : (float)params.cr;
-    if (params.cr == 38) {
-        bit_rate = 38.4;
-    }
     state = radio.setBitRate(bit_rate);
+    hw_log_cc1101_step("set bit rate", state);
     if (state == RADIOLIB_ERR_INVALID_BIT_RATE) {
         LILYGO_LOG_PRINTLN(F("[CC1101] Selected bit rate is invalid for this module!"));
     } else if (state == RADIOLIB_ERR_INVALID_BIT_RATE_BW_RATIO) {
         LILYGO_LOG_PRINTLN(F("[CC1101] Increase receiver bandwidth for this bit rate."));
     }
-    // set allowed frequency deviation
-    if (params.sf == 0) {
-        if (radio.setFrequencyDeviation(RADIO_DEFAULT_DEV_FREQ) == RADIOLIB_ERR_INVALID_FREQUENCY_DEVIATION) {
-            LILYGO_LOG_PRINTLN(F("[CC1101] Selected frequency deviation is invalid for this module!"));
-        }
+    // Keep the packet profile aligned for both OOK and 2-FSK modes.
+    state = radio.setFrequencyDeviation(RADIO_DEFAULT_DEV_FREQ);
+    hw_log_cc1101_step("set frequency dev", state);
+    if (state == RADIOLIB_ERR_INVALID_FREQUENCY_DEVIATION) {
+        LILYGO_LOG_PRINTLN(F("[CC1101] Selected frequency deviation is invalid for this module!"));
     }
 
     LILYGO_LOG_PRINTF("Mode: ");
@@ -135,24 +182,30 @@ int16_t hw_set_radio_params(radio_params_t &params)
     case RADIO_DISABLE:
         LILYGO_LOG_PRINTF("RADIO_DISABLE\n");
         if (radioEvent) {
-            xEventGroupClearBits(radioEvent, LORA_ISR_FLAG);
+            xEventGroupClearBits(radioEvent, LORA_ISR_FLAGS);
         }
         state =  radio.standby();
-        LILYGO_LOG_PRINTF("RADIO_DISABLE state:%d\n", state);
+        LILYGO_LOG_PRINTF("[CC1101][MODE] standby state=%d GDO0=%d GDO2=%d\n",
+                          state, digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
         break;
     case RADIO_TX:
         state =  radio.standby();
         if (radioEvent) {
-            xEventGroupSetBits(radioEvent, LORA_ISR_FLAG);
+            xEventGroupClearBits(radioEvent, LORA_RX_ISR_FLAG);
+            xEventGroupSetBits(radioEvent, LORA_TX_ISR_FLAG);
         }
-        LILYGO_LOG_PRINTF("RADIO_TX state:%d\n", state);
+        LILYGO_LOG_PRINTF("[CC1101][MODE] TX ready state=%d GDO0=%d GDO2=%d\n",
+                          state, digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
         break;
     case RADIO_RX:
         if (radioEvent) {
-            xEventGroupClearBits(radioEvent, LORA_ISR_FLAG);
+            xEventGroupClearBits(radioEvent, LORA_ISR_FLAGS);
         }
         state =  radio.startReceive();
-        LILYGO_LOG_PRINTF("RADIO_RX state:%d\n", state);
+        last_rx_diagnostic_millis = millis();
+        LILYGO_LOG_PRINTF("[CC1101][MODE] start RX state=%d GDO0=%d GDO2=%d\n",
+                          state,
+                          digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
         break;
     case RADIO_CW:
         state = radio.transmitDirect();
@@ -170,15 +223,15 @@ int16_t hw_set_radio_params(radio_params_t &params)
 
 void hw_get_radio_params(radio_params_t &params)
 {
-    params.bandwidth = 102.0;
-    params.freq = 433.0;
-    params.cr = 0;
+    params.bandwidth = 58.0;
+    params.freq = 433.92;
+    params.cr = 1;
     params.isRunning = false;
     params.mode = RADIO_DISABLE;
     params.sf  = 1;
     params.power = 10;
     params.interval = 3000;
-    params.syncWord = 0xCD;
+    params.syncWord = 0x01;
 }
 
 void hw_set_radio_default()
@@ -208,8 +261,8 @@ void hw_set_radio_tx(radio_tx_params_t &params, bool continuous)
     }
     if (continuous) {
         EventBits_t  eventBits = xEventGroupWaitBits(radioEvent,
-                                 LORA_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
-        if ((eventBits & LORA_ISR_FLAG) != LORA_ISR_FLAG) {
+                                 LORA_TX_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
+        if ((eventBits & LORA_TX_ISR_FLAG) != LORA_TX_ISR_FLAG) {
             params.state = -1;
             last_tx_state = params.state;
             return;
@@ -233,7 +286,7 @@ void hw_set_radio_tx(radio_tx_params_t &params, bool continuous)
 
     instance.lockSPI();
     radio.standby();
-    xEventGroupClearBits(radioEvent, LORA_ISR_FLAG);
+    xEventGroupClearBits(radioEvent, LORA_TX_ISR_FLAG);
     params.state = radio.startTransmit(params.data, params.length);
     instance.unlockSPI();
     last_tx_state = params.state;
@@ -257,11 +310,11 @@ bool hw_get_radio_tx_done(int16_t &state)
     }
 
     EventBits_t eventBits = xEventGroupWaitBits(radioEvent,
-                            LORA_ISR_FLAG,
+                            LORA_TX_ISR_FLAG,
                             pdTRUE,
                             pdTRUE,
                             0);
-    if ((eventBits & LORA_ISR_FLAG) != LORA_ISR_FLAG) {
+    if ((eventBits & LORA_TX_ISR_FLAG) != LORA_TX_ISR_FLAG) {
         return false;
     }
 
@@ -284,9 +337,24 @@ void hw_get_radio_rx(radio_rx_params_t &params)
         params.state = -1;
         return;
     }
-    EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, LORA_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
-    if ((eventBits & LORA_ISR_FLAG) != LORA_ISR_FLAG) {
+    EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, LORA_RX_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
+    if ((eventBits & LORA_RX_ISR_FLAG) != LORA_RX_ISR_FLAG) {
         params.state = -1;
+        const uint32_t now = millis();
+        if (now - last_rx_diagnostic_millis >= 2000) {
+            last_rx_diagnostic_millis = now;
+            instance.lockSPI();
+            const float live_rssi = radio.getRSSI();
+            instance.unlockSPI();
+            LILYGO_LOG_PRINTF("[CC1101][RX] waiting irq=%lu RSSI=%.1f GDO0=%d GDO2=%d",
+                              static_cast<unsigned long>(rx_irq_count), live_rssi,
+                              digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
+#if defined(ARDUINO_T_EMBED_PLUS)
+            LILYGO_LOG_PRINTF(" SW1=%d SW0=%d", digitalRead(BOARD_LORA_SW1),
+                              digitalRead(BOARD_LORA_SW0));
+#endif
+            LILYGO_LOG_PRINTLN();
+        }
         return;
     }
 
@@ -299,7 +367,11 @@ void hw_get_radio_rx(radio_rx_params_t &params)
     uint8_t overflow_buf[255];
     size_t capacity = params.length;
     instance.lockSPI();
+    LILYGO_LOG_PRINTF("[CC1101][IRQ] RX event #%lu GDO0=%d\n",
+                      static_cast<unsigned long>(rx_irq_count), digitalRead(LORA_IRQ));
     size_t packet_len = radio.getPacketLength();
+    LILYGO_LOG_PRINTF("[CC1101][RX] packet length=%u capacity=%u\n",
+                      static_cast<unsigned>(packet_len), static_cast<unsigned>(capacity));
     size_t read_len = packet_len > sizeof(overflow_buf) ? sizeof(overflow_buf) : packet_len;
     uint8_t *read_buf = packet_len > capacity ? overflow_buf : params.data;
     params.state = radio.readData(read_buf, read_len);
@@ -310,8 +382,10 @@ void hw_get_radio_rx(radio_rx_params_t &params)
     params.rssi = radio.getRSSI();
     params.snr = radio.getSNR();
     // Start next packet recv
-    radio.startReceive();
+    const int16_t restart_state = radio.startReceive();
     instance.unlockSPI();
+    LILYGO_LOG_PRINTF("[CC1101][RX] read state=%d restart state=%d RSSI=%d\n",
+                      params.state, restart_state, params.rssi);
 
 
     if (last_send_millis + 200 > millis()) {
@@ -355,11 +429,17 @@ bool radio_transmit(const uint8_t *data, size_t length)
         return false;
     }
 
+    LILYGO_LOG_PRINTF("[CC1101][TX] begin length=%u txIrq=%lu GDO2=%d\n",
+                      static_cast<unsigned>(length), static_cast<unsigned long>(tx_irq_count),
+                      digitalRead(LORA_BUSY));
     instance.lockSPI();
     int state = radio.standby();
+    LILYGO_LOG_PRINTF("[CC1101][TX] standby state=%d\n", state);
     if (state == RADIOLIB_ERR_NONE) {
-        xEventGroupClearBits(radioEvent, LORA_ISR_FLAG);
+        xEventGroupClearBits(radioEvent, LORA_TX_ISR_FLAG);
         state = radio.startTransmit(data, length);
+        LILYGO_LOG_PRINTF("[CC1101][TX] startTransmit state=%d GDO2=%d\n",
+                          state, digitalRead(LORA_BUSY));
     }
     instance.unlockSPI();
 
@@ -367,8 +447,11 @@ bool radio_transmit(const uint8_t *data, size_t length)
         // Wait for the CC1101 GDO2 packet-sent IRQ. This keeps the direct
         // Factory tool path interrupt-driven instead of polling RadioLib.
         const EventBits_t eventBits = xEventGroupWaitBits(
-            radioEvent, LORA_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2000));
-        if ((eventBits & LORA_ISR_FLAG) == 0) {
+            radioEvent, LORA_TX_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2000));
+        LILYGO_LOG_PRINTF("[CC1101][IRQ] TX wait bits=0x%02X count=%lu GDO2=%d\n",
+                          static_cast<unsigned>(eventBits), static_cast<unsigned long>(tx_irq_count),
+                          digitalRead(LORA_BUSY));
+        if ((eventBits & LORA_TX_ISR_FLAG) == 0) {
             state = RADIOLIB_ERR_TX_TIMEOUT;
         }
     }
@@ -381,6 +464,7 @@ bool radio_transmit(const uint8_t *data, size_t length)
     }
     last_tx_state = state;
     last_send_millis = millis();
+    LILYGO_LOG_PRINTF("[CC1101][TX] finish state=%d final=%d\n", finishState, state);
     return (state == RADIOLIB_ERR_NONE);
 #else
     return true;
