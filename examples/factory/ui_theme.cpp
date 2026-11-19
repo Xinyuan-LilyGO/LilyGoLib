@@ -5,6 +5,8 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-04-23
  *
+ * Defines shared Factory styles and refreshes their colors when the active
+ * theme changes.
  */
 
 #include <lvgl.h>
@@ -86,7 +88,7 @@ void ui_styles_refresh(void)
     lv_style_set_text_color(&ui_styles.accent_btn, lv_color_white());
     lv_style_set_border_width(&ui_styles.accent_btn, 0);
 
-    /* High-contrast focus ring for widgets whose default background is already accent */
+    /* Theme-colored focus ring shared by encoder and keyboard controls. */
     lv_style_init(&ui_styles.accent_focus_ring);
     lv_style_set_border_color(&ui_styles.accent_focus_ring, UI_COLOR_ACCENT_FOCUS_BORDER);
     lv_style_set_border_width(&ui_styles.accent_focus_ring, 2);

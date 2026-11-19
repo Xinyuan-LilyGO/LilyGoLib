@@ -2827,10 +2827,9 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 #endif
 
-#if !FACTORY_HAS_IR_TX || !FACTORY_HAS_SD
+// IR Send supersedes the legacy SD-only player on every device.
 #ifndef EXCLUDE_IR_PLAYER
 #define EXCLUDE_IR_PLAYER
-#endif
 #endif
 
 #if !FACTORY_HAS_IR_TX || !FACTORY_HAS_IR_RX || !FACTORY_HAS_SD

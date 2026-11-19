@@ -117,8 +117,8 @@ extern uint32_t ui_active_track;
 #define UI_COLOR_CARD_FOCUS   lv_color_hex(0x2A2A2A)
 #define UI_COLOR_ACCENT       lv_color_hex(ui_active_accent)
 #define UI_COLOR_ACCENT_DIM   lv_color_hex(ui_active_accent_dim)
-#define UI_COLOR_ACCENT_FOCUS_BORDER lv_color_black()
-#define UI_COLOR_ACCENT_FOCUS_OUTLINE lv_color_white()
+#define UI_COLOR_ACCENT_FOCUS_BORDER UI_COLOR_ACCENT
+#define UI_COLOR_ACCENT_FOCUS_OUTLINE UI_COLOR_ACCENT
 #define UI_COLOR_WARNING      lv_color_hex(0xFF6B35)
 #define UI_COLOR_TEXT_PRIMARY  lv_color_white()
 #define UI_COLOR_TEXT_SECONDARY lv_color_hex(0x888888)

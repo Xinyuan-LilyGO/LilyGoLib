@@ -4,7 +4,8 @@
  * @license   MIT
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-08-21
- * IR Recorder — Record IR signals and save raw data to SD card
+ *
+ * Records infrared signals and saves raw captures to SD storage.
  */
 #include "ui_define.h"
 
@@ -337,6 +338,7 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
     lv_obj_set_style_border_color(filename_ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(filename_ta, 1, 0);
     lv_obj_set_style_radius(filename_ta, 8, 0);
+    ui_add_accent_focus_style(filename_ta);
     lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(filename_ta, filename_ta_event_cb, LV_EVENT_CANCEL, NULL);
