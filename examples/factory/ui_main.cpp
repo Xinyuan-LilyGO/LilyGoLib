@@ -1850,8 +1850,11 @@ void setupGui()
 
 #if !defined(EXCLUDE_NRF24)
     if (hw_has_nrf24()) {
-        extern app_t ui_nrf24_main;
-        register_app("NRF24", &img_radio, &ui_nrf24_main);
+        // Legacy NRF24 UI is retained in the source tree but no longer exposed.
+        // extern app_t ui_nrf24_main;
+        // register_app("NRF24", &img_radio, &ui_nrf24_main);
+        extern app_t ui_nrf24_console_main;
+        register_app("NRF24 Lab", &img_radio, &ui_nrf24_console_main);
         extern app_t ui_nrf24_scan_main;
         register_app("NRF24 Scan", &img_radio, &ui_nrf24_scan_main);
 #if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_PLUS)
@@ -2002,8 +2005,11 @@ void setupGui()
 #if !defined(EXCLUDE_LORA)
     if (has_lora_hardware) {
 #if !defined(EXCLUDE_CC1101_TOOL)
-        extern app_t ui_cc1101_tool_main;
-        register_app("Sub-G", &img_radio, &ui_cc1101_tool_main);
+        // Legacy CC1101 UI is retained in the source tree but no longer exposed.
+        // extern app_t ui_cc1101_tool_main;
+        // register_app("Sub-G", &img_radio, &ui_cc1101_tool_main);
+        extern app_t ui_cc1101_console_main;
+        register_app("CC1101 Lab", &img_radio, &ui_cc1101_console_main);
 #else
         register_app("LoRa", &img_radio, &ui_lora_hub_main);
 #endif

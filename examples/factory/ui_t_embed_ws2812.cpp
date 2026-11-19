@@ -1,6 +1,11 @@
 /**
  * @file      ui_t_embed_ws2812.cpp
- * @brief     T-Embed LED strip effects and production test.
+ * @author    Lewis He (lewishe@outlook.com)
+ * @license   MIT
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-19
+ *
+ * T-Embed pixel effects, production tests, and shared status indications.
  */
 #include "ui_define.h"
 
@@ -286,6 +291,34 @@ void backEventCb(lv_event_t *)
 void ui_t_embed_ws2812_init()
 {
     beginStripOnce();
+#if defined(ARDUINO_T_EMBED_PLUS)
+    strip.clear();
+    strip.show();
+#else
+    clearColors();
+    apa102Show(1);
+#endif
+}
+
+void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue)
+{
+    beginStripOnce();
+    const uint32_t color = rgbColor(red, green, blue);
+    fillColors(color);
+#if defined(ARDUINO_T_EMBED_PLUS)
+    const uint8_t level = brightnessLevel < 4 ? 4 : brightnessLevel;
+    strip.setBrightness(level * 255 / kBrightnessLevels);
+    for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
+        strip.setPixelColor(i, color);
+    }
+    strip.show();
+#else
+    apa102Show(brightnessLevel < 4 ? 4 : brightnessLevel);
+#endif
+}
+
+void ui_t_embed_ws2812_clear_status_color()
+{
 #if defined(ARDUINO_T_EMBED_PLUS)
     strip.clear();
     strip.show();

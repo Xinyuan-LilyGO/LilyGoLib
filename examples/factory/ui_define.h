@@ -258,6 +258,11 @@ uint8_t ui_get_font_size_pref(void);
 void ui_apply_theme_preset(uint8_t preset_idx);
 void update_page_indicator(void);
 
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue);
+void ui_t_embed_ws2812_clear_status_color(void);
+#endif
+
 #ifndef M_PI
 #define M_PI		3.14159265358979323846
 #endif
