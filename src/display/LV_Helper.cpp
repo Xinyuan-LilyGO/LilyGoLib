@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2023  Shenzhen XinYuan Electronic Technology Co., Ltd
  * @date      2023-04-28
  *
+ * Connects LilyGo display and input devices to LVGL 8.
  */
 #include "LilyGoLog.h"
 #include "LV_Helper.h"
@@ -22,6 +23,8 @@ static lv_color_t *buf1  = NULL;
 static lv_indev_t *kb_indev;
 static lv_indev_t *encoder_indev;
 static lv_indev_t *touchpad_indev;
+static lv_rotary_diagnostics_t rotary_diagnostics;
+static int8_t rotary_last_direction;
 
 
 void updateLvglHelper()
@@ -59,17 +62,67 @@ void touchpad_read( lv_indev_drv_t *indev_driver, lv_indev_data_t *data )
 #endif //USING_INPUT_DEV_TOUCHPAD
 
 #ifdef USING_INPUT_DEV_ROTARY
+static void update_rotary_diagnostics(const RotaryMsg_t &msg)
+{
+    rotary_diagnostics.button_pressed = msg.centerBtnPressed;
+    if (msg.centerBtnClicked) {
+        rotary_diagnostics.button_clicks++;
+    }
+    if (msg.enc_diff == 0) return;
+
+    const uint32_t now = millis();
+    const int8_t direction = msg.enc_diff > 0 ? 1 : -1;
+    const uint16_t magnitude = (uint16_t)(msg.enc_diff > 0 ? msg.enc_diff : -(int32_t)msg.enc_diff);
+
+    if (rotary_diagnostics.event_count > 0) {
+        rotary_diagnostics.last_interval_ms = now - rotary_diagnostics.last_event_ms;
+        if (direction != rotary_last_direction) {
+            rotary_diagnostics.direction_changes++;
+            if (rotary_diagnostics.last_interval_ms <= 80) {
+                rotary_diagnostics.rapid_reverse_events++;
+            }
+        }
+    }
+
+    rotary_diagnostics.position += msg.enc_diff;
+    if (msg.enc_diff > 0) {
+        rotary_diagnostics.positive_steps += magnitude;
+    } else {
+        rotary_diagnostics.negative_steps += magnitude;
+    }
+    rotary_diagnostics.event_count++;
+    if (magnitude > 1) rotary_diagnostics.multi_step_events++;
+    if (magnitude > rotary_diagnostics.max_abs_diff) rotary_diagnostics.max_abs_diff = magnitude;
+    rotary_diagnostics.last_diff = msg.enc_diff;
+    rotary_diagnostics.last_event_ms = now;
+    rotary_last_direction = direction;
+}
+
 static void lv_encoder_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
     auto *plane = static_cast<LilyGo_Display *>(indev_drv->user_data);
     RotaryMsg_t msg = plane->getRotary();
     data->enc_diff = msg.enc_diff;
     data->state = msg.centerBtnPressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    update_rotary_diagnostics(msg);
     if (msg.enc_diff != 0 || msg.centerBtnClicked || msg.centerBtnReleased) {
         plane->feedback((void *)indev_drv);
     }
 }
 #endif //USING_INPUT_DEV_ROTARY
+
+void lv_reset_rotary_diagnostics()
+{
+    memset(&rotary_diagnostics, 0, sizeof(rotary_diagnostics));
+    rotary_last_direction = 0;
+}
+
+bool lv_get_rotary_diagnostics(lv_rotary_diagnostics_t *snapshot)
+{
+    if (!snapshot) return false;
+    *snapshot = rotary_diagnostics;
+    return encoder_indev != NULL;
+}
 
 #if defined(USING_INPUT_DEV_KEYBOARD) || defined(USING_TDECK_KEYBOARD)
 static void keypad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)

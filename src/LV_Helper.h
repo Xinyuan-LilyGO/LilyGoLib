@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2023  Shenzhen XinYuan Electronic Technology Co., Ltd
  * @date      2023-04-28
  *
+ * Declares LVGL display, input, capture, and rotary diagnostic helpers.
  */
 
 #pragma once
@@ -20,6 +21,39 @@
 
 void beginLvglHelper(LilyGo_Display &display, bool debug = false);
 void updateLvglHelper();
+
+/**
+ * @brief Snapshot of rotary encoder events delivered to LVGL.
+ *
+ * Positive and negative counts follow LVGL's logical encoder direction. Some
+ * boards intentionally invert that direction to match their user interface;
+ * applications that display physical clockwise/counter-clockwise movement
+ * should apply the board-specific mapping.
+ */
+typedef struct {
+    int32_t position;
+    uint32_t positive_steps;
+    uint32_t negative_steps;
+    uint32_t event_count;
+    uint32_t multi_step_events;
+    uint32_t direction_changes;
+    uint32_t rapid_reverse_events;
+    uint32_t button_clicks;
+    uint32_t last_event_ms;
+    uint32_t last_interval_ms;
+    uint16_t max_abs_diff;
+    int16_t last_diff;
+    bool button_pressed;
+} lv_rotary_diagnostics_t;
+
+/** Reset the rotary event counters mirrored by the LVGL input driver. */
+void lv_reset_rotary_diagnostics();
+
+/**
+ * @brief Copy the current rotary event counters.
+ * @return True when a rotary input device is registered.
+ */
+bool lv_get_rotary_diagnostics(lv_rotary_diagnostics_t *snapshot);
 
 #if defined(LILYGO_SCREEN_CAPTURE_ENABLED) && LILYGO_SCREEN_CAPTURE_ENABLED
 typedef struct {
