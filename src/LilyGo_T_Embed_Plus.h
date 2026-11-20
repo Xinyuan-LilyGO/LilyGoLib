@@ -555,7 +555,8 @@ extern nRF24 nrf24;
 #define DEVICE_CHARGE_LEVEL_NUMS 32
 /// Battery charge-current step size in milliamperes.
 #define DEVICE_CHARGE_STEPS 64
-/// Recommended battery charge current in milliamperes.
-#define DEVICE_CHARGE_CURRENT_RECOMMEND 512
+/// Recommended battery charge current in milliamperes (640 mA is the closest
+/// supported value not exceeding half of the 1300 mAh battery capacity).
+#define DEVICE_CHARGE_CURRENT_RECOMMEND 640
 
 #endif // ARDUINO_T_EMBED_PLUS

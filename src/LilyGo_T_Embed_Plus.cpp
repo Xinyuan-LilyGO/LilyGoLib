@@ -15,6 +15,19 @@
 #include "core/LilyGoGeneral.h"
 #include <SensorWireHelper.h>
 #include "radio/LilyGoRadioHelper.h"
+#include <Preferences.h>
+
+#ifndef LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY
+#define LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY 1300U
+#endif
+
+#ifndef LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY
+#define LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY 1300U
+#endif
+
+#ifndef LILYGO_T_EMBED_PLUS_GAUGE_CONFIG_VERSION
+#define LILYGO_T_EMBED_PLUS_GAUGE_CONFIG_VERSION 1U
+#endif
 
 namespace {
 
@@ -43,8 +56,100 @@ static const DispRotationConfig_t rotationConfig[] = {
 };
 
 static constexpr uint32_t kSdFrequency = 40000000U;
-static constexpr uint16_t kChargeCurrent = 500;
 static constexpr EventBits_t kRotaryStartPressedFlag = BIT0;
+static constexpr char kNvsNamespace[] = "tembed_plus";
+static constexpr char kGaugeConfigKey[] = "gauge_cfg";
+static constexpr uint32_t kGaugeConfigMagic = 0x47554346; // GUCF
+static constexpr uint8_t kGaugeConfigOk = 1;
+static constexpr uint8_t kGaugeConfigFailed = 2;
+
+struct GaugeConfigRecord {
+    uint32_t magic;
+    uint16_t version;
+    uint16_t size;
+    uint16_t designCapacity;
+    uint16_t fullChargeCapacity;
+    uint8_t status;
+    uint8_t reserved[7];
+};
+
+static bool gaugeConfigMatchesTarget(const GaugeConfigRecord &record)
+{
+    return record.magic == kGaugeConfigMagic &&
+           record.version == LILYGO_T_EMBED_PLUS_GAUGE_CONFIG_VERSION &&
+           record.size == sizeof(GaugeConfigRecord) &&
+           record.designCapacity == LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY &&
+           record.fullChargeCapacity == LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY;
+}
+
+static bool loadGaugeConfigRecord(GaugeConfigRecord &record)
+{
+    Preferences prefs;
+    if (!prefs.begin(kNvsNamespace, true)) {
+        LILYGO_LOG_W("Gauge config NVS open failed");
+        return false;
+    }
+    const bool loaded = prefs.getBytes(kGaugeConfigKey, &record, sizeof(record)) == sizeof(record);
+    prefs.end();
+    return loaded && gaugeConfigMatchesTarget(record);
+}
+
+static void saveGaugeConfigRecord(uint8_t status)
+{
+    GaugeConfigRecord record = {};
+    record.magic = kGaugeConfigMagic;
+    record.version = LILYGO_T_EMBED_PLUS_GAUGE_CONFIG_VERSION;
+    record.size = sizeof(record);
+    record.designCapacity = LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY;
+    record.fullChargeCapacity = LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY;
+    record.status = status;
+
+    Preferences prefs;
+    if (!prefs.begin(kNvsNamespace, false)) {
+        LILYGO_LOG_W("Gauge config NVS open failed");
+        return;
+    }
+    if (prefs.putBytes(kGaugeConfigKey, &record, sizeof(record)) != sizeof(record)) {
+        LILYGO_LOG_W("Gauge config NVS save failed");
+    }
+    prefs.end();
+}
+
+static bool configureGaugeCapacityIfNeeded(GaugeBQ27220 &gauge)
+{
+    GaugeConfigRecord record = {};
+
+    if (gauge.refresh() &&
+            gauge.getDesignCapacity() == LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY) {
+        LILYGO_LOG_I("Gauge capacity already matches target design=%u",
+                     (unsigned)LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY);
+        saveGaugeConfigRecord(kGaugeConfigOk);
+        return true;
+    }
+
+    if (loadGaugeConfigRecord(record)) {
+        if (record.status == kGaugeConfigOk) {
+            LILYGO_LOG_I("Gauge capacity config already recorded design=%u full=%u",
+                         (unsigned)record.designCapacity,
+                         (unsigned)record.fullChargeCapacity);
+            return true;
+        }
+        if (record.status == kGaugeConfigFailed) {
+            LILYGO_LOG_W("Skip gauge capacity config after previous failure design=%u full=%u",
+                         (unsigned)record.designCapacity,
+                         (unsigned)record.fullChargeCapacity);
+            return false;
+        }
+    }
+
+    LILYGO_LOG_I("Configure gauge capacity design=%u full=%u",
+                 (unsigned)LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY,
+                 (unsigned)LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY);
+    const bool ok = gauge.setNewCapacity(LILYGO_T_EMBED_PLUS_GAUGE_DESIGN_CAPACITY,
+                                         LILYGO_T_EMBED_PLUS_GAUGE_FULL_CHARGE_CAPACITY);
+    saveGaugeConfigRecord(ok ? kGaugeConfigOk : kGaugeConfigFailed);
+    return ok;
+}
 
 } // namespace
 
@@ -161,6 +266,7 @@ uint32_t LilyGoTEmbedPlus::begin(const LilyGoDeviceInitOptions &options)
     }
     if (options.initGauge && gauge.begin(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL)) {
         devicesProbe |= HW_GAUGE_ONLINE;
+        configureGaugeCapacityIfNeeded(gauge);
     }
     if (options.initPmu && initPMU()) {
         devicesProbe |= HW_PMU_ONLINE;
@@ -204,7 +310,8 @@ bool LilyGoTEmbedPlus::initPMU()
         return false;
     }
     pmic.charger().setChargeVoltage(4208);
-    pmic.charger().setFastChargeCurrent(kChargeCurrent);
+    // Keep the default charging current at or below half of the 1300 mAh capacity.
+    pmic.charger().setFastChargeCurrent(DEVICE_CHARGE_CURRENT_RECOMMEND);
     return true;
 }
 
