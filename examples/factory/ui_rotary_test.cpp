@@ -23,6 +23,40 @@ static lv_obj_t *event_label;
 static lv_obj_t *stat_labels[6];
 static lv_obj_t *scale_labels[ROTARY_SCALE_LABEL_COUNT];
 
+#if defined(ARDUINO_T_EMBED_PLUS)
+static constexpr uint32_t USER_BUTTON_DEBOUNCE_MS = 20;
+static uint32_t user_button_clicks;
+static uint32_t user_button_changed_at;
+static bool user_button_raw_pressed;
+static bool user_button_pressed;
+
+static void reset_user_button_diagnostics()
+{
+    pinMode(BOARD_USER_KEY, INPUT_PULLUP);
+    user_button_raw_pressed = digitalRead(BOARD_USER_KEY) == LOW;
+    user_button_pressed = user_button_raw_pressed;
+    user_button_clicks = 0;
+    user_button_changed_at = millis();
+}
+
+static void update_user_button_diagnostics()
+{
+    const bool pressed = digitalRead(BOARD_USER_KEY) == LOW;
+    const uint32_t now = millis();
+    if (pressed != user_button_raw_pressed) {
+        user_button_raw_pressed = pressed;
+        user_button_changed_at = now;
+    }
+    if (user_button_pressed != user_button_raw_pressed &&
+            now - user_button_changed_at >= USER_BUTTON_DEBOUNCE_MS) {
+        user_button_pressed = user_button_raw_pressed;
+        if (user_button_pressed) {
+            user_button_clicks++;
+        }
+    }
+}
+#endif
+
 static int32_t physical_position(const lv_rotary_diagnostics_t &snapshot)
 {
 #if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS)
@@ -64,6 +98,14 @@ static void update_diagnostics(lv_timer_t *)
     lv_rotary_diagnostics_t snapshot = {};
     if (!lv_get_rotary_diagnostics(&snapshot) || !position_label) return;
 
+    bool button_pressed = snapshot.button_pressed;
+    uint32_t button_clicks = snapshot.button_clicks;
+#if defined(ARDUINO_T_EMBED_PLUS)
+    update_user_button_diagnostics();
+    button_pressed = user_button_pressed;
+    button_clicks = user_button_clicks;
+#endif
+
     const int32_t position = physical_position(snapshot);
     const int16_t diff = physical_diff(snapshot);
     lv_label_set_text_fmt(position_label, "%ld", (long)position);
@@ -81,11 +123,19 @@ static void update_diagnostics(lv_timer_t *)
         lv_label_set_text_fmt(direction_label, "CCW %d", diff);
     }
 
-    if (snapshot.button_pressed) {
+    if (button_pressed) {
+#if defined(ARDUINO_T_EMBED_PLUS)
+        lv_label_set_text(event_label, "IO6  PRESS");
+#else
         lv_label_set_text_fmt(event_label, "E%lu  BUTTON", (unsigned long)snapshot.event_count);
+#endif
         lv_obj_set_style_text_color(event_label, UI_COLOR_ACCENT, 0);
     } else if (snapshot.event_count == 0) {
+#if defined(ARDUINO_T_EMBED_PLUS)
+        lv_label_set_text(event_label, "Turn / IO6");
+#else
         lv_label_set_text(event_label, "Turn encoder");
+#endif
         lv_obj_set_style_text_color(event_label, UI_COLOR_TEXT_SECONDARY, 0);
     } else {
         lv_label_set_text_fmt(event_label, "E%lu  %lums",
@@ -96,7 +146,7 @@ static void update_diagnostics(lv_timer_t *)
 
     lv_label_set_text_fmt(stat_labels[0], "CW  %lu", (unsigned long)clockwise_steps(snapshot));
     lv_label_set_text_fmt(stat_labels[1], "CCW  %lu", (unsigned long)counterclockwise_steps(snapshot));
-    lv_label_set_text_fmt(stat_labels[2], "PRESS  %lu", (unsigned long)snapshot.button_clicks);
+    lv_label_set_text_fmt(stat_labels[2], "PRESS  %lu", (unsigned long)button_clicks);
     lv_label_set_text_fmt(stat_labels[3], "MULTI  %lu", (unsigned long)snapshot.multi_step_events);
     lv_label_set_text_fmt(stat_labels[4], "FLIP  %lu", (unsigned long)snapshot.rapid_reverse_events);
     lv_label_set_text_fmt(stat_labels[5], "MAX  %u", snapshot.max_abs_diff);
@@ -226,6 +276,9 @@ static void create_stats(lv_obj_t *parent, lv_coord_t height)
 static void ui_rotary_test_enter(lv_obj_t *parent)
 {
     lv_reset_rotary_diagnostics();
+#if defined(ARDUINO_T_EMBED_PLUS)
+    reset_user_button_diagnostics();
+#endif
     page_container = ui_create_app_page(parent, "Encoder Test", back_event_handler);
     lv_obj_remove_flag(page_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_update_layout(page_container);
