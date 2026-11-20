@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-08
  *
+ * Declares Factory hardware services and compile-time device capabilities.
  */
 
 #pragma once
@@ -2616,7 +2617,7 @@ void hw_set_usb_rf_switch(bool to_usb);
 
 #ifndef FACTORY_HAS_USB_MSC
 #if FACTORY_HAS_SD && (defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
-    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK))
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED_PLUS))
 #define FACTORY_HAS_USB_MSC            1
 #else
 #define FACTORY_HAS_USB_MSC            0

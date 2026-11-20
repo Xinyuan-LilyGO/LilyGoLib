@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2024  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2024-08-14
  *
+ * Provides the shared TinyUSB mass-storage and HID service.
  */
 #include "LilyGoLog.h"
 #include "freertos/FreeRTOS.h"
@@ -429,7 +430,7 @@ static bool configure_msc(bool media_present)
     if (!refresh_storage_geometry()) return false;
 
     msc.vendorID("LilyGo");
-    msc.productID(msc_backend == LILYGO_USB_MSC_BACKEND_SD ? "TDeck SD" : "TDeck Flash");
+    msc.productID(msc_backend == LILYGO_USB_MSC_BACKEND_SD ? "LilyGo SD" : "LilyGo Flash");
     msc.productRevision("1.0");
     msc.onRead(onRead);
     msc.onWrite(onWrite);
@@ -553,7 +554,11 @@ bool lilygo_usb_service_begin()
 
     USB.onEvent(on_usb_event);
     USB.firmwareVersion(0x0100);
-    USB.productName("LilyGo T-Deck V2");
+#ifdef USB_PRODUCT
+    USB.productName(USB_PRODUCT);
+#else
+    USB.productName("LilyGo Device");
+#endif
     USB.manufacturerName("LilyGo");
     usb_started = USB.begin();
     set_msc_status(usb_started ? "USB started" : "USB begin failed");
