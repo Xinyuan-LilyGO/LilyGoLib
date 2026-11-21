@@ -9,9 +9,9 @@
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if !defined(EXCLUDE_T_EMBED_LED)
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
 #include <Adafruit_NeoPixel.h>
 #define TEMBED_LED_COUNT WS2812_NUM_LEDS
 #else
@@ -52,7 +52,7 @@ const char *effectNames[EFFECT_COUNT] = {
     "Theater", "Comet", "Scanner", "Sparkle",
 };
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
 Adafruit_NeoPixel strip(TEMBED_LED_COUNT, WS2812_DATA_PIN, NEO_GRB + NEO_KHZ800);
 #endif
 lv_obj_t *pageContainer = nullptr;
@@ -69,7 +69,7 @@ bool stripInitialized = false;
 void beginStripOnce()
 {
     if (!stripInitialized) {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
         stripInitialized = strip.begin();
 #else
         pinMode(APA102_DATA_PIN, OUTPUT);
@@ -81,7 +81,7 @@ void beginStripOnce()
     }
 }
 
-#if defined(ARDUINO_T_EMBED)
+#if defined(APA102_NUM_LEDS)
 void apa102WriteByte(uint8_t value)
 {
     for (uint8_t mask = 0x80; mask; mask >>= 1) {
@@ -210,7 +210,7 @@ void renderEffect()
 void refreshOutput()
 {
     renderEffect();
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     strip.setBrightness(brightnessLevel * 255 / kBrightnessLevels);
     for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
         strip.setPixelColor(i, colors[i]);
@@ -264,7 +264,7 @@ void stopOutput()
         lv_timer_delete(effectTimer);
         effectTimer = nullptr;
     }
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     strip.clear();
     strip.show();
     // Keep GPIO14 attached to RMT. Reconfiguring it would invalidate the
@@ -291,7 +291,7 @@ void backEventCb(lv_event_t *)
 void ui_t_embed_ws2812_init()
 {
     beginStripOnce();
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     strip.clear();
     strip.show();
 #else
@@ -305,7 +305,7 @@ void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue
     beginStripOnce();
     const uint32_t color = rgbColor(red, green, blue);
     fillColors(color);
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     const uint8_t level = brightnessLevel < 4 ? 4 : brightnessLevel;
     strip.setBrightness(level * 255 / kBrightnessLevels);
     for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
@@ -319,7 +319,7 @@ void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue
 
 void ui_t_embed_ws2812_clear_status_color()
 {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     strip.clear();
     strip.show();
 #else
@@ -344,7 +344,7 @@ void ui_t_embed_ws2812_enter(lv_obj_t *parent)
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Hue", 0, 255, hue, hueCb);
 
     card = ui_create_card(pageContainer, "Output");
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Strip", "GPIO14 x 8");
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Format", "WS2812B GRB");
 #else

@@ -6,8 +6,7 @@
 #include <LilyGoLog.h>
 #include "ui_define.h"
 
-#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_PLUS)) && \
-    !defined(EXCLUDE_NRF24)
+#if !defined(EXCLUDE_NRF24)
 
 #ifdef ARDUINO
 #include <Preferences.h>

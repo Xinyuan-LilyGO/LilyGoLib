@@ -2315,7 +2315,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #ifndef FACTORY_HAS_AUDIO_OUT
 #if defined(USING_AUDIO_CODEC) || defined(USING_PCM_AMPLIFIER) || defined(ARDUINO_TWATCH_2020_V3) || \
     defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
-    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED_PLUS)
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || \
+    defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 #define FACTORY_HAS_AUDIO_OUT          1
 #else
 #define FACTORY_HAS_AUDIO_OUT          0
@@ -2326,7 +2327,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #if defined(USING_AUDIO_CODEC) || defined(USING_ES7210) || defined(USING_PDM_MICROPHONE) || \
     defined(ARDUINO_TWATCH_2020_V3) || \
     defined(ARDUINO_T_WATCH_S3) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
-    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED_PLUS)
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || \
+    defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 #define FACTORY_HAS_AUDIO_IN           1
 #else
 #define FACTORY_HAS_AUDIO_IN           0
@@ -2478,8 +2480,26 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 #endif
 
+#ifndef FACTORY_HAS_WS2812_STRIP
+#if defined(USING_WS2812_STRIP) || defined(ARDUINO_T_LORA_PAGER) || \
+    defined(ARDUINO_T_VIBE_PAGER)
+#define FACTORY_HAS_WS2812_STRIP       1
+#else
+#define FACTORY_HAS_WS2812_STRIP       0
+#endif
+#endif
+
+#ifndef FACTORY_HAS_T_EMBED_LED
+#if defined(WS2812_NUM_LEDS) || defined(APA102_NUM_LEDS)
+#define FACTORY_HAS_T_EMBED_LED        1
+#else
+#define FACTORY_HAS_T_EMBED_LED        0
+#endif
+#endif
+
 #ifndef FACTORY_HAS_NRF24
-#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_PLUS)) && \
+#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_PLUS) || \
+    defined(ARDUINO_T_EMBED_PLUS_V2)) && !defined(ARDUINO_T_VIBE_PAGER) && \
     !defined(RADIOLIB_EXCLUDE_NRF24)
 #define FACTORY_HAS_NRF24              1
 #else
@@ -2488,7 +2508,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 
 #ifndef FACTORY_HAS_NFC
-#if defined(USING_ST25R3916) || defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER)
+#if defined(USING_ST25R3916) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+    defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER)
 #define FACTORY_HAS_NFC                1
 #else
 #define FACTORY_HAS_NFC                0
@@ -2617,7 +2638,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 
 #ifndef FACTORY_HAS_USB_MSC
 #if FACTORY_HAS_SD && (defined(ARDUINO_T_WATCH_S3_ULTRA) || defined(ARDUINO_T_LORA_PAGER) || \
-    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || defined(ARDUINO_T_EMBED_PLUS))
+    defined(ARDUINO_T_DECK_V2) || defined(ARDUINO_T_DECK) || \
+    defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2))
 #define FACTORY_HAS_USB_MSC            1
 #else
 #define FACTORY_HAS_USB_MSC            0
@@ -2805,6 +2827,21 @@ void hw_set_usb_rf_switch(bool to_usb);
 #ifndef EXCLUDE_CC1101_TOOL
 #define EXCLUDE_CC1101_TOOL
 #endif
+#ifndef EXCLUDE_CC1101_SCAN
+#define EXCLUDE_CC1101_SCAN
+#endif
+#endif
+
+#if !FACTORY_HAS_WS2812_STRIP
+#ifndef EXCLUDE_WS2812_STRIP
+#define EXCLUDE_WS2812_STRIP
+#endif
+#endif
+
+#if !FACTORY_HAS_T_EMBED_LED
+#ifndef EXCLUDE_T_EMBED_LED
+#define EXCLUDE_T_EMBED_LED
+#endif
 #endif
 
 #if !FACTORY_HAS_NFC
@@ -2839,7 +2876,8 @@ void hw_set_usb_rf_switch(bool to_usb);
 #endif
 #endif
 
-#if !FACTORY_HAS_AUDIO_CODEC && !defined(ARDUINO_T_EMBED_PLUS)
+#if !FACTORY_HAS_AUDIO_CODEC && !defined(ARDUINO_T_EMBED_PLUS) && \
+    !defined(ARDUINO_T_EMBED_PLUS_V2)
 #ifndef EXCLUDE_I2S_TEST
 #define EXCLUDE_I2S_TEST
 #endif

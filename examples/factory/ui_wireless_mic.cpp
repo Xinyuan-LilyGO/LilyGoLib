@@ -34,7 +34,7 @@ static constexpr uint32_t kSendDoneTimeoutMs = 250;
 static constexpr uint32_t kSendFailureLogIntervalMs = 1000;
 static constexpr uint8_t kSessionControlSendAttempts = 3;
 static constexpr uint8_t kDcEstimateShift = 6;
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static constexpr int32_t kMicGainMinDb = 0;
 static constexpr int32_t kMicGainMaxDb = 24;
 static constexpr int32_t kMicGainDefaultDb = 12;
@@ -90,7 +90,7 @@ static volatile uint32_t s_receiver_packets_lost = 0;
 static volatile uint32_t s_receiver_packets_dropped = 0;
 static volatile uint32_t s_receiver_pcm_underruns = 0;
 static volatile uint32_t s_receiver_usb_short_writes = 0;
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static volatile int32_t s_mic_gain_db = kMicGainDefaultDb;
 #endif
 
@@ -103,7 +103,7 @@ static lv_obj_t *s_stats_label = nullptr;
 static lv_obj_t *s_level_bar = nullptr;
 static lv_obj_t *s_mic_button = nullptr;
 static lv_obj_t *s_mic_icon = nullptr;
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static lv_obj_t *s_gain_label = nullptr;
 static lv_obj_t *s_gain_slider = nullptr;
 #endif
@@ -255,7 +255,7 @@ static bool readAudioFrame(int16_t *pcm)
 static void processAudioFrame(int16_t *pcm, int64_t &dc_estimate_q16,
                               bool &dc_initialized)
 {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     const float gain = powf(10.0f, s_mic_gain_db / 20.0f);
 #else
     const float gain = 1.0f;
@@ -381,7 +381,7 @@ static void startStreaming()
         return;
     }
     s_streaming = true;
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     LILYGO_LOG_I("Wireless mic started: session=%08lx channel=%u gain=%lddB",
                  static_cast<unsigned long>(s_session_id), s_channel,
                  static_cast<long>(s_mic_gain_db));
@@ -427,7 +427,7 @@ static void micButtonEvent(lv_event_t *event)
     else startStreaming();
 }
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static void gainSliderEvent(lv_event_t *event)
 {
     if (lv_event_get_code(event) != LV_EVENT_VALUE_CHANGED) return;
@@ -660,7 +660,7 @@ static void buildUi(lv_obj_t *parent)
     lv_obj_set_style_radius(s_level_bar, 3, LV_PART_MAIN);
     lv_obj_set_style_radius(s_level_bar, 3, LV_PART_INDICATOR);
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     lv_obj_t *gain_row = makeTransparentPanel(information);
     lv_obj_set_size(gain_row, LV_PCT(100), compact ? 22 : 28);
     lv_obj_set_flex_flow(gain_row, LV_FLEX_FLOW_ROW);
@@ -723,7 +723,7 @@ static void buildUi(lv_obj_t *parent)
     if (lv_group_t *group = lv_group_get_default()) {
         lv_group_add_obj(group, s_mic_button);
     }
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     ui_prepare_slider_for_encoder(s_gain_slider);
 #endif
 
@@ -770,7 +770,7 @@ static bool initializeTransport()
     format.bitsPerSample = kBitsPerSample;
     if (!s_encoder.begin(format)) return false;
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     // Apply gain after DC removal in captureTask so the microphone's DC bias
     // does not consume the available signal range.
     s_audio_input->setMicGain(0.0f);

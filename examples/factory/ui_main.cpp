@@ -734,7 +734,8 @@ static void build_grid_menu(lv_obj_t *parent)
     /* Icon size calculation — account for tileview padding, flex gaps, and label height */
     lv_coord_t avail_w = grid_compact_240 ? (phy_hor - 18) : (phy_hor - 40); /* tileview scroll padding + margins */
     lv_coord_t avail_h = grid_compact_240 ? (phy_ver - 42) : (phy_ver - 80); /* status bar + indicator */
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if (defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+     defined(ARDUINO_T_EMBED))
     /* Use all space below the 20 px status bar, reserving only the bottom indicator height. */
     avail_h = phy_ver - 40;
 #endif
@@ -763,7 +764,8 @@ static void build_grid_menu(lv_obj_t *parent)
 #endif
 
     lv_obj_t *tv = lv_tileview_create(parent);
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if (defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+     defined(ARDUINO_T_EMBED))
     /* Fill the complete screen below the status bar on the 320x170 landscape display. */
     lv_obj_set_size(tv, LV_PCT(100), phy_ver - top_offset);
 #else
@@ -780,7 +782,8 @@ static void build_grid_menu(lv_obj_t *parent)
     grid_tiles = (lv_obj_t **)lv_malloc(grid_pages * sizeof(lv_obj_t *));
 
     for (uint32_t p = 0; p < grid_pages; p++) {
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if (defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+     defined(ARDUINO_T_EMBED))
         lv_obj_t *tile = lv_tileview_add_tile(tv, 0, p, LV_DIR_VER);
 #else
         lv_obj_t *tile = lv_tileview_add_tile(tv, p, 0, LV_DIR_HOR);
@@ -849,7 +852,8 @@ static void build_grid_menu(lv_obj_t *parent)
         lv_obj_set_flex_flow(page_indicator_cont, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_pad_column(page_indicator_cont, 8, 0);
         lv_obj_set_style_pad_all(page_indicator_cont, 0, 0);
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if (defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+     defined(ARDUINO_T_EMBED))
         lv_obj_add_flag(page_indicator_cont, LV_OBJ_FLAG_FLOATING);
         lv_obj_align(page_indicator_cont, LV_ALIGN_BOTTOM_MID, 0, -2);
         lv_obj_move_foreground(page_indicator_cont);
@@ -1821,15 +1825,17 @@ void setupGui()
 #if !defined(EXCLUDE_WIFI_TOOLS)
     extern app_t ui_wifi_tools_main;
 #endif
-#if (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_VIBE_PAGER)) && \
-    !defined(EXCLUDE_WS2812_STRIP)
+#if !defined(EXCLUDE_WS2812_STRIP)
     extern app_t ui_ws2812_main;
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if !defined(EXCLUDE_T_EMBED_LED)
     extern app_t ui_t_embed_ws2812_main;
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if !defined(EXCLUDE_CC1101_SCAN)
     extern app_t ui_cc1101_scan_main;
+#endif
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+    extern app_t ui_wifi_c5_main;
 #endif
 
 #if !defined(EXCLUDE_IR_REMOTE)
@@ -1860,10 +1866,8 @@ void setupGui()
         register_app("NRF24 Lab", &img_radio, &ui_nrf24_console_main);
         extern app_t ui_nrf24_scan_main;
         register_app("NRF24 Scan", &img_radio, &ui_nrf24_scan_main);
-#if defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_EMBED_PLUS)
         extern app_t ui_xiaomi_lightbar_main;
         register_app("Mi Light Bar", &img_led, &ui_xiaomi_lightbar_main);
-#endif
     }
 #endif
 
@@ -1899,19 +1903,17 @@ void setupGui()
 #endif
 
 #if defined(ARDUINO)
-#if (!defined(EXCLUDE_NFC) && !defined(ARDUINO_T_EMBED_PLUS)) || \
-    ((defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
-     !defined(EXCLUDE_PN532))
+#if !defined(EXCLUDE_NFC) && defined(USING_ST25R3916)
+    extern app_t ui_nfc_main;
+    register_app("NFC", &img_nfc, &ui_nfc_main);
+#if !defined(EXCLUDE_NFC_EMULATION)
+    extern app_t ui_nfc_emulation_main;
+    register_app("NFC Card", &img_nfc, &ui_nfc_emulation_main);
+#endif
+#elif (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
+      !defined(EXCLUDE_PN532)
     extern app_t ui_nfc_menu_main;
-    bool nfc_menu_available = false;
-#if !defined(EXCLUDE_NFC) && !defined(ARDUINO_T_EMBED_PLUS)
-    nfc_menu_available = true;
-#endif
-#if (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
-    !defined(EXCLUDE_PN532)
-    nfc_menu_available = nfc_menu_available || (hw_get_device_online() & HW_NFC_ONLINE);
-#endif
-    if (nfc_menu_available) {
+    if (hw_get_device_online() & HW_NFC_ONLINE) {
         register_app("NFC", &img_nfc, &ui_nfc_menu_main);
     }
 #endif
@@ -1969,6 +1971,9 @@ void setupGui()
 #if !defined(EXCLUDE_WIFI_TOOLS)
     register_app("WiFi Tools", &img_tools, &ui_wifi_tools_main);
 #endif
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+    register_app("WiFi C5", &img_wireless, &ui_wifi_c5_main);
+#endif
 
 #if !defined(EXCLUDE_KEYBOARD)
     if (hw_has_keyboard()) {
@@ -1995,19 +2000,16 @@ void setupGui()
     register_app("NES", &img_game, &ui_nes_main);
 #endif
 
-#if (defined(ARDUINO_T_LORA_PAGER) && !defined(ARDUINO_T_VIBE_PAGER) && \
-     !defined(EXCLUDE_WS2812_STRIP)) || !defined(EXCLUDE_LORA)
+#if !defined(EXCLUDE_WS2812_STRIP) || !defined(EXCLUDE_LORA)
     const bool has_lora_hardware = hw_has_lora_hardware();
 #endif
 
-#if defined(ARDUINO_T_VIBE_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
-    register_app("LED Strip", &img_led, &ui_ws2812_main);
-#elif defined(ARDUINO_T_LORA_PAGER) && !defined(EXCLUDE_WS2812_STRIP)
+#if !defined(EXCLUDE_WS2812_STRIP)
     if (!has_lora_hardware) {
         register_app("LED Strip", &img_led, &ui_ws2812_main);
     }
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED)
+#if !defined(EXCLUDE_T_EMBED_LED)
     register_app("LED Test", &img_led, &ui_t_embed_ws2812_main);
 #endif
 
@@ -2022,7 +2024,7 @@ void setupGui()
 #else
         register_app("LoRa", &img_radio, &ui_lora_hub_main);
 #endif
-#if defined(ARDUINO_T_EMBED_PLUS) && !defined(EXCLUDE_CC1101_SCAN)
+#if !defined(EXCLUDE_CC1101_SCAN)
         register_app("CC1101 Scan", &img_radio, &ui_cc1101_scan_main);
 #endif
 #if !defined(EXCLUDE_LORAWAN)

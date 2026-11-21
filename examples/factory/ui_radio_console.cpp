@@ -161,7 +161,7 @@ static void set_status(const char *text, lv_color_t color)
 
 static void pixel_off_timer_cb(lv_timer_t *)
 {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     ui_t_embed_ws2812_clear_status_color();
 #endif
     pixel_timer = nullptr;
@@ -169,7 +169,7 @@ static void pixel_off_timer_cb(lv_timer_t *)
 
 static void flash_status_pixel(uint8_t red, uint8_t green, uint8_t blue)
 {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     ui_t_embed_ws2812_set_status_color(red, green, blue);
     if (pixel_timer) {
         lv_timer_reset(pixel_timer);
@@ -923,7 +923,7 @@ static void back_event(lv_event_t *)
         lv_timer_delete(pixel_timer);
         pixel_timer = nullptr;
     }
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(WS2812_NUM_LEDS)
     ui_t_embed_ws2812_clear_status_color();
 #endif
     stop_radio();

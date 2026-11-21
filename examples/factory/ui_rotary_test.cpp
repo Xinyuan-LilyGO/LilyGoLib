@@ -23,7 +23,7 @@ static lv_obj_t *event_label;
 static lv_obj_t *stat_labels[6];
 static lv_obj_t *scale_labels[ROTARY_SCALE_LABEL_COUNT];
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static constexpr uint32_t USER_BUTTON_DEBOUNCE_MS = 20;
 static uint32_t user_button_clicks;
 static uint32_t user_button_changed_at;
@@ -59,7 +59,8 @@ static void update_user_button_diagnostics()
 
 static int32_t physical_position(const lv_rotary_diagnostics_t &snapshot)
 {
-#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS) || \
+    defined(ARDUINO_T_EMBED_PLUS_V2)
     return -snapshot.position;
 #else
     return snapshot.position;
@@ -68,7 +69,8 @@ static int32_t physical_position(const lv_rotary_diagnostics_t &snapshot)
 
 static int16_t physical_diff(const lv_rotary_diagnostics_t &snapshot)
 {
-#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS) || \
+    defined(ARDUINO_T_EMBED_PLUS_V2)
     return -snapshot.last_diff;
 #else
     return snapshot.last_diff;
@@ -77,7 +79,8 @@ static int16_t physical_diff(const lv_rotary_diagnostics_t &snapshot)
 
 static uint32_t clockwise_steps(const lv_rotary_diagnostics_t &snapshot)
 {
-#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS) || \
+    defined(ARDUINO_T_EMBED_PLUS_V2)
     return snapshot.negative_steps;
 #else
     return snapshot.positive_steps;
@@ -86,7 +89,8 @@ static uint32_t clockwise_steps(const lv_rotary_diagnostics_t &snapshot)
 
 static uint32_t counterclockwise_steps(const lv_rotary_diagnostics_t &snapshot)
 {
-#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED) || defined(ARDUINO_T_EMBED_PLUS) || \
+    defined(ARDUINO_T_EMBED_PLUS_V2)
     return snapshot.positive_steps;
 #else
     return snapshot.negative_steps;
@@ -100,7 +104,7 @@ static void update_diagnostics(lv_timer_t *)
 
     bool button_pressed = snapshot.button_pressed;
     uint32_t button_clicks = snapshot.button_clicks;
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     update_user_button_diagnostics();
     button_pressed = user_button_pressed;
     button_clicks = user_button_clicks;
@@ -124,14 +128,14 @@ static void update_diagnostics(lv_timer_t *)
     }
 
     if (button_pressed) {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
         lv_label_set_text(event_label, "IO6  PRESS");
 #else
         lv_label_set_text_fmt(event_label, "E%lu  BUTTON", (unsigned long)snapshot.event_count);
 #endif
         lv_obj_set_style_text_color(event_label, UI_COLOR_ACCENT, 0);
     } else if (snapshot.event_count == 0) {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
         lv_label_set_text(event_label, "Turn / IO6");
 #else
         lv_label_set_text(event_label, "Turn encoder");
@@ -276,7 +280,7 @@ static void create_stats(lv_obj_t *parent, lv_coord_t height)
 static void ui_rotary_test_enter(lv_obj_t *parent)
 {
     lv_reset_rotary_diagnostics();
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     reset_user_button_diagnostics();
 #endif
     page_container = ui_create_app_page(parent, "Encoder Test", back_event_handler);

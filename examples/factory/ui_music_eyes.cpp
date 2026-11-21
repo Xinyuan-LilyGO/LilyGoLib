@@ -13,8 +13,7 @@
 #include <math.h>
 #include <string.h>
 
-#if defined(ARDUINO) && \
-        (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_VIBE_PAGER)) && \
+#if defined(ARDUINO) && !defined(EXCLUDE_WS2812_STRIP) && \
         __has_include(<Adafruit_NeoPixel.h>)
 #include <Adafruit_NeoPixel.h>
 #define MUSIC_EYES_HAS_PIXELS 1

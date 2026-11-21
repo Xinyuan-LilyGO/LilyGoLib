@@ -5,11 +5,11 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-11-19
  *
- * Provides an automatically running CC1101 RSSI spectrum for T-Embed-Plus.
+ * Provides an automatically running CC1101 RSSI spectrum for supported boards.
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_PLUS) && !defined(EXCLUDE_CC1101_SCAN)
+#if !defined(EXCLUDE_CC1101_SCAN)
 
 #include <LilyGoLog.h>
 #include <math.h>
@@ -76,6 +76,15 @@ static uint8_t range_frequency_count(uint8_t range)
     return kRangeEnd[range] - kRangeStart[range] + 1;
 }
 
+static int16_t set_scan_frequency(float frequency)
+{
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
+    return instance.setRFFrequencyBand(frequency);
+#else
+    return radio.setFrequency(frequency);
+#endif
+}
+
 static lv_obj_t *create_plain_container(lv_obj_t *parent)
 {
     lv_obj_t *obj = lv_obj_create(parent);
@@ -120,7 +129,7 @@ static int16_t configure_radio(float frequency)
     if (!instance.lockSPI(pdMS_TO_TICKS(200))) return RADIOLIB_ERR_SPI_CMD_TIMEOUT;
 
     int16_t state = radio.standby();
-    if (state == RADIOLIB_ERR_NONE) state = instance.setRFFrequencyBand(frequency);
+    if (state == RADIOLIB_ERR_NONE) state = set_scan_frequency(frequency);
     if (state == RADIOLIB_ERR_NONE) state = radio.setOOK(true);
     if (state == RADIOLIB_ERR_NONE) state = radio.setRxBandwidth(203.0f);
     if (state == RADIOLIB_ERR_NONE) state = radio.setBitRate(38.4f);
@@ -134,7 +143,7 @@ static int16_t configure_radio(float frequency)
 static int16_t sample_rssi(float frequency, int16_t &rssi)
 {
     if (!instance.lockSPI(pdMS_TO_TICKS(200))) return RADIOLIB_ERR_SPI_CMD_TIMEOUT;
-    int16_t state = instance.setRFFrequencyBand(frequency);
+    int16_t state = set_scan_frequency(frequency);
     if (state == RADIOLIB_ERR_NONE) state = radio.receiveDirectAsync();
     instance.unlockSPI();
     if (state != RADIOLIB_ERR_NONE) return state;

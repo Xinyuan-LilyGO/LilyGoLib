@@ -126,11 +126,20 @@ int16_t hw_set_radio_params(radio_params_t &params)
 #ifdef ARDUINO
     int16_t state = 0;
     instance.lockSPI();
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     state = instance.setRFFrequencyBand(params.freq);
     hw_log_cc1101_step("set frequency", state);
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+    LILYGO_LOG_ONLY({
+        const uint16_t rf_switch_state = instance.io.digitalReadPort();
+        LILYGO_LOG_PRINTF("[CC1101][CFG] RF path SW1=%d SW0=%d\n",
+                          (rf_switch_state >> BOARD_XL9555_CC_SW1) & 1U,
+                          (rf_switch_state >> BOARD_XL9555_CC_SW0) & 1U);
+    });
+#else
     LILYGO_LOG_PRINTF("[CC1101][CFG] RF path SW1=%d SW0=%d\n",
                       digitalRead(BOARD_LORA_SW1), digitalRead(BOARD_LORA_SW0));
+#endif
 #else
     state = radio.setFrequency(params.freq);
     hw_log_cc1101_step("set frequency", state);
@@ -349,9 +358,18 @@ void hw_get_radio_rx(radio_rx_params_t &params)
             LILYGO_LOG_PRINTF("[CC1101][RX] waiting irq=%lu RSSI=%.1f GDO0=%d GDO2=%d",
                               static_cast<unsigned long>(rx_irq_count), live_rssi,
                               digitalRead(LORA_IRQ), digitalRead(LORA_BUSY));
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+            LILYGO_LOG_ONLY({
+                const uint16_t rf_switch_state = instance.io.digitalReadPort();
+                LILYGO_LOG_PRINTF(" SW1=%d SW0=%d",
+                                  (rf_switch_state >> BOARD_XL9555_CC_SW1) & 1U,
+                                  (rf_switch_state >> BOARD_XL9555_CC_SW0) & 1U);
+            });
+#else
             LILYGO_LOG_PRINTF(" SW1=%d SW0=%d", digitalRead(BOARD_LORA_SW1),
                               digitalRead(BOARD_LORA_SW0));
+#endif
 #endif
             LILYGO_LOG_PRINTLN();
         }

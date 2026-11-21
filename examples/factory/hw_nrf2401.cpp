@@ -179,7 +179,7 @@ static int16_t xiaomi_configure_remote_capture()
 
 static int16_t xiaomi_transmit_packet(const uint8_t *packet, size_t length)
 {
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     // The Embed expansion header has no nRF24 IRQ line.
     nrf24.finishTransmit();
     int16_t state = nrf24.startTransmit(packet, length, 0);
@@ -514,7 +514,7 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
         return false;
     }
 
-#if !defined(ARDUINO_T_EMBED_PLUS)
+#if !defined(ARDUINO_T_EMBED_PLUS) && !defined(ARDUINO_T_EMBED_PLUS_V2)
     if (continuous) {
         EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdMS_TO_TICKS(2));
         if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
@@ -545,7 +545,7 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
     LILYGO_LOG_PRINT("[TX LEN:]");
     LILYGO_LOG_PRINTLN(params.length);
 
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     // The T-Embed expansion header has no nRF24 IRQ line, so poll the status
     // register over SPI instead of waiting for a GPIO interrupt.
     instance.lockSPI();
@@ -596,7 +596,7 @@ bool hw_set_nrf24_tx(radio_tx_params_t &params, bool continuous)
 bool hw_get_nrf24_tx_done(int16_t &state)
 {
 #ifdef ARDUINO
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     state = last_tx_state;
     return true;
 #else
@@ -630,7 +630,7 @@ bool hw_get_nrf24_tx_done(int16_t &state)
 void hw_get_nrf24_rx(radio_rx_params_t &params)
 {
 #ifdef ARDUINO
-#if !defined(ARDUINO_T_EMBED_PLUS)
+#if !defined(ARDUINO_T_EMBED_PLUS) && !defined(ARDUINO_T_EMBED_PLUS_V2)
     EventBits_t  eventBits = xEventGroupWaitBits(radioEvent, NRF24_ISR_FLAG, pdTRUE, pdTRUE, pdTICKS_TO_MS(2));
     if ((eventBits & NRF24_ISR_FLAG) != NRF24_ISR_FLAG) {
         params.state = -1;
@@ -645,7 +645,7 @@ void hw_get_nrf24_rx(radio_rx_params_t &params)
     }
 
     instance.lockSPI();
-#if defined(ARDUINO_T_EMBED_PLUS)
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
     if (!(nrf24.getStatus(RADIOLIB_NRF24_RX_DR) & RADIOLIB_NRF24_RX_DR)) {
         instance.unlockSPI();
         params.length = 0;
