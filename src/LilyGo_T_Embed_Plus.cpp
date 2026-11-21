@@ -46,6 +46,8 @@ static const CommandTable_t st7789Init[] = {
     {0xD6, {0xA1}, 1},
     {0xE0, {0xF0, 0x05, 0x0A, 0x06, 0x06, 0x03, 0x2B, 0x32, 0x43, 0x36, 0x11, 0x10, 0x2B, 0x32}, 14},
     {0xE1, {0xF0, 0x08, 0x0C, 0x0B, 0x09, 0x24, 0x2B, 0x22, 0x43, 0x38, 0x15, 0x16, 0x2F, 0x37}, 14},
+    {0x21, {0}, 0},
+    {0x29, {0}, 0x80}
 };
 
 static const DispRotationConfig_t rotationConfig[] = {
@@ -178,7 +180,10 @@ const char *LilyGoTEmbedPlus::getName()
 const LilyGoDeviceCapability &LilyGoTEmbedPlus::getCapability() const
 {
     static const LilyGoDeviceCapability capability = {
-        "LilyGo T-Embed-Plus", "CC1101", "BQ25896", "BQ27220",
+        "LilyGo T-Embed-Plus", // Board name
+        "CC1101",              // Radio name
+        "BQ25896",             // PMIC name
+        "BQ27220",             // Fuel gauge name
         true,  // SD card
         false, // GPS
         false, // GPS runtime probe
@@ -196,11 +201,13 @@ const LilyGoDeviceCapability &LilyGoTEmbedPlus::getCapability() const
         true,  // Audio output
         true,  // Audio input
         false, // Haptic driver
-        false, // External I2C
-        true,  // External SPI (NRF24 expansion header)
+        true,  // External I2C (QWIIC)
+        false, // External SPI (nRF24 is on-board)
         false, // External UART
-        true,  // External GPIO (NRF24 CS/CE)
-        PMIC_TYPE_BQ25896, true, false
+        false, // External GPIO
+        PMIC_TYPE_BQ25896, // PMIC type
+        true,              // Board button
+        false,             // PMIC button
     };
     return capability;
 }
@@ -300,7 +307,7 @@ uint32_t LilyGoTEmbedPlus::begin(const LilyGoDeviceInitOptions &options)
     userButton.setLongClickHandler([](Button2 &) {
         instance.sendEvent(DeviceEvent::button(0, BUTTON_EVENT_LONG_PRESSED));
     });
-    setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
+    // setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
     return devicesProbe;
 }
 
@@ -309,7 +316,7 @@ bool LilyGoTEmbedPlus::initPMU()
     if (!pmic.begin(Wire, BQ25896_SLAVE_ADDRESS, BOARD_I2C_SDA, BOARD_I2C_SCL)) {
         return false;
     }
-    pmic.charger().setChargeVoltage(4208);
+    pmic.charger().setChargeVoltage(4288);
     // Keep the default charging current at or below half of the 1300 mAh capacity.
     pmic.charger().setFastChargeCurrent(DEVICE_CHARGE_CURRENT_RECOMMEND);
     return true;
@@ -422,9 +429,11 @@ void LilyGoTEmbedPlus::powerControl(PowerCtrlChannel_t channel, bool enable)
     case POWER_RADIO:
         // GPIO15 cannot switch CC1101 alone: LOW would also turn off WS2812 and MAX98357.
         // Keep the shared peripheral rail on even when radio power-off is requested.
-        digitalWrite(BOARD_PERIPHERAL_POWER_EN, HIGH);
+        // digitalWrite(BOARD_PERIPHERAL_POWER_EN, HIGH);
         break;
-    case POWER_NFC: digitalWrite(BOARD_PN532_RF_REST, enable ? HIGH : LOW); break;
+    case POWER_NFC:
+        digitalWrite(BOARD_PN532_RF_REST, enable ? HIGH : LOW);
+    break;
     case POWER_SPEAK: break;
     default: break;
     }

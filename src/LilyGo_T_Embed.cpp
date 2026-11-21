@@ -34,6 +34,8 @@ static const CommandTable_t st7789Init[] = {
     {0xD6, {0xA1}, 1},
     {0xE0, {0xF0, 0x05, 0x0A, 0x06, 0x06, 0x03, 0x2B, 0x32, 0x43, 0x36, 0x11, 0x10, 0x2B, 0x32}, 14},
     {0xE1, {0xF0, 0x08, 0x0C, 0x0B, 0x09, 0x24, 0x2B, 0x22, 0x43, 0x38, 0x15, 0x16, 0x2F, 0x37}, 14},
+    {0x21, {0}, 0},
+    {0x29, {0}, 0x80}
 };
 
 static const DispRotationConfig_t rotationConfig[] = {
@@ -76,11 +78,34 @@ const char *LilyGoTEmbed::getName() { return "LilyGo T-Embed"; }
 const LilyGoDeviceCapability &LilyGoTEmbed::getCapability() const
 {
     static const LilyGoDeviceCapability capability = {
-        "LilyGo T-Embed", "None", "None", "None",
-        true, false, false, false, false, false, true,
-        false, false, false, false, false, false, false,
-        true, true, false, true, false, false, false,
-        PMIC_TYPE_UNKNOWN, false, false,
+        "LilyGo T-Embed", // Board name
+        "None",           // Radio name
+        "None",           // PMIC name
+        "None",           // Fuel gauge name
+        true,  // SD card
+        false, // GPS
+        false, // GPS runtime probe
+        false, // Touch
+        false, // Keyboard
+        false, // Trackball
+        true,  // Rotary encoder
+        false, // BMA423
+        false, // BHI260
+        false, // NFC
+        false, // IR TX
+        false, // IR RX
+        false, // Environmental sensor
+        false, // Compass
+        true,  // Audio output
+        true,  // Audio input
+        false, // Haptic driver
+        true,  // External I2C (QWIIC)
+        false, // External SPI
+        false, // External UART
+        false, // External GPIO
+        PMIC_TYPE_UNKNOWN, // PMIC type
+        false, // Board button
+        false, // PMIC button
     };
     return capability;
 }
@@ -125,7 +150,7 @@ uint32_t LilyGoTEmbed::begin(const LilyGoDeviceInitOptions &options)
         if (options.initCodec) initCodec();
     }
     if (options.initRotary) initRotary();
-    setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
+    // setBrightness(DEVICE_MAX_BRIGHTNESS_LEVEL);
     return devicesProbe;
 }
 
