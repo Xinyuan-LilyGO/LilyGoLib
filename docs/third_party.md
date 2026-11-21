@@ -98,6 +98,25 @@ This page lists LilyGoLib's dependencies by board and the versions bundled with 
 * [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
 * [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
 
+<a id="t-embed-plus-v2-third-party"></a>
+
+## T-Embed-Plus V2 Third-Party Libraries
+
+* [Adafruit NeoPixel@1.15.5](https://github.com/adafruit/Adafruit_NeoPixel)
+* [Button2@2.7.0](https://github.com/LennartHennigs/Button2)
+* [ESP8266Audio@2.4.1](https://github.com/earlephilhower/ESP8266Audio)
+* [IRremoteESP8266@2.8.6 (C++20 compatibility branch)](https://github.com/tonhuisman/IRremoteESP8266/archive/refs/heads/feature/C++20-compatibility.zip)
+* [lvgl@9.6.0](https://github.com/lvgl/lvgl)
+* [NimBLE-Arduino@2.5.1](https://github.com/h2zero/NimBLE-Arduino)
+* [RadioLib@7.7.1](https://github.com/jgromes/RadioLib)
+* [SensorLib@0.5.2](https://github.com/lewisxhe/SensorLib)
+* [ST25R3916-NFC-RFAL@1.0.1](https://github.com/lewisxhe/ST25R3916-NFC-RFAL)
+
+T-Embed-Plus V2 does not use the T-Embed-Plus PN532 integration. Adafruit
+PN532 and Adafruit BusIO are therefore not V2 dependencies. The ESP32-C5
+ESP-AT firmware used by the V2 Wi-Fi app is flashed separately and is not an
+Arduino library dependency.
+
 ## Other Bundled Libraries
 
 * [Adafruit GFX Library@1.12.6](https://github.com/adafruit/Adafruit-GFX-Library) (transitive Adafruit dependency)

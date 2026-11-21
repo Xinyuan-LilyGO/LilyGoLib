@@ -90,6 +90,7 @@ src_dir = examples/factory
 | --- | --- |
 | T-Embed | `t_embed` |
 | T-Embed-Plus | `t_embed_plus` |
+| T-Embed-Plus V2 | `t_embed_plus_v2` |
 | 搭载 SX1262 的 T-Deck | `tdeck_sx1262` |
 | T-Vibe Dev（无 LoRa、无 GNSS 的 T-Deck） | `tvibe_dev` |
 | 搭载 SX1262 的 T-Watch-S3 | `twatchs3_sx1262` |

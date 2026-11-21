@@ -256,16 +256,17 @@
 
 | Feature                    | Specification              |
 | -------------------------- | -------------------------- |
-| 🔗USB-C Input Voltage       | 3.9-6 V                    |
+| 🔗USB-C Input Voltage       | 4.7-6V                    |
 | 🔗USB-C Output Voltage      | 4.55-5.55 V                |
 | ⚡USB-C Output Current      | 0.5-1 A                    |
 | ⚡Charge Current            | 0-3008 mA (programmable)   |
 | 🔋Battery Voltage           | 3.7 V                      |
-| 🔋Battery Capacity          | 1500 mAh (5.55 Wh)         |
+| 🔋Battery Capacity          | 1500 mAh,NTC         |
 | 🔋Charge Temperature Range  | 0-60 °C                    |
 
 > [!IMPORTANT]
-> Use a charging current below 750 mA. Do not charge the battery at a rate greater than 0.5 C.
+> LilyGoLib configures the fast-charging current for the BQ25896 to 750mA. According to the battery datasheet, the charging current should not exceed half of the battery's capacity. If you are not using LilyGoLib, please ensure that you initialize the power management IC with a charging current of 750mA or less. If the chip is not initialized, it will default to a 2A charging current, which will reduce the battery's lifespan.
+>
 
 ### ⚡ Power Consumption Reference
 

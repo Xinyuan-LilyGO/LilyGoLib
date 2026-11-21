@@ -93,6 +93,7 @@ The repository currently provides these environments:
 | --- | --- |
 | T-Embed | `t_embed` |
 | T-Embed-Plus | `t_embed_plus` |
+| T-Embed-Plus V2 | `t_embed_plus_v2` |
 | T-Deck with SX1262 | `tdeck_sx1262` |
 | T-Vibe Dev (T-Deck without LoRa or GNSS) | `tvibe_dev` |
 | T-Watch-S3 with SX1262 | `twatchs3_sx1262` |

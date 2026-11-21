@@ -67,6 +67,7 @@
 - 🔧 **[T-Vibe Dev Quick Start](./docs/lilygo-t-vibe-dev.md)**
 - 🔧 **[T-Vibe Pager Quick Start](./docs/lilygo-t-vibe-pager.md)**
 - 🔧 **[T-Embed-Plus Quick Start](./docs/lilygo-t-embed-plus.md)**
+- 🔧 **[T-Embed-Plus V2 Quick Start](./docs/lilygo-t-embed-plus-v2.md)**
 - 🔧 **[T-Embed Quick Start](./docs/lilygo-t-embed.md)**
 
 ### `2` Hardware Information
@@ -81,6 +82,7 @@
 - 🔧 **[T-Vibe-Dev Hardware Information](./docs/hardware/lilygo-t-vibe-dev.md)**
 - 🔧 **[T-Vibe-Pager Hardware Information](./docs/hardware/lilygo-t-vibe-pager.md)**
 - 🔧 **[T-Embed-Plus Hardware Information](./docs/hardware/lilygo-t-embed-plus.md)**
+- 🔧 **[T-Embed-Plus V2 Hardware Information](./docs/hardware/lilygo-t-embed-plus-v2.md)**
 - 🔧 **[T-Embed Hardware Information](./docs/hardware/lilygo-t-embed.md)**
 
 ### `3` GPS AssistNow Usage Guide
