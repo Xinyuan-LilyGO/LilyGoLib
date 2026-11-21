@@ -1,8 +1,9 @@
-# Temporary Arduino board package for LILYGO T-Embed-Plus
+# Temporary Arduino board package for LILYGO T-Embed-Plus family
 
-This package provides the T-Embed-Plus board definition until it is available
-in a stable Arduino-ESP32 release. It contains only `boards.txt` and the
-T-Embed-Plus variant, and reuses the installed `esp32:esp32` core and tools.
+This package provides T-Embed-Plus and T-Embed-Plus V2 board definitions until
+they are available in a stable Arduino-ESP32 release. It contains only
+`boards.txt` and the two board variants, and reuses the installed `esp32:esp32`
+core and tools.
 
 ## Install in Arduino IDE
 
@@ -15,11 +16,13 @@ T-Embed-Plus variant, and reuses the installed `esp32:esp32` core and tools.
 
 4. Open Boards Manager, search for
    `LILYGO T-Embed-Plus Temporary Support`, and install it.
-5. Select **LilyGo T-Embed-Plus** under **Tools > Board**.
+5. Select **LilyGo T-Embed-Plus** or **LilyGo T-Embed-Plus V2** under
+   **Tools > Board**.
 
-The board definition supplies the settings required by T-Embed-Plus: 16 MB
+The board definitions supply the settings required by this family: 16 MB
 flash, 8 MB OPI PSRAM, QIO flash mode, hardware USB CDC, a 3 MB application
-with 9.9 MB FATFS, and the CC1101 radio definition.
+with 9.9 MB FATFS, and the CC1101 radio definition. Select V2 only for the
+XL9555/ST25R3916 hardware revision.
 
 Uninstall this package and select the official T-Embed-Plus board after
 support is included in a stable Arduino-ESP32 release.

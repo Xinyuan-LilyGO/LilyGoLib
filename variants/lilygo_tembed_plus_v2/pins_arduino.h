@@ -1,0 +1,207 @@
+#ifndef Pins_Arduino_h
+#define Pins_Arduino_h
+
+#include <stdint.h>
+
+#define USB_VID          0x303A
+#define USB_PID          0x83F5
+#define USB_MANUFACTURER "LILYGO"
+#define USB_PRODUCT      "T-Embed-Plus-V2"
+
+// ST7789 display and shared SPI bus.
+#define DISP_WIDTH  (170)
+#define DISP_HEIGHT (320)
+static const uint8_t TX = 43;
+static const uint8_t RX = 44;
+static const uint8_t SDA = 3;
+static const uint8_t SCL = 2;
+static const uint8_t SD_CS = 13;
+static const uint8_t SS = SD_CS;
+static const uint8_t MOSI = 9;
+static const uint8_t MISO = 10;
+static const uint8_t SCK = 11;
+
+// Rotary encoder and side button.
+#define ROTARY_A (4)
+#define ROTARY_B (5)
+#define ROTARY_C (0)
+#define USER_KEY (6)
+
+// Audio.
+#define MIC_I2S_SDIN (42)
+#define MIC_I2S_SCK  (39)
+#define I2S_BCLK    (46)
+#define I2S_LRCLK   (40)
+#define I2S_DIN     (7)
+
+// Infrared and RGB LED.
+#define IR_SEND         (15)
+#define IR_RECEIVE_PIN  (1)
+#define RGB_DATA        (14)
+#define WS2812_NUM_LEDS (8)
+
+// CC1101 and LoRa-compatible radio connector.
+#define LORA_SCK  (SCK)
+#define LORA_MISO (MISO)
+#define LORA_MOSI (MOSI)
+#define LORA_CS   (12)
+#define LORA_RST  (-1)
+#define LORA_BUSY (38)
+#define LORA_IRQ  (8)
+
+// ST25R3916 and display share the SPI bus.
+#define NFC_CS  (45)
+#define NFC_INT (17)
+#define DISP_MOSI (MOSI)
+#define DISP_MISO (MISO)
+#define DISP_SCK  (SCK)
+#define DISP_RST  (-1)
+#define DISP_CS   (41)
+#define DISP_DC   (16)
+#define DISP_BL   (21)
+
+// NRF24 expansion connector.
+#define NRF24_CS  (48)
+#define NRF24_CE  (47)
+#define NRF24_IRQ (-1)
+
+// XL9555 expansion pins and I2C addresses.
+#define EXPANDS_ADDR       (0x22)
+#define BQ27220_ADDR       (0x55)
+#define BQ25896_ADDR       (0x6B)
+#define EXPANDS_CC_SW1     (0)
+#define EXPANDS_CC_SW0     (1)
+#define EXPANDS_LCD_RST    (2)
+#define EXPANDS_LOW_PWR_EN (3)
+#define EXPANDS_AMP_EN     (4)
+#define EXPANDS_C5_RST     (5)
+#define EXPANDS_MOD_SEL    (6)
+#define EXPANDS_EX_PWR_EN1 (7)
+#define EXPANDS_EX_PWR_EN2 (8)
+
+// Compatibility aliases for existing shared library/factory code.
+#define BOARD_UART0_TXD TX
+#define BOARD_UART0_RXD RX
+#define BOARD_USB_DM (19)
+#define BOARD_USB_DP (20)
+#define DISPLAY_WIDTH DISP_WIDTH
+#define DISPLAY_HEIGHT DISP_HEIGHT
+#define DISPLAY_BL DISP_BL
+#define DISPLAY_CS DISP_CS
+#define DISPLAY_MISO DISP_MISO
+#define DISPLAY_MOSI DISP_MOSI
+#define DISPLAY_SCLK DISP_SCK
+#define DISPLAY_DC DISP_DC
+#define DISPLAY_RST DISP_RST
+#define BOARD_USER_KEY USER_KEY
+#define BOARD_KEY_PIN USER_KEY
+#define WS2812_DATA_PIN RGB_DATA
+#define BOARD_WS2812_NUM_LEDS WS2812_NUM_LEDS
+#define BOARD_WS2812_DATA_PIN RGB_DATA
+#define BOARD_RGB_DATA RGB_DATA
+#define BOARD_IR_EN IR_SEND
+#define BOARD_IR_TX IR_SEND
+#define BOARD_IR_RX IR_RECEIVE_PIN
+#define BOARD_MIC_DATA MIC_I2S_SDIN
+#define BOARD_MIC_CLK MIC_I2S_SCK
+#define BOARD_VOICE_BCLK I2S_BCLK
+#define BOARD_VOICE_LRCLK I2S_LRCLK
+#define BOARD_VOICE_DIN I2S_DIN
+#define ENCODER_INA ROTARY_A
+#define ENCODER_INB ROTARY_B
+#define ENCODER_KEY ROTARY_C
+#define BOARD_ENC_A ROTARY_A
+#define BOARD_ENC_B ROTARY_B
+#define BOARD_BOOT_PIN ROTARY_C
+#define BOARD_I2C_SDA SDA
+#define BOARD_I2C_SCL SCL
+#define BOARD_SPI_SCK SCK
+#define BOARD_SPI_MOSI MOSI
+#define BOARD_SPI_MISO MISO
+#define BOARD_SD_CS SD_CS
+#define BOARD_LORA_CS LORA_CS
+#define BOARD_LORA_IO0 LORA_IRQ
+#define BOARD_LORA_IO2 LORA_BUSY
+#define BOARD_SD_SCK SCK
+#define BOARD_SD_MOSI MOSI
+#define BOARD_SD_MISO MISO
+#define BOARD_NFC_SCK SCK
+#define BOARD_NFC_MOSI MOSI
+#define BOARD_NFC_MISO MISO
+#define BOARD_CC1101_SCK SCK
+#define BOARD_CC1101_MOSI MOSI
+#define BOARD_CC1101_MISO MISO
+#define BOARD_CC1101_CS LORA_CS
+#define BOARD_CC1101_GDO0 LORA_IRQ
+#define BOARD_CC1101_GDO2 LORA_BUSY
+#define BOARD_NRF24_CS NRF24_CS
+#define BOARD_NRF24_CE NRF24_CE
+#define BOARD_NRF24_IRQ NRF24_IRQ
+#define BOARD_NFC_CS NFC_CS
+#define BOARD_NFC_IRQ NFC_INT
+#define BOARD_XL9555_ADDR EXPANDS_ADDR
+#define BOARD_I2C_XL9555 EXPANDS_ADDR
+#define BOARD_I2C_BQ27220 BQ27220_ADDR
+#define BOARD_I2C_BQ25896 BQ25896_ADDR
+#define BOARD_XL9555_INT (-1)
+#define BOARD_XL9555_CC_SW1 EXPANDS_CC_SW1
+#define BOARD_XL9555_CC_SW0 EXPANDS_CC_SW0
+#define BOARD_XL9555_LCD_RST EXPANDS_LCD_RST
+#define BOARD_XL9555_LOW_PWR_EN EXPANDS_LOW_PWR_EN
+#define BOARD_XL9555_AMP_EN EXPANDS_AMP_EN
+#define BOARD_XL9555_ESP32C5_RST EXPANDS_C5_RST
+#define BOARD_XL9555_MOD_SEL EXPANDS_MOD_SEL
+#define BOARD_XL9555_EX_PWR_EN1 EXPANDS_EX_PWR_EN1
+#define BOARD_XL9555_EX_PWR_EN2 EXPANDS_EX_PWR_EN2
+#define BOARD_XL9555_00_CC_SW1 EXPANDS_CC_SW1
+#define BOARD_XL9555_01_CC_SW0 EXPANDS_CC_SW0
+#define BOARD_XL9555_02_LCD_RST EXPANDS_LCD_RST
+#define BOARD_XL9555_03_LOW_PWR_EN EXPANDS_LOW_PWR_EN
+#define BOARD_XL9555_AP_EN EXPANDS_AMP_EN
+#define BOARD_XL9555_04_SD_MODE EXPANDS_AMP_EN
+#define BOARD_XL9555_05_ESP_C5_RST EXPANDS_C5_RST
+#define BOARD_XL9555_06_MOD_SEL EXPANDS_MOD_SEL
+#define BOARD_XL9555_EX_PWR_EN EXPANDS_EX_PWR_EN1
+#define BOARD_XL9555_07_EX_PWR_EN1 EXPANDS_EX_PWR_EN1
+#define BOARD_XL9555_10_EX_PWR_EN2 EXPANDS_EX_PWR_EN2
+#define BOARD_XL9555_10 8
+#define BOARD_XL9555_11 9
+#define BOARD_XL9555_12 10
+#define BOARD_XL9555_13 11
+#define BOARD_XL9555_14 12
+#define BOARD_XL9555_15 13
+#define BOARD_XL9555_16 14
+#define BOARD_XL9555_17 15
+#define BOARD_VOICE_AP_EN EXPANDS_AMP_EN
+#define BOARD_AUDIO_SD_MODE EXPANDS_AMP_EN
+#define BOARD_I2S_BCLK I2S_BCLK
+#define BOARD_I2S_LRCLK I2S_LRCLK
+#define BOARD_I2S_DIN I2S_DIN
+#define BOARD_CC1101_SW1 EXPANDS_CC_SW1
+#define BOARD_CC1101_SW0 EXPANDS_CC_SW0
+#define BOARD_LCD_WIDTH DISP_WIDTH
+#define BOARD_LCD_HEIGHT DISP_HEIGHT
+#define BOARD_LCD_SCK SCK
+#define BOARD_LCD_MOSI MOSI
+#define BOARD_LCD_MISO MISO
+#define BOARD_LCD_CS DISP_CS
+#define BOARD_LCD_DC DISP_DC
+#define BOARD_LCD_RST EXPANDS_LCD_RST
+#define BOARD_LCD_BL DISP_BL
+#define BOARD_LCD_BL_EN DISP_BL
+
+#define HAS_SD_CARD_SOCKET
+#define HAS_I2C_INTERFACE
+#define HAS_SPI_INTERFACE
+#define USING_XL9555_EXPANDS
+#define USING_PPM_MANAGE
+#define GAUGE_CHIP_BQ27220
+#define USING_INPUT_DEV_ROTARY
+#define USING_PDM_MICROPHONE
+#define USING_PCM_AMPLIFIER
+#define USING_IR_REMOTE
+#define USING_IR_RECEIVER
+#define USING_ST25R3916
+#define EXCLUDE_PN532
+
+#endif /* Pins_Arduino_h */

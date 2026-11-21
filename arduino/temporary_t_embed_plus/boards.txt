@@ -64,6 +64,56 @@ lilygo_tembed_plus.build.event_core=
 lilygo_tembed_plus.build.psram_type=opi
 lilygo_tembed_plus.build.memory_type={build.boot}_{build.psram_type}
 
+#######################################################################
+# Temporary board definition for the LILYGO T-Embed-Plus V2.          #
+#######################################################################
+
+lilygo_tembed_plus_v2.name=LilyGo T-Embed-Plus V2
+
+lilygo_tembed_plus_v2.bootloader.tool=esp32:esptool_py
+lilygo_tembed_plus_v2.bootloader.tool.default=esp32:esptool_py
+lilygo_tembed_plus_v2.upload.tool=esp32:esptool_py
+lilygo_tembed_plus_v2.upload.tool.default=esp32:esptool_py
+lilygo_tembed_plus_v2.upload.tool.network=esp32:esp_ota
+lilygo_tembed_plus_v2.upload.maximum_size=3145728
+lilygo_tembed_plus_v2.upload.maximum_data_size=327680
+lilygo_tembed_plus_v2.upload.speed=921600
+lilygo_tembed_plus_v2.upload.flags=
+lilygo_tembed_plus_v2.upload.erase_cmd=
+lilygo_tembed_plus_v2.upload.extra_flags=
+lilygo_tembed_plus_v2.upload.use_1200bps_touch=false
+lilygo_tembed_plus_v2.upload.wait_for_upload_port=false
+
+lilygo_tembed_plus_v2.serial.disableDTR=false
+lilygo_tembed_plus_v2.serial.disableRTS=false
+
+lilygo_tembed_plus_v2.build.tarch=xtensa
+lilygo_tembed_plus_v2.build.bootloader_addr=0x0
+lilygo_tembed_plus_v2.build.target=esp32s3
+lilygo_tembed_plus_v2.build.mcu=esp32s3
+lilygo_tembed_plus_v2.build.core=esp32:esp32
+lilygo_tembed_plus_v2.build.variant=lilygo_tembed_plus_v2
+lilygo_tembed_plus_v2.build.board=LILYGO_T_EMBED_PLUS_V2
+lilygo_tembed_plus_v2.runtime.use_core_platform_path_for_runtime_platform_path=true
+
+lilygo_tembed_plus_v2.build.usb_mode=1
+lilygo_tembed_plus_v2.build.cdc_on_boot=1
+lilygo_tembed_plus_v2.build.msc_on_boot=0
+lilygo_tembed_plus_v2.build.dfu_on_boot=0
+lilygo_tembed_plus_v2.build.f_cpu=240000000L
+lilygo_tembed_plus_v2.build.flash_size=16MB
+lilygo_tembed_plus_v2.build.flash_freq=80m
+lilygo_tembed_plus_v2.build.flash_mode=qio
+lilygo_tembed_plus_v2.build.boot=qio
+lilygo_tembed_plus_v2.build.boot_freq=80m
+lilygo_tembed_plus_v2.build.partitions=app3M_fat9M_16MB
+lilygo_tembed_plus_v2.build.defines=-DBOARD_HAS_PSRAM -DARDUINO_T_EMBED_PLUS_V2 -DARDUINO_LILYGO_LORA_CC1101
+lilygo_tembed_plus_v2.build.loop_core=-DARDUINO_RUNNING_CORE=1
+lilygo_tembed_plus_v2.build.event_core=-DARDUINO_EVENT_RUNNING_CORE=1
+lilygo_tembed_plus_v2.build.code_debug=0
+lilygo_tembed_plus_v2.build.psram_type=opi
+lilygo_tembed_plus_v2.build.memory_type={build.boot}_{build.psram_type}
+
 ## IDE 2.0 seems not to update the value.
 lilygo_tembed_plus.menu.JTAGAdapter.default=Disabled
 lilygo_tembed_plus.menu.JTAGAdapter.default.build.copy_jtag_files=0

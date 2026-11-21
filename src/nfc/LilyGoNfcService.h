@@ -6,11 +6,13 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-07-25
  *
+ * Declares the shared ST25R3916 NFC service used by supported boards.
  */
 #pragma once
 
 #if defined(ARDUINO) && \
-    (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA)) && \
+    (defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA) || \
+     defined(ARDUINO_T_EMBED_PLUS_V2)) && \
     !defined(USING_ST25R3916)
 #define USING_ST25R3916
 #endif

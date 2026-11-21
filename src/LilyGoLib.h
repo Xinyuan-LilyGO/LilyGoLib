@@ -21,7 +21,7 @@
 #error "Please manually update and install Arduino Core ESP32 to the latest version. The version must be greater than or equal to V3.3.11. For how to update, please refer to https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html#installing-using-arduino-ide"
 #endif
 
-#if !defined(ARDUINO_T_WATCH_S3_ULTRA) && !defined(ARDUINO_T_WATCH_S3) && !defined(ARDUINO_T_LORA_PAGER) && !defined(ARDUINO_TWATCH_BASE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_DECK_V2) && !defined(ARDUINO_TWATCH_2020_V3) && !defined(ARDUINO_T_EMBED_PLUS) && !defined(ARDUINO_T_EMBED)
+#if !defined(ARDUINO_T_WATCH_S3_ULTRA) && !defined(ARDUINO_T_WATCH_S3) && !defined(ARDUINO_T_LORA_PAGER) && !defined(ARDUINO_TWATCH_BASE) && !defined(ARDUINO_T_DECK) && !defined(ARDUINO_T_DECK_V2) && !defined(ARDUINO_TWATCH_2020_V3) && !defined(ARDUINO_T_EMBED_PLUS) && !defined(ARDUINO_T_EMBED_PLUS_V2) && !defined(ARDUINO_T_EMBED)
 #error "Please update arduino-esp32-core to version 3.3.11 or above, select the correct board and then compile"
 #endif
 
@@ -62,7 +62,12 @@
 #include "LilyGo_T_Embed.h"
 #endif
 
+#ifdef ARDUINO_T_EMBED_PLUS_V2
+#include "LilyGo_T_Embed_Plus_V2.h"
+#endif
+
 #if defined(ARDUINO) && \
-    (defined(USING_ST25R3916) || defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA))
+    (defined(USING_ST25R3916) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
+     defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA))
 #include "nfc/LilyGoNfcService.h"
 #endif
