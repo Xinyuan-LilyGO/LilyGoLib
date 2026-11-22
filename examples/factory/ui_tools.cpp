@@ -8,6 +8,8 @@
  */
 #include "ui_define.h"
 
+#define UI_CARD_WIDGET_VALUE_LAYOUT LV_OBJ_FLAG_USER_2
+
 LV_FONT_DECLARE(font_alibaba_12);
 LV_FONT_DECLARE(font_alibaba_24);
 
@@ -1413,7 +1415,10 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
     ui_styles_init();
     const bool widget_is_slider = widget && lv_obj_check_type(widget, &lv_slider_class);
     const bool widget_is_dropdown = widget && lv_obj_check_type(widget, &lv_dropdown_class);
-    const bool small_full_width_widget = is_screen_small() && (widget_is_slider || widget_is_dropdown);
+    const bool value_layout = widget && lv_obj_has_flag(widget, UI_CARD_WIDGET_VALUE_LAYOUT);
+    const bool small_full_width_widget = value_layout ||
+                                         (is_screen_small() &&
+                                          (widget_is_slider || widget_is_dropdown));
     const bool widget_owns_focus = ui_widget_owns_card_focus(widget);
 
     /* Non-touch: use lv_btn so encoder can focus; touch: use lv_obj */
@@ -1474,12 +1479,18 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
         if (use_small_font()) {
             lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
         }
-        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+        /* Long card titles such as "Power management" must remain readable on
+         * narrow displays without overlapping the control column. */
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
         /* Fixed title width keeps controls aligned without forcing overflow on small screens. */
-        lv_obj_set_width(lbl, use_small_font() ? (small_full_width_widget ? 58 : 70) : 100);
+        lv_obj_set_width(lbl, value_layout
+                              ? lv_display_get_horizontal_resolution(NULL) / 3
+                              : (use_small_font() ? (small_full_width_widget ? 58 : 70) : 100));
     }
 
-    if (widget && lv_obj_get_style_flex_grow(widget, LV_PART_MAIN) == 0) {
+    /* Reserve flexible space before the value label so slider values stay at
+     * the far edge of the first line while the track uses the second line. */
+    if (widget && (value_layout || lv_obj_get_style_flex_grow(widget, LV_PART_MAIN) == 0)) {
         lv_obj_t *spacer = lv_obj_create(row);
         lv_obj_set_size(spacer, 1, 1);
         lv_obj_set_flex_grow(spacer, 1);
@@ -1565,17 +1576,24 @@ lv_obj_t *ui_create_card_slider(lv_obj_t *card, const char *icon, const char *ti
     return ui_create_card_item(card, icon, title, slider);
 }
 
-static void ui_seconds_slider_value_cb(lv_event_t *e)
+static void ui_value_slider_value_cb(lv_event_t *e)
 {
     lv_obj_t *slider = (lv_obj_t *)lv_event_get_target(e);
     lv_obj_t *value_label = (lv_obj_t *)lv_event_get_user_data(e);
     if (!slider || !value_label) return;
 
-    lv_label_set_text_fmt(value_label, "%ld s", (long)lv_slider_get_value(slider));
+    const char *suffix = (const char *)lv_obj_get_user_data(value_label);
+    if (suffix && suffix[0]) {
+        lv_label_set_text_fmt(value_label, "%ld %s",
+                              (long)lv_slider_get_value(slider), suffix);
+    } else {
+        lv_label_set_text_fmt(value_label, "%ld", (long)lv_slider_get_value(slider));
+    }
 }
 
-lv_obj_t *ui_create_card_seconds_slider(lv_obj_t *card, const char *icon, const char *title,
-                                         int32_t min, int32_t max, int32_t val, lv_event_cb_t cb)
+lv_obj_t *ui_create_card_value_slider(lv_obj_t *card, const char *icon, const char *title,
+                                      int32_t min, int32_t max, int32_t val,
+                                      const char *value_suffix, lv_event_cb_t cb)
 {
     lv_obj_t *slider = lv_slider_create(lv_obj_create(card)); /* temp parent, re-parented */
     lv_obj_set_size(slider, LV_PCT(50), 12);
@@ -1588,16 +1606,27 @@ lv_obj_t *ui_create_card_seconds_slider(lv_obj_t *card, const char *icon, const 
         lv_obj_add_event_cb(slider, cb, LV_EVENT_VALUE_CHANGED, NULL);
     }
 
+    lv_obj_add_flag(slider, UI_CARD_WIDGET_VALUE_LAYOUT);
     lv_obj_t *row = ui_create_card_item(card, icon, title, slider);
-    lv_obj_t *value_label = lv_label_create(row);
-    lv_label_set_text_fmt(value_label, "%ld s", (long)val);
-    lv_obj_set_width(value_label, 34);
-    lv_obj_set_style_text_align(value_label, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_color(value_label, UI_COLOR_TEXT_PRIMARY, 0);
-    if (use_small_font()) {
-        lv_obj_set_style_text_font(value_label, &lv_font_montserrat_12, 0);
+    lv_obj_clear_flag(slider, UI_CARD_WIDGET_VALUE_LAYOUT);
+    lv_obj_t *value_label = NULL;
+    if (value_suffix) {
+        value_label = lv_label_create(row);
+        if (value_suffix[0]) {
+            lv_label_set_text_fmt(value_label, "%ld %s", (long)val, value_suffix);
+        } else {
+            lv_label_set_text_fmt(value_label, "%ld", (long)val);
+        }
+        lv_obj_set_width(value_label, 34);
+        lv_obj_set_style_text_align(value_label, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_color(value_label, UI_COLOR_TEXT_PRIMARY, 0);
+        if (use_small_font()) {
+            lv_obj_set_style_text_font(value_label, &lv_font_montserrat_12, 0);
+        }
+        lv_obj_set_user_data(value_label, (void *)value_suffix);
+        lv_obj_move_to_index(value_label, lv_obj_get_index(slider));
+        lv_obj_add_event_cb(slider, ui_value_slider_value_cb, LV_EVENT_VALUE_CHANGED, value_label);
     }
-    lv_obj_add_event_cb(slider, ui_seconds_slider_value_cb, LV_EVENT_VALUE_CHANGED, value_label);
 
     return row;
 }
@@ -1661,6 +1690,7 @@ lv_obj_t *ui_create_card_info(lv_obj_t *card, const char *icon, const char *titl
 {
     lv_obj_t *lbl = lv_label_create(lv_obj_create(card));
     lv_label_set_text(lbl, value ? value : "--");
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
     if (use_small_font()) {

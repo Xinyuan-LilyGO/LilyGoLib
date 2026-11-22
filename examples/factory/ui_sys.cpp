@@ -38,6 +38,12 @@ static lv_obj_t *temperature, *humidity, *pressure, *altitude;
 #define UI_SYS_HAS_KEYBOARD_NAV_SETTING 0
 #endif
 
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
+#define UI_SYS_HAS_DISPLAY_ROTATION_SETTING 1
+#else
+#define UI_SYS_HAS_DISPLAY_ROTATION_SETTING 0
+#endif
+
 #if defined(T_DECK_V2_REV07) && defined(EXPANDS_AUDIO_JACK_SEL)
 #define UI_SYS_HAS_AUDIO_JACK_SETTING 1
 #else
@@ -230,7 +236,9 @@ static void disp_timeout_cb(lv_event_t *e)
 static void nav_auto_hide_cb(lv_event_t *e)
 {
     lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
-    bool enabled = lv_obj_has_state(obj, LV_STATE_CHECKED);
+    bool enabled = lv_obj_check_type(obj, &lv_dropdown_class)
+                   ? lv_dropdown_get_selected(obj) != 0
+                   : lv_obj_has_state(obj, LV_STATE_CHECKED);
     hw_set_nav_auto_hide_enabled(enabled);
 
     if (enabled) {
@@ -238,6 +246,13 @@ static void nav_auto_hide_cb(lv_event_t *e)
     } else {
         ui_app_page_disable_nav_auto_hide(page_container);
     }
+}
+
+static void display_rotation_cb(lv_event_t *e)
+{
+    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
+    const uint8_t rotation = lv_dropdown_get_selected(obj) == 0 ? 0 : 2;
+    hw_set_display_rotation(rotation);
 }
 
 #if UI_SYS_HAS_KEYBOARD_NAV_SETTING
@@ -323,7 +338,9 @@ static void charger_enable_cb(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
     if (code == LV_EVENT_VALUE_CHANGED) {
-        bool turnOn = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        bool turnOn = lv_obj_check_type(obj, &lv_dropdown_class)
+                      ? lv_dropdown_get_selected(obj) != 0
+                      : lv_obj_has_state(obj, LV_STATE_CHECKED);
         local_param.charger_enable = turnOn;
         hw_set_charger(turnOn);
     }
@@ -332,8 +349,39 @@ static void charger_enable_cb(lv_event_t *e)
 static void charger_current_cb(lv_event_t *e)
 {
     lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
-    uint16_t val =  lv_slider_get_value(obj);
-    local_param.charger_current = hw_set_charger_current_level(val);
+    uint8_t level = lv_obj_check_type(obj, &lv_dropdown_class)
+                    ? (uint8_t)lv_dropdown_get_selected(obj)
+                    : (uint8_t)lv_slider_get_value(obj);
+    local_param.charger_current = hw_set_charger_current_level(level);
+}
+
+static uint16_t build_charger_current_options(char *options, size_t options_size)
+{
+    if (!options || options_size == 0) return 0;
+
+    options[0] = '\0';
+    const uint16_t max_level = hw_get_charge_level_nums();
+    const uint16_t recommended = hw_get_recommended_charge_current();
+    size_t used = 0;
+    uint16_t last_level = 0;
+    for (uint16_t level = 0; level <= max_level; ++level) {
+        const uint16_t current = hw_get_charger_current_for_level((uint8_t)level);
+        if (current > recommended) {
+            break;
+        }
+        const int written = snprintf(options + used, options_size - used,
+                                     "%s%u mA", level ? "\n" : "", current);
+        if (written < 0 || (size_t)written >= options_size - used) {
+            break;
+        }
+        used += (size_t)written;
+        last_level = level;
+    }
+
+    if (used == 0) {
+        snprintf(options, options_size, "Unavailable");
+    }
+    return last_level;
 }
 
 /* Global font size preference: 0=auto(small screen), 1=small, 2=medium, 3=large */
@@ -442,6 +490,7 @@ typedef enum {
     UI_SYS_BUILD_DISPLAY_LED,
     UI_SYS_BUILD_DISPLAY_TIMEOUT,
     UI_SYS_BUILD_DISPLAY_NAV,
+    UI_SYS_BUILD_DISPLAY_ROTATION,
     UI_SYS_BUILD_DISPLAY_FONT,
     UI_SYS_BUILD_DISPLAY_THEME,
     UI_SYS_BUILD_ROTARY,
@@ -499,38 +548,50 @@ static bool run_sys_deferred_step()
         if (min_brightness < safe_min_brightness) {
             min_brightness = safe_min_brightness;
         }
-        ui_create_card_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Brightness",
-                              min_brightness, max_brightness,
-                              local_param.brightness_level, display_brightness_cb);
+        ui_create_card_value_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Brightness",
+                                    min_brightness, max_brightness,
+                                    local_param.brightness_level, "", display_brightness_cb);
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_KEYBOARD;
         break;
     }
 
     case UI_SYS_BUILD_DISPLAY_KEYBOARD:
         if (hw_has_keyboard()) {
-            ui_create_card_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Keyboard BL",
-                                  0, 255, local_param.keyboard_bl_level, keyboard_brightness_cb);
+            ui_create_card_value_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Keyboard BL",
+                                        0, 255, local_param.keyboard_bl_level, "",
+                                        keyboard_brightness_cb);
         }
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_LED;
         break;
 
     case UI_SYS_BUILD_DISPLAY_LED:
         if (hw_has_indicator_led()) {
-            ui_create_card_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "LED",
-                                  0, 255, local_param.led_indicator_level, led_brightness_cb);
+            ui_create_card_value_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "LED",
+                                        0, 255, local_param.led_indicator_level, "",
+                                        led_brightness_cb);
         }
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_TIMEOUT;
         break;
 
     case UI_SYS_BUILD_DISPLAY_TIMEOUT:
-        ui_create_card_seconds_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Display Timeout",
-                                      0, 180, local_param.disp_timeout_second, disp_timeout_cb);
+        ui_create_card_value_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Display Timeout",
+                                    0, 180, local_param.disp_timeout_second, "s", disp_timeout_cb);
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_NAV;
         break;
 
     case UI_SYS_BUILD_DISPLAY_NAV:
-        ui_create_card_switch(sys_deferred_card, LV_SYMBOL_SETTINGS, "Auto Hide Bar",
-                              hw_get_nav_auto_hide_enabled(), nav_auto_hide_cb);
+        ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_SETTINGS, "Auto Hide Bar",
+                                "Off\nOn", hw_get_nav_auto_hide_enabled() ? 1 : 0,
+                                nav_auto_hide_cb);
+        sys_deferred_step = UI_SYS_BUILD_DISPLAY_ROTATION;
+        break;
+
+    case UI_SYS_BUILD_DISPLAY_ROTATION:
+#if UI_SYS_HAS_DISPLAY_ROTATION_SETTING
+        ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_SETTINGS, "Screen Rotation",
+                                "0°\n180°", hw_get_display_rotation() == 2 ? 1 : 0,
+                                display_rotation_cb);
+#endif
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_FONT;
         break;
 
@@ -619,16 +680,23 @@ static bool run_sys_deferred_step()
         break;
 
     case UI_SYS_BUILD_POWER_CHARGER:
-        ui_create_card_switch(sys_deferred_card, LV_SYMBOL_POWER, "Charger",
-                              local_param.charger_enable, charger_enable_cb);
+        ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_POWER, "Charger",
+                                "Off\nOn", local_param.charger_enable ? 1 : 0,
+                                charger_enable_cb);
         sys_deferred_step = UI_SYS_BUILD_POWER_CHARGE_CURRENT;
         break;
 
     case UI_SYS_BUILD_POWER_CHARGE_CURRENT: {
-        uint8_t total_charge_level = hw_get_charge_level_nums();
-        uint8_t curr_charge_level = hw_get_charger_current_level();
-        ui_create_card_slider(sys_deferred_card, LV_SYMBOL_POWER, "Charge Current",
-                              0, total_charge_level, curr_charge_level, charger_current_cb);
+        char charge_options[768];
+        const uint16_t last_level = build_charger_current_options(charge_options,
+                                                                   sizeof(charge_options));
+        uint16_t current_level = hw_get_charger_current_level();
+        if (current_level > last_level) {
+            current_level = last_level;
+        }
+        ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_POWER, "Charge Current",
+                                charge_options, (uint8_t)current_level,
+                                charger_current_cb);
         sys_deferred_step = UI_SYS_BUILD_BUTTONS_CARD;
         break;
     }

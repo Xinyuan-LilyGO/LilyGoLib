@@ -256,8 +256,9 @@ lv_obj_t *ui_create_card(lv_obj_t *parent, const char *title);
 lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *title, lv_obj_t *widget);
 lv_obj_t *ui_create_card_slider(lv_obj_t *card, const char *icon, const char *title,
                                  int32_t min, int32_t max, int32_t val, lv_event_cb_t cb);
-lv_obj_t *ui_create_card_seconds_slider(lv_obj_t *card, const char *icon, const char *title,
-                                         int32_t min, int32_t max, int32_t val, lv_event_cb_t cb);
+lv_obj_t *ui_create_card_value_slider(lv_obj_t *card, const char *icon, const char *title,
+                                      int32_t min, int32_t max, int32_t val,
+                                      const char *value_suffix, lv_event_cb_t cb);
 void ui_prepare_slider_for_encoder(lv_obj_t *slider);
 void ui_style_textarea(lv_obj_t *textarea);
 void ui_prepare_textarea_for_encoder(lv_obj_t *textarea);
