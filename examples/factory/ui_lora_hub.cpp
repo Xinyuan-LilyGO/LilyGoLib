@@ -1723,6 +1723,7 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *text, lv_color_t colo
 
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, lv_color_eq(color, UI_COLOR_ACCENT) ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_center(label);
     return btn;
 }
@@ -1989,7 +1990,7 @@ static lv_obj_t *create_textarea_item(lv_obj_t *card, const char *icon, const ch
     lv_textarea_set_max_length(ta, max_len);
     if (accepted) lv_textarea_set_accepted_chars(ta, accepted);
     lv_obj_set_width(ta, 140);
-    lv_obj_set_style_bg_color(ta, lv_color_hex(0x202020), 0);
+    lv_obj_set_style_bg_color(ta, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(ta, 1, 0);
@@ -2279,7 +2280,7 @@ static void render_profile_editor(int16_t source_index, bool return_to_chat)
     lv_obj_set_style_pad_column(actions, 6, 0);
     lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    make_button(actions, "Cancel", lv_color_hex(0x333333), 72, cancel_editor_cb);
+    make_button(actions, "Cancel", UI_COLOR_CARD_BG, 72, cancel_editor_cb);
     make_button(actions, "Save", UI_COLOR_ACCENT, 62, save_editor_cb);
 
     lv_obj_t *card = ui_create_card(page_container, "Profile");
@@ -2511,7 +2512,7 @@ void ui_lora_hub_enter(lv_obj_t *parent)
     lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(keyboard, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(keyboard, lv_color_white(), 0);
+    lv_obj_set_style_text_color(keyboard, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
 #endif
 

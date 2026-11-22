@@ -172,7 +172,7 @@ static void refresh_ui()
 {
     switch (s_mode) {
     case 1: /* Recording */
-        lv_obj_set_style_bg_color(record_btn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_color(record_btn, UI_COLOR_TRACK, 0);
         lv_label_set_text(lv_obj_get_child(record_btn, 0), "Stop");
         btn_set_enabled(record_btn, false);
         btn_set_enabled(play_btn, false);
@@ -180,20 +180,20 @@ static void refresh_ui()
         break;
 
     case 2: /* Playing */
-        lv_obj_set_style_bg_color(record_btn, lv_color_hex(0x2A2A2A), 0);
+        lv_obj_set_style_bg_color(record_btn, UI_COLOR_CARD_FOCUS, 0);
         lv_label_set_text(lv_obj_get_child(record_btn, 0), "Record");
         btn_set_enabled(record_btn, false);
-        lv_obj_set_style_bg_color(play_btn, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_bg_color(play_btn, UI_COLOR_TRACK, 0);
         lv_label_set_text(lv_obj_get_child(play_btn, 0), "Stop");
         slider_set_enabled(gain_slider, false);
         break;
 
     default: /* Idle */
-        lv_obj_set_style_bg_color(record_btn, lv_color_hex(0x2A2A2A), 0);
+        lv_obj_set_style_bg_color(record_btn, UI_COLOR_CARD_FOCUS, 0);
         lv_label_set_text(lv_obj_get_child(record_btn, 0), "Record");
         btn_set_enabled(record_btn, true);
         btn_set_enabled(play_btn, s_can_play);
-        lv_obj_set_style_bg_color(play_btn, lv_color_hex(0x2A2A2A), 0);
+        lv_obj_set_style_bg_color(play_btn, UI_COLOR_CARD_FOCUS, 0);
         lv_label_set_text(lv_obj_get_child(play_btn, 0), "Play");
         slider_set_enabled(gain_slider, true);
         break;
@@ -455,9 +455,7 @@ static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *text)
 {
     lv_obj_t *btn = lv_btn_create(parent);
     lv_obj_set_size(btn, 90, 36);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A2A2A), 0);
     lv_obj_set_style_radius(btn, 8, 0);
-    lv_obj_set_style_text_color(btn, lv_color_white(), 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
     lv_obj_set_style_text_font(btn, &lv_font_montserrat_14, 0);
 

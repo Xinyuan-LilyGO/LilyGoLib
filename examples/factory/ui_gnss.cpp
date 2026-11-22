@@ -122,7 +122,7 @@ static lv_color_t system_color(gps_satellite_system_t system)
 {
     switch (system) {
     case GPS_SAT_SYSTEM_GPS:
-        return lv_color_hex(0x00D4AA);
+        return UI_COLOR_ACCENT;
     case GPS_SAT_SYSTEM_GLONASS:
         return lv_color_hex(0x0088FF);
     case GPS_SAT_SYSTEM_BEIDOU:
@@ -701,7 +701,7 @@ static void show_nmea_serial_mode(void)
 
     lv_obj_t *exit_label = lv_label_create(exit_btn);
     lv_label_set_text(exit_label, LV_SYMBOL_CLOSE " Exit");
-    lv_obj_set_style_text_color(exit_label, lv_color_white(), 0);
+    lv_obj_set_style_text_color(exit_label, UI_COLOR_TEXT_ON_ACCENT, 0);
     lv_obj_center(exit_label);
 
     if (nmea_serial_prev_group) {

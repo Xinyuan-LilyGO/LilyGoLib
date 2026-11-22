@@ -294,12 +294,12 @@ void ui_factory_enter(lv_obj_t *parent)
         lv_obj_set_pos(button, 8 + i * (button_w + 6), 34);
         lv_obj_set_size(button, button_w, 42);
         lv_obj_set_style_radius(button, 6, 0);
-        lv_obj_set_style_bg_color(button, lv_color_hex(0x303030), 0);
+        lv_obj_set_style_bg_color(button, UI_COLOR_CARD_BG, 0);
         lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
         lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUSED);
         lv_obj_set_style_outline_pad(button, 1, LV_STATE_FOCUSED);
-        lv_obj_set_style_outline_color(button, lv_color_white(), LV_STATE_FOCUSED);
-        lv_obj_set_style_bg_color(button, lv_color_hex(0x505050), LV_STATE_FOCUSED);
+        lv_obj_set_style_outline_color(button, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
+        lv_obj_set_style_bg_color(button, UI_COLOR_CARD_FOCUS, LV_STATE_FOCUSED);
         lv_obj_add_event_cb(button, control_event, LV_EVENT_ALL,
                             reinterpret_cast<void *>(actions[i]));
         lv_obj_t *label = lv_label_create(button);

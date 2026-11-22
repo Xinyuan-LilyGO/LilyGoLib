@@ -332,9 +332,9 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
     char default_name[32];
     snprintf(default_name, sizeof(default_name), "signal_%03d", file_counter);
     lv_textarea_set_text(filename_ta, default_name);
-    lv_obj_set_style_bg_color(filename_ta, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(filename_ta, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(filename_ta, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(filename_ta, lv_color_white(), 0);
+    lv_obj_set_style_text_color(filename_ta, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(filename_ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(filename_ta, 1, 0);
     lv_obj_set_style_radius(filename_ta, 8, 0);
@@ -349,7 +349,7 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
     filename_keyboard = lv_keyboard_create(lv_layer_top());
     lv_obj_set_style_bg_color(filename_keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(filename_keyboard, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(filename_keyboard, lv_color_white(), 0);
+    lv_obj_set_style_text_color(filename_keyboard, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_add_flag(filename_keyboard, LV_OBJ_FLAG_HIDDEN);
 #endif
 
@@ -368,7 +368,7 @@ void ui_ir_recorder_enter(lv_obj_t *parent)
         lv_obj_t *l = lv_label_create(save_btn);
         lv_label_set_text(l, LV_SYMBOL_SAVE " Save to SD");
         lv_obj_center(l);
-        lv_obj_set_style_text_color(l, lv_color_white(), 0);
+        lv_obj_set_style_text_color(l, UI_COLOR_TEXT_ON_ACCENT, 0);
     }
 
     /* Start polling for IR signals */

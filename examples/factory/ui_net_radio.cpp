@@ -238,7 +238,7 @@ static void create_stream_row(lv_obj_t *card, NetworkAudioStreamParams_t *stream
     lv_group_t *group = lv_group_get_default();
     lv_obj_t *btn = lv_btn_create(card);
     lv_obj_set_size(btn, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A1A1A), 0);
+    lv_obj_set_style_bg_color(btn, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(btn, 8, 0);
     lv_obj_set_style_border_width(btn, 0, 0);

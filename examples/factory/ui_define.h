@@ -88,42 +88,60 @@ using std::vector;
 
 /* ── Theme color presets ── */
 typedef struct {
+    uint32_t bg;           /* Screen and page background */
+    uint32_t app_bg;       /* App launcher icon background */
     uint32_t accent;       /* Main accent color */
     uint32_t accent_dim;   /* Pressed state */
     uint32_t card_bg;      /* Card background */
     uint32_t track;        /* Slider/progress track */
+    uint32_t text_on_accent; /* Text shown on accent backgrounds */
+    bool light;            /* Use the light LVGL base theme */
     const char *name;      /* Display name */
 } ui_theme_preset_t;
 
 static const ui_theme_preset_t ui_theme_presets[] = {
-    { 0x00D4AA, 0x009977, 0x1A1A1A, 0x333333, "Mint"     },  /* 0: Current default */
-    { 0x0088FF, 0x0066CC, 0x1A1A2E, 0x333344, "Ocean"    },  /* 1: Blue */
-    { 0xFF6B35, 0xCC5522, 0x2A1A1A, 0x443333, "Sunset"   },  /* 2: Orange */
-    { 0xAA55FF, 0x8833CC, 0x1E1A2A, 0x3A3344, "Violet"   },  /* 3: Purple */
-    { 0xFF3366, 0xCC2255, 0x2A1A20, 0x443338, "Cherry"   },  /* 4: Pink/Red */
-    { 0x88CC00, 0x669900, 0x1A2A1A, 0x334433, "Lime"     },  /* 5: Green */
-    { 0xFFB800, 0xCC9200, 0x2A2A1A, 0x444433, "Amber"    },  /* 6: Gold */
-    { 0xFFFFFF, 0xCCCCCC, 0x2A2A2A, 0x555555, "Mono"     },  /* 7: Monochrome */
+    { 0x000000, 0x1A1A1A, 0x00D4AA, 0x009977, 0x1A1A1A, 0x333333, 0xFFFFFF, false, "Mint"       },  /* 0: Current default */
+    { 0x000000, 0x1A1A2E, 0x0088FF, 0x0066CC, 0x1A1A2E, 0x333344, 0xFFFFFF, false, "Ocean"      },  /* 1: Blue */
+    { 0x000000, 0x2A1A1A, 0xFF6B35, 0xCC5522, 0x2A1A1A, 0x443333, 0xFFFFFF, false, "Sunset"     },  /* 2: Orange */
+    { 0x000000, 0x1E1A2A, 0xAA55FF, 0x8833CC, 0x1E1A2A, 0x3A3344, 0xFFFFFF, false, "Violet"     },  /* 3: Purple */
+    { 0x000000, 0x2A1A20, 0xFF3366, 0xCC2255, 0x2A1A20, 0x443338, 0xFFFFFF, false, "Cherry"     },  /* 4: Pink/Red */
+    { 0x000000, 0x1A2A1A, 0x88CC00, 0x669900, 0x1A2A1A, 0x334433, 0xFFFFFF, false, "Lime"       },  /* 5: Green */
+    { 0x000000, 0x2A2A1A, 0xFFB800, 0xCC9200, 0x2A2A1A, 0x444433, 0xFFFFFF, false, "Amber"      },  /* 6: Gold */
+    { 0x000000, 0x2A2A2A, 0xFFFFFF, 0xCCCCCC, 0x2A2A2A, 0x555555, 0x000000, false, "Mono"       },  /* 7: Monochrome */
+    { 0xFFFFFF, 0xE6E6E6, 0xD81B60, 0xAD1457, 0xF5F5F5, 0xD0D0D0, 0xFFFFFF, true, "Rose Light" },  /* 8: Light with rose accent */
 };
 #define UI_THEME_PRESET_COUNT (sizeof(ui_theme_presets) / sizeof(ui_theme_presets[0]))
 
 /* ── Active color palette (runtime mutable) ── */
+extern uint32_t ui_active_bg;
+extern uint32_t ui_active_app_bg;
 extern uint32_t ui_active_accent;
 extern uint32_t ui_active_accent_dim;
 extern uint32_t ui_active_card_bg;
 extern uint32_t ui_active_track;
+extern uint32_t ui_active_text_on_accent;
+extern bool ui_active_light_theme;
+extern uint32_t ui_previous_bg;
+extern uint32_t ui_previous_card_focus;
+extern uint32_t ui_previous_accent;
+extern uint32_t ui_previous_text_primary;
 
-#define UI_COLOR_BG           lv_color_black()
+#define UI_COLOR_BG           lv_color_hex(ui_active_bg)
+#define UI_COLOR_APP_BG       lv_color_hex(ui_active_app_bg)
 #define UI_COLOR_CARD_BG      lv_color_hex(ui_active_card_bg)
-#define UI_COLOR_CARD_FOCUS   lv_color_hex(0x2A2A2A)
+#define UI_COLOR_CARD_FOCUS   (ui_active_light_theme ? lv_color_hex(0xE8E8E8) : lv_color_hex(0x2A2A2A))
 #define UI_COLOR_ACCENT       lv_color_hex(ui_active_accent)
 #define UI_COLOR_ACCENT_DIM   lv_color_hex(ui_active_accent_dim)
 #define UI_COLOR_ACCENT_FOCUS_BORDER UI_COLOR_ACCENT
 #define UI_COLOR_ACCENT_FOCUS_OUTLINE UI_COLOR_ACCENT
 #define UI_COLOR_WARNING      lv_color_hex(0xFF6B35)
-#define UI_COLOR_TEXT_PRIMARY  lv_color_white()
+#define UI_COLOR_TEXT_PRIMARY  (ui_active_light_theme ? lv_color_hex(0x222222) : lv_color_white())
 #define UI_COLOR_TEXT_SECONDARY lv_color_hex(0x888888)
-#define UI_COLOR_DIVIDER      lv_color_hex(0x333333)
+#define UI_COLOR_CONTROL_TEXT (ui_active_light_theme ? lv_color_hex(0x222222) : lv_color_white())
+#define UI_COLOR_MENU_LABEL   UI_COLOR_TEXT_PRIMARY
+#define UI_COLOR_APP_ICON     (ui_active_light_theme ? lv_color_hex(0x4A4A4A) : lv_color_white())
+#define UI_COLOR_TEXT_ON_ACCENT lv_color_hex(ui_active_text_on_accent)
+#define UI_COLOR_DIVIDER      UI_COLOR_TRACK
 #define UI_COLOR_TRACK        lv_color_hex(ui_active_track)
 #define UI_COLOR_KNOB         lv_color_white()
 
@@ -131,6 +149,7 @@ extern uint32_t ui_active_track;
 typedef struct {
     lv_style_t card;
     lv_style_t card_item;
+    lv_style_t app_btn;
     lv_style_t accent_btn;
     lv_style_t accent_focus_ring;
     lv_style_t focus_glow;
@@ -203,7 +222,10 @@ lv_obj_t *ui_create_process_bar(lv_obj_t *parent, const char *title);
 void theme_init();
 void ui_styles_refresh(void);
 void ui_theme_apply(void);
+void ui_refresh_app_grid_theme(void);
+void ui_refresh_status_bar_theme(void);
 void ui_add_accent_focus_style(lv_obj_t *obj);
+void ui_disable_focus_shadow(lv_obj_t *obj);
 
 void disable_input_devices();
 void enable_input_devices();

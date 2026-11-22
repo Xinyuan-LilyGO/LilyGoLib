@@ -193,13 +193,17 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
 {
     const bool small = is_screen_small();
     lv_obj_t *button = lv_btn_create(parent);
+    const bool light_theme = ui_active_light_theme;
+    const lv_color_t card_bg = light_theme ? UI_COLOR_BG : UI_COLOR_CARD_BG;
+    const lv_color_t button_bg = primary && !light_theme ? color : card_bg;
+    const lv_color_t pressed_bg = primary && !light_theme ?
+                                  lv_color_darken(color, LV_OPA_20) : UI_COLOR_CARD_FOCUS;
     lv_obj_set_size(button, LV_PCT(100), 72);
-    lv_obj_set_style_bg_color(button, primary ? color : UI_COLOR_CARD_BG, 0);
-    lv_obj_set_style_bg_color(button, primary ? lv_color_darken(color, LV_OPA_20) : UI_COLOR_CARD_FOCUS,
-                              LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(button, button_bg, 0);
+    lv_obj_set_style_bg_color(button, pressed_bg, LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(button, primary ? 0 : 1, 0);
-    lv_obj_set_style_border_color(button, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_border_width(button, primary && !light_theme ? 0 : 1, 0);
+    lv_obj_set_style_border_color(button, primary && light_theme ? color : UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_radius(button, 8, 0);
     lv_obj_set_style_pad_all(button, small ? 9 : 12, 0);
     lv_obj_set_style_pad_column(button, small ? 9 : 12, 0);
@@ -212,7 +216,7 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_obj_t *icon_label = lv_label_create(button);
     lv_label_set_text(icon_label, icon);
     lv_obj_set_style_text_font(icon_label, &lv_font_montserrat_22, 0);
-    lv_obj_set_style_text_color(icon_label, primary ? lv_color_white() : color, 0);
+    lv_obj_set_style_text_color(icon_label, primary && !light_theme ? lv_color_white() : color, 0);
 
     lv_obj_t *text_column = lv_obj_create(button);
     lv_obj_set_size(text_column, 1, LV_SIZE_CONTENT);
@@ -229,7 +233,8 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_label_set_text(title_label, title);
     lv_obj_set_width(title_label, LV_PCT(100));
     lv_obj_set_style_text_font(title_label, small ? &lv_font_montserrat_14 : &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(title_label, UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_color(title_label,
+                                primary && !light_theme ? lv_color_white() : UI_COLOR_TEXT_PRIMARY, 0);
 
     lv_obj_t *detail_label = lv_label_create(text_column);
     lv_label_set_text(detail_label, detail);
@@ -237,7 +242,7 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_obj_set_width(detail_label, LV_PCT(100));
     lv_obj_set_style_text_font(detail_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(detail_label,
-                                primary ? lv_color_hex(0xF4F4F4) : UI_COLOR_TEXT_SECONDARY, 0);
+                                primary && !light_theme ? lv_color_hex(0xF4F4F4) : UI_COLOR_TEXT_SECONDARY, 0);
 
     lv_obj_t *arrow = lv_label_create(button);
     lv_label_set_text(arrow, LV_SYMBOL_RIGHT);
@@ -253,8 +258,9 @@ static void create_power_overview(lv_obj_t *parent, hw_power_off_mode_t mode)
     const lv_color_t mode_color = power_mode_color(mode);
 
     lv_obj_t *overview = lv_obj_create(parent);
+    const lv_color_t overview_bg = ui_active_light_theme ? UI_COLOR_BG : lv_color_hex(0x111418);
     lv_obj_set_size(overview, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_color(overview, lv_color_hex(0x111418), 0);
+    lv_obj_set_style_bg_color(overview, overview_bg, 0);
     lv_obj_set_style_bg_opa(overview, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(overview, 1, 0);
     lv_obj_set_style_border_color(overview, mode_color, 0);

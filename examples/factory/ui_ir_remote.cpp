@@ -198,7 +198,7 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *text, lv_eve
 
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, UI_COLOR_TEXT_ON_ACCENT, 0);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
     lv_obj_center(label);
     return button;
@@ -1050,7 +1050,7 @@ static lv_obj_t *create_mode_button(lv_obj_t *parent, const char *text, ir_send_
     lv_obj_add_event_cb(button, mode_button_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)mode);
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
     lv_obj_center(label);
     return button;

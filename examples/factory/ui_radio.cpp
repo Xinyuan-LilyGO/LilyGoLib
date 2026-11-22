@@ -387,9 +387,9 @@ lv_obj_t *create_syncword_textarea(lv_obj_t *card)
     lv_textarea_set_placeholder_text(ta, "Dec (0-255)");
     lv_obj_set_scrollbar_mode(ta, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_width(ta, 80);
-    lv_obj_set_style_bg_color(ta, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(ta, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(ta, lv_color_white(), 0);
+    lv_obj_set_style_text_color(ta, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(ta, 1, 0);
     lv_obj_set_style_radius(ta, 6, 0);

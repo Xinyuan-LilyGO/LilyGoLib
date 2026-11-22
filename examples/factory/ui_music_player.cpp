@@ -322,9 +322,9 @@ static lv_obj_t *create_control_button(lv_obj_t *parent, const char *symbol,
     lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_STATE_PRESSED);
     lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_STATE_FOCUSED);
     lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, LV_STATE_FOCUS_KEY);
-    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : lv_color_hex(0x242424), 0);
-    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : lv_color_hex(0x242424), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : lv_color_hex(0x242424), LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : UI_COLOR_CARD_BG, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(btn, primary ? UI_COLOR_ACCENT : UI_COLOR_CARD_BG, LV_STATE_FOCUSED);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_STATE_FOCUSED);
@@ -337,15 +337,13 @@ static lv_obj_t *create_control_button(lv_obj_t *parent, const char *symbol,
     lv_obj_set_style_border_width(btn, 0, LV_STATE_FOCUSED);
     lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
     lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
-    if (primary) {
-        ui_add_accent_focus_style(btn);
-    }
+    ui_add_accent_focus_style(btn);
     lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *label = lv_label_create(btn);
     lv_label_set_text(label, symbol);
-    lv_obj_set_style_text_color(label, primary ? lv_color_black() : UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_color(label, primary ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_text_font(label, primary ? &lv_font_montserrat_24 : &lv_font_montserrat_18, 0);
     lv_obj_center(label);
 

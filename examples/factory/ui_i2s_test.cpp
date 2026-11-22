@@ -568,12 +568,13 @@ void ui_i2s_test_enter(lv_obj_t *parent)
 
     lv_obj_t *stop_btn = lv_btn_create(buttons);
     lv_obj_set_size(stop_btn, 70, 34);
-    lv_obj_set_style_bg_color(stop_btn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_color(stop_btn, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_border_width(stop_btn, 0, 0);
     lv_obj_set_style_radius(stop_btn, 7, 0);
     lv_obj_add_event_cb(stop_btn, stop_button_event, LV_EVENT_CLICKED, NULL);
     lv_obj_t *stop_label = lv_label_create(stop_btn);
     lv_label_set_text(stop_label, "Stop");
+    lv_obj_set_style_text_color(stop_label, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_center(stop_label);
 
     card = ui_create_card(page_container, "Level");

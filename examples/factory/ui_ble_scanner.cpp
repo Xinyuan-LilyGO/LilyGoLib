@@ -114,7 +114,7 @@ static int rssi_to_percent(int8_t rssi)
 
 static lv_color_t rssi_color(int8_t rssi)
 {
-    if (rssi >= -55) return lv_color_hex(0x00D4AA);
+    if (rssi >= -55) return UI_COLOR_ACCENT;
     if (rssi >= -72) return lv_color_hex(0xFFB800);
     if (rssi >= -85) return lv_color_hex(0xFF6B35);
     return lv_color_hex(0x777777);

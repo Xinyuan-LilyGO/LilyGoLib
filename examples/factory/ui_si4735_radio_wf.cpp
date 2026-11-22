@@ -250,7 +250,7 @@ static lv_obj_t *make_btn(lv_obj_t *parent, const char *txt, lv_color_t bg, lv_e
     lv_obj_t *l = lv_label_create(btn);
     lv_label_set_text(l, txt);
     lv_obj_center(l);
-    lv_obj_set_style_text_color(l, lv_color_white(), 0);
+    lv_obj_set_style_text_color(l, lv_color_eq(bg, UI_COLOR_ACCENT) ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_PRIMARY, 0);
     return btn;
 }
 
@@ -325,10 +325,10 @@ void ui_si4735_radio_wf_enter(lv_obj_t *parent)
     lv_obj_set_flex_align(tune_row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(tune_row, 6, 0);
 
-    make_btn(tune_row, LV_SYMBOL_PREV, lv_color_hex(0x333333), seek_down_cb);
-    make_btn(tune_row, "-", lv_color_hex(0x444444), tune_down_cb);
-    make_btn(tune_row, "+", lv_color_hex(0x444444), tune_up_cb);
-    make_btn(tune_row, LV_SYMBOL_NEXT, lv_color_hex(0x333333), seek_up_cb);
+    make_btn(tune_row, LV_SYMBOL_PREV, UI_COLOR_CARD_BG, seek_down_cb);
+    make_btn(tune_row, "-", UI_COLOR_CARD_BG, tune_down_cb);
+    make_btn(tune_row, "+", UI_COLOR_CARD_BG, tune_up_cb);
+    make_btn(tune_row, LV_SYMBOL_NEXT, UI_COLOR_CARD_BG, seek_up_cb);
 
     /* ── Row 4: Volume slider (compact) ── */
     lv_obj_t *vol_row = lv_obj_create(page_container);
@@ -349,7 +349,7 @@ void ui_si4735_radio_wf_enter(lv_obj_t *parent)
     lv_slider_set_range(vol_slider, 0, 63);
     lv_slider_set_value(vol_slider, current_vol, LV_ANIM_OFF);
     ui_prepare_slider_for_encoder(vol_slider);
-    lv_obj_set_style_bg_color(vol_slider, lv_color_hex(0x333333), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(vol_slider, UI_COLOR_TRACK, LV_PART_MAIN);
     lv_obj_set_style_bg_color(vol_slider, UI_COLOR_ACCENT, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(vol_slider, lv_color_white(), LV_PART_KNOB);
     lv_obj_add_event_cb(vol_slider, vol_cb, LV_EVENT_VALUE_CHANGED, NULL);

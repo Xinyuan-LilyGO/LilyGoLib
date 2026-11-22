@@ -267,7 +267,7 @@ void ui_wifi_tools_enter(lv_obj_t *parent)
     lv_textarea_set_max_length(target_ta, 64);
     lv_textarea_set_text(target_ta, "example.com");
     lv_obj_set_scrollbar_mode(target_ta, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_bg_color(target_ta, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_color(target_ta, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(target_ta, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(target_ta, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_bg_color(target_ta, lv_color_white(), LV_PART_CURSOR);
@@ -282,6 +282,7 @@ void ui_wifi_tools_enter(lv_obj_t *parent)
     lv_obj_set_style_border_color(target_ta, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_color(target_ta, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
     lv_obj_set_style_border_width(target_ta, 1, 0);
+    ui_disable_focus_shadow(target_ta);
     lv_obj_set_style_radius(target_ta, 6, 0);
     lv_obj_add_event_cb(target_ta, target_ta_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(target_ta, target_ta_cb, LV_EVENT_FOCUSED, NULL);
@@ -292,6 +293,7 @@ void ui_wifi_tools_enter(lv_obj_t *parent)
     ui_create_card_item(card, LV_SYMBOL_EDIT, "Host", target_ta);
 
     port_dd = card_dropdown(card, LV_SYMBOL_SETTINGS, "Port", "80\n443\n1883\n8080", 0);
+    ui_disable_focus_shadow(port_dd);
     ui_create_card_button(card, LV_SYMBOL_WIFI, "DNS", "Lookup", dns_cb);
     ui_create_card_button(card, LV_SYMBOL_UPLOAD, "TCP", "Connect", tcp_cb);
 

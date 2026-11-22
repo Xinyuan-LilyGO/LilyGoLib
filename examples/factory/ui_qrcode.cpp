@@ -291,7 +291,7 @@ void ui_qrcode_enter(lv_obj_t *parent)
     lv_textarea_set_max_length(content_ta, sizeof(qr_content) - 1);
     lv_textarea_set_placeholder_text(content_ta, "QR content");
     lv_obj_set_scrollbar_mode(content_ta, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_bg_color(content_ta, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_color(content_ta, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(content_ta, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(content_ta, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(content_ta, UI_COLOR_DIVIDER, 0);

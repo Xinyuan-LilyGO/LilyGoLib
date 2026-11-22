@@ -801,7 +801,7 @@ static lv_obj_t *create_action_button(lv_obj_t *card, const char *icon, const ch
 {
     lv_obj_t *btn = lv_btn_create(lv_obj_create(card));
     lv_obj_set_size(btn, LV_SIZE_CONTENT, 32);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_color(btn, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(btn, 1, 0);
     lv_obj_set_style_border_color(btn, color, 0);

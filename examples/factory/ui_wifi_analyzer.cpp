@@ -101,7 +101,7 @@ static void format_bssid(const uint8_t *bssid, char *out, size_t out_size)
 
 static lv_color_t rssi_color(int8_t rssi)
 {
-    if (rssi >= -55) return lv_color_hex(0x00D4AA);
+    if (rssi >= -55) return UI_COLOR_ACCENT;
     if (rssi >= -70) return lv_color_hex(0xFFB800);
     if (rssi >= -82) return lv_color_hex(0xFF6B35);
     return lv_color_hex(0x777777);
@@ -319,7 +319,7 @@ static void build_graph_axis(void)
         lv_obj_t *line = lv_obj_create(graph_area);
         lv_obj_set_size(line, 1, WIFI_GRAPH_H - 18);
         lv_obj_set_pos(line, x, 4);
-        lv_obj_set_style_bg_color(line, lv_color_hex(0x2A2A2A), 0);
+        lv_obj_set_style_bg_color(line, UI_COLOR_TRACK, 0);
         lv_obj_set_style_bg_opa(line, LV_OPA_70, 0);
         lv_obj_set_style_border_width(line, 0, 0);
         lv_obj_set_style_radius(line, 0, 0);
@@ -436,6 +436,8 @@ static void build_ap_list(void)
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_FOCUSED);
         lv_obj_set_style_border_color(row, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
         lv_obj_set_style_border_width(row, 1, LV_STATE_FOCUSED);
+        ui_add_accent_focus_style(row);
+        ui_disable_focus_shadow(row);
         lv_obj_add_event_cb(row, ap_row_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_add_event_cb(row, focus_scroll_cb, LV_EVENT_FOCUSED, NULL);
         lv_group_t *group = lv_group_get_default();
@@ -488,7 +490,7 @@ static void build_ap_list(void)
         lv_obj_set_size(bar, 52, 6);
         lv_bar_set_range(bar, 0, 100);
         lv_bar_set_value(bar, rssi_to_percent(ap.rssi), LV_ANIM_OFF);
-        lv_obj_set_style_bg_color(bar, lv_color_hex(0x333333), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, UI_COLOR_TRACK, LV_PART_MAIN);
         lv_obj_set_style_bg_color(bar, rssi_color(ap.rssi), LV_PART_INDICATOR);
         lv_obj_set_style_radius(bar, 0, LV_PART_MAIN);
         lv_obj_set_style_radius(bar, 0, LV_PART_INDICATOR);
@@ -754,7 +756,7 @@ void ui_wifi_analyzer_enter(lv_obj_t *parent)
     graph_area = lv_obj_create(card);
     lv_obj_set_width(graph_area, LV_PCT(100));
     lv_obj_set_height(graph_area, WIFI_GRAPH_H);
-    lv_obj_set_style_bg_color(graph_area, lv_color_hex(0x101010), 0);
+    lv_obj_set_style_bg_color(graph_area, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(graph_area, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(graph_area, 1, 0);
     lv_obj_set_style_border_color(graph_area, UI_COLOR_DIVIDER, 0);
@@ -765,6 +767,8 @@ void ui_wifi_analyzer_enter(lv_obj_t *parent)
     lv_obj_add_flag(graph_area, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_style_border_color(graph_area, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
     lv_obj_set_style_border_opa(graph_area, LV_OPA_80, LV_STATE_FOCUSED);
+    ui_add_accent_focus_style(graph_area);
+    ui_disable_focus_shadow(graph_area);
     lv_obj_add_event_cb(graph_area, focus_scroll_cb, LV_EVENT_FOCUSED, NULL);
     lv_group_t *group = lv_group_get_default();
     if (group && lv_obj_get_group(graph_area) != group) {

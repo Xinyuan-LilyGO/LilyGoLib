@@ -465,7 +465,7 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     lv_textarea_set_accepted_chars(id_textarea, "0123456789ABCDEFabcdef");
     lv_textarea_set_max_length(id_textarea, 6);
     lv_textarea_set_text_selection(id_textarea, false);
-    lv_obj_set_style_bg_color(id_textarea, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_color(id_textarea, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_text_color(id_textarea, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(id_textarea, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_border_width(id_textarea, 1, 0);
@@ -481,7 +481,7 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     id_keyboard = lv_keyboard_create(lv_layer_top());
     lv_obj_set_style_bg_color(id_keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(id_keyboard, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(id_keyboard, lv_color_white(), 0);
+    lv_obj_set_style_text_color(id_keyboard, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_add_flag(id_keyboard, LV_OBJ_FLAG_HIDDEN);
 #endif
 

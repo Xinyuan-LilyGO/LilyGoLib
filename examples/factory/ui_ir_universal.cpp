@@ -478,7 +478,7 @@ void ui_ir_universal_enter(lv_obj_t *parent)
     lv_dropdown_set_options(profile_dd, "AC\nTV\nLight\nCustom");
     lv_dropdown_set_selected(profile_dd, current_profile);
     lv_obj_set_width(profile_dd, LV_PCT(55));
-    lv_obj_set_style_bg_color(profile_dd, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(profile_dd, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(profile_dd, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(profile_dd, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(profile_dd, UI_COLOR_DIVIDER, 0);
@@ -502,7 +502,7 @@ void ui_ir_universal_enter(lv_obj_t *parent)
 
     record_btn = lv_btn_create(control_row);
     lv_obj_set_size(record_btn, 88, 32);
-    lv_obj_set_style_bg_color(record_btn, lv_color_hex(0x303030), 0);
+    lv_obj_set_style_bg_color(record_btn, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_color(record_btn, UI_COLOR_WARNING, LV_STATE_CHECKED);
     lv_obj_set_style_border_width(record_btn, 1, 0);
     lv_obj_set_style_border_color(record_btn, UI_COLOR_DIVIDER, 0);
@@ -511,13 +511,13 @@ void ui_ir_universal_enter(lv_obj_t *parent)
     {
         lv_obj_t *lbl = lv_label_create(record_btn);
         lv_label_set_text(lbl, "REC");
-        lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+        lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT_PRIMARY, 0);
         lv_obj_center(lbl);
     }
 
     lv_obj_t *refresh_btn = lv_btn_create(control_row);
     lv_obj_set_size(refresh_btn, 88, 32);
-    lv_obj_set_style_bg_color(refresh_btn, lv_color_hex(0x303030), 0);
+    lv_obj_set_style_bg_color(refresh_btn, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_border_width(refresh_btn, 1, 0);
     lv_obj_set_style_border_color(refresh_btn, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_radius(refresh_btn, 6, 0);

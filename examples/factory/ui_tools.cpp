@@ -954,6 +954,27 @@ lv_obj_t *create_floating_button(lv_event_cb_t event_cb, void* user_data)
     return NULL;
 }
 
+static void ui_back_button_visual_cb(lv_event_t *e)
+{
+    lv_obj_t *label = (lv_obj_t *)lv_event_get_user_data(e);
+    if (!label || !lv_obj_is_valid(label)) return;
+
+    switch (lv_event_get_code(e)) {
+    case LV_EVENT_PRESSED:
+    case LV_EVENT_PRESSING:
+        lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
+        break;
+    case LV_EVENT_RELEASED:
+    case LV_EVENT_PRESS_LOST:
+    case LV_EVENT_CANCEL:
+    case LV_EVENT_CLICKED:
+        lv_obj_set_style_text_color(label, UI_COLOR_ACCENT, LV_PART_MAIN);
+        break;
+    default:
+        break;
+    }
+}
+
 
 lv_obj_t *create_radius_button(lv_obj_t *parent, const void *image, lv_event_cb_t event_cb, void* user_data)
 {
@@ -1103,6 +1124,11 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
     lv_obj_t *back_btn = lv_btn_create(nav);
     lv_obj_set_size(back_btn, 28, 28);
     lv_obj_set_style_radius(back_btn, 14, 0);
+    lv_obj_set_style_radius(back_btn, 14, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(back_btn, 14, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(back_btn, 14, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_radius(back_btn, 14,
+                            static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
     lv_obj_set_style_pad_all(back_btn, 0, 0);
     lv_obj_set_style_min_width(back_btn, 28, 0);
     lv_obj_set_style_max_width(back_btn, 28, 0);
@@ -1110,6 +1136,10 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
     lv_obj_set_style_max_height(back_btn, 28, 0);
     lv_obj_set_style_border_width(back_btn, 1, 0);
     lv_obj_set_style_border_color(back_btn, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_shadow_width(back_btn, 0, 0);
+    lv_obj_set_style_shadow_width(back_btn, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_shadow_width(back_btn, 0, LV_STATE_FOCUS_KEY);
+    ui_add_accent_focus_style(back_btn);
     lv_obj_align(back_btn, LV_ALIGN_LEFT_MID, 0, 0);
 #if FACTORY_HAS_TOUCH_INPUT
     lv_obj_add_flag(back_btn, LV_OBJ_FLAG_HIDDEN);
@@ -1120,6 +1150,7 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
     lv_obj_add_style(back_label, &ui_styles.accent_text, 0);
     lv_obj_set_style_text_font(back_label, &lv_font_montserrat_16, 0);
     lv_obj_center(back_label);
+    lv_obj_add_event_cb(back_btn, ui_back_button_visual_cb, LV_EVENT_ALL, back_label);
 
     if (back_cb) {
         lv_obj_add_event_cb(back_btn, back_cb, LV_EVENT_CLICKED, NULL);
@@ -1289,19 +1320,35 @@ lv_obj_t *ui_create_card(lv_obj_t *parent, const char *title)
 }
 
 /* Active theme colors — default to Mint preset */
+uint32_t ui_active_bg = 0x000000;
+uint32_t ui_active_app_bg = 0x1A1A1A;
 uint32_t ui_active_accent = 0x00D4AA;
 uint32_t ui_active_accent_dim = 0x009977;
 uint32_t ui_active_card_bg = 0x1A1A1A;
 uint32_t ui_active_track = 0x333333;
+uint32_t ui_active_text_on_accent = 0xFFFFFF;
+bool ui_active_light_theme = false;
+uint32_t ui_previous_bg = 0x000000;
+uint32_t ui_previous_card_focus = 0x2A2A2A;
+uint32_t ui_previous_accent = 0x00D4AA;
+uint32_t ui_previous_text_primary = 0xFFFFFF;
 
 void ui_apply_theme_preset(uint8_t preset_idx)
 {
     if (preset_idx >= UI_THEME_PRESET_COUNT) return;
     const ui_theme_preset_t *p = &ui_theme_presets[preset_idx];
+    ui_previous_bg = ui_active_bg;
+    ui_previous_card_focus = ui_active_light_theme ? 0xE8E8E8 : 0x2A2A2A;
+    ui_previous_accent = ui_active_accent;
+    ui_previous_text_primary = ui_active_light_theme ? 0x222222 : 0xFFFFFF;
+    ui_active_bg = p->bg;
+    ui_active_app_bg = p->app_bg;
     ui_active_accent = p->accent;
     ui_active_accent_dim = p->accent_dim;
     ui_active_card_bg = p->card_bg;
     ui_active_track = p->track;
+    ui_active_text_on_accent = p->text_on_accent;
+    ui_active_light_theme = p->light;
 }
 
 void ui_add_accent_focus_style(lv_obj_t *obj)
@@ -1310,6 +1357,22 @@ void ui_add_accent_focus_style(lv_obj_t *obj)
     ui_styles_init();
     lv_obj_add_style(obj, &ui_styles.accent_focus_ring, LV_STATE_FOCUSED);
     lv_obj_add_style(obj, &ui_styles.accent_focus_ring, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_width(obj, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_width(obj, 0, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_width(
+        obj, 0, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
+}
+
+void ui_disable_focus_shadow(lv_obj_t *obj)
+{
+    if (!obj) return;
+    lv_obj_set_style_shadow_width(obj, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_shadow_width(obj, 0, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_shadow_width(
+        obj, 0, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
+    lv_obj_set_style_shadow_width(obj, 0, LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(obj, 0, LV_STATE_CHECKED);
+    lv_obj_set_style_shadow_width(obj, 0, LV_PART_SELECTED);
 }
 
 /* Font size preference: 0=auto, 1=small, 2=medium, 3=large */
@@ -1364,6 +1427,7 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
     lv_obj_set_style_shadow_width(row, 0, 0);
     lv_obj_set_style_shadow_width(row, 0, LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(row, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_shadow_width(row, 0, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_transform_width(row, 0, 0);
     lv_obj_set_style_transform_width(row, 0, LV_STATE_PRESSED);
     lv_obj_set_style_transform_height(row, 0, 0);
@@ -1372,7 +1436,13 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
     lv_obj_set_style_border_width(row, 1, LV_STATE_FOCUSED);
     lv_obj_set_style_border_color(row, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
     lv_obj_set_style_border_opa(row, LV_OPA_60, LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(row, 1, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_border_color(row, UI_COLOR_ACCENT, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_border_opa(row, LV_OPA_60, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_radius(row, 8, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(row, 8, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_radius(row, 8,
+                             static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
 #endif
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
@@ -1469,9 +1539,7 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
     /* Divider */
     lv_obj_t *div = lv_obj_create(card);
     lv_obj_set_size(div, LV_PCT(95), 1);
-    lv_obj_set_style_bg_color(div, UI_COLOR_DIVIDER, 0);
-    lv_obj_set_style_bg_opa(div, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(div, 0, 0);
+    lv_obj_add_style(div, &ui_styles.divider, LV_PART_MAIN);
     lv_obj_set_style_radius(div, 0, 0);
 
     return row;
@@ -1530,15 +1598,17 @@ lv_obj_t *ui_create_card_dropdown(lv_obj_t *card, const char *icon, const char *
 lv_obj_t *ui_create_card_button(lv_obj_t *card, const char *icon, const char *title,
                                  const char *btn_text, lv_event_cb_t cb)
 {
+    ui_styles_init();
     lv_obj_t *btn = lv_btn_create(lv_obj_create(card));
     lv_obj_set_size(btn, LV_SIZE_CONTENT, 32);
-    lv_obj_set_style_bg_color(btn, UI_COLOR_ACCENT, 0);
+    lv_obj_add_style(btn, &ui_styles.accent_btn, LV_PART_MAIN);
     lv_obj_set_style_radius(btn, 8, 0);
     lv_obj_set_style_border_width(btn, 0, 0);
     ui_add_accent_focus_style(btn);
 
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, btn_text);
+    lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT_ON_ACCENT, 0);
     lv_obj_center(lbl);
 
     if (cb) {
@@ -1576,7 +1646,7 @@ lv_obj_t *ui_create_status_bar(lv_obj_t *parent)
     lv_obj_t *bar = lv_obj_create(parent);
     lv_obj_set_size(bar, LV_PCT(100), 20);
     lv_obj_set_style_bg_color(bar, UI_COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(bar, 0, 0);
     lv_obj_set_style_radius(bar, 0, 0);
     lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
@@ -1610,6 +1680,17 @@ lv_obj_t *ui_create_status_bar(lv_obj_t *parent)
 
     status_bar.cont = bar;
     return bar;
+}
+
+void ui_refresh_status_bar_theme(void)
+{
+    if (!status_bar.cont) return;
+
+    lv_obj_set_style_bg_color(status_bar.cont, UI_COLOR_BG, 0);
+    lv_obj_set_style_bg_opa(status_bar.cont, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(status_bar.time_label, UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_color(status_bar.batt_label, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_color(status_bar.wifi_icon, UI_COLOR_TEXT_SECONDARY, 0);
 }
 
 void ui_status_bar_update(void)

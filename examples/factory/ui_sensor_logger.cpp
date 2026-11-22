@@ -354,7 +354,7 @@ void ui_sensor_logger_enter(lv_obj_t *parent)
     lv_dropdown_set_selected(interval_dd, selected_interval);
     lv_obj_set_width(interval_dd, 92);
     lv_obj_set_height(interval_dd, 32);
-    lv_obj_set_style_bg_color(interval_dd, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_color(interval_dd, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(interval_dd, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(interval_dd, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_border_color(interval_dd, UI_COLOR_DIVIDER, 0);
@@ -376,7 +376,7 @@ void ui_sensor_logger_enter(lv_obj_t *parent)
     ui_add_accent_focus_style(start_btn);
     lv_obj_add_event_cb(start_btn, start_stop_cb, LV_EVENT_CLICKED, NULL);
     start_btn_label = lv_label_create(start_btn);
-    lv_obj_set_style_text_color(start_btn_label, lv_color_white(), 0);
+    lv_obj_set_style_text_color(start_btn_label, UI_COLOR_TEXT_ON_ACCENT, 0);
     lv_label_set_text(start_btn_label, LV_SYMBOL_PLAY " Start");
     lv_obj_center(start_btn_label);
 

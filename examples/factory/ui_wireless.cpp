@@ -89,7 +89,7 @@ static int rssi_to_percent(int8_t rssi)
 
 static lv_color_t rssi_color(int8_t rssi)
 {
-    if (rssi >= -55) return lv_color_hex(0x00D4AA);
+    if (rssi >= -55) return UI_COLOR_ACCENT;
     if (rssi >= -70) return lv_color_hex(0xFFB800);
     if (rssi >= -82) return lv_color_hex(0xFF6B35);
     return lv_color_hex(0x777777);
@@ -599,9 +599,9 @@ static void open_connect_modal(void)
         lv_textarea_set_max_length(connect_password_ta, sizeof(wifi_password) - 1);
         lv_textarea_set_text(connect_password_ta, wifi_password);
         lv_obj_set_size(connect_password_ta, LV_PCT(100), LV_PCT(100));
-        lv_obj_set_style_bg_color(connect_password_ta, lv_color_hex(0x202020), 0);
+        lv_obj_set_style_bg_color(connect_password_ta, UI_COLOR_CARD_BG, 0);
         lv_obj_set_style_bg_opa(connect_password_ta, LV_OPA_COVER, 0);
-        lv_obj_set_style_text_color(connect_password_ta, lv_color_white(), 0);
+        lv_obj_set_style_text_color(connect_password_ta, UI_COLOR_TEXT_PRIMARY, 0);
         lv_obj_set_style_text_line_space(connect_password_ta, 0, 0);
         lv_obj_set_style_pad_left(connect_password_ta, 9, 0);
         lv_obj_set_style_pad_right(connect_password_ta, 9, 0);
@@ -653,7 +653,7 @@ static void open_connect_modal(void)
     lv_obj_set_flex_flow(btn_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(btn_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t *cancel_btn = create_modal_button(btn_row, LV_SYMBOL_CLOSE " Cancel", lv_color_hex(0x333333), cancel_connect_cb);
+    lv_obj_t *cancel_btn = create_modal_button(btn_row, LV_SYMBOL_CLOSE " Cancel", UI_COLOR_CARD_BG, cancel_connect_cb);
     lv_obj_t *connect_btn = create_modal_button(btn_row, LV_SYMBOL_OK " Connect", UI_COLOR_ACCENT, connect_selected_cb);
     connect_modal_add_group_obj(cancel_btn);
     connect_modal_add_group_obj(connect_btn);
@@ -691,8 +691,8 @@ static void rebuild_ap_list(void)
 
         lv_obj_t *row = lv_obj_create(ap_list_cont);
         lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_color(row, i == selected_index ? lv_color_hex(0x233932) : lv_color_hex(0x151515), 0);
-        lv_obj_set_style_bg_opa(row, i == selected_index ? LV_OPA_80 : LV_OPA_30, 0);
+        lv_obj_set_style_bg_color(row, i == selected_index ? UI_COLOR_CARD_FOCUS : UI_COLOR_CARD_BG, 0);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(row, 1, 0);
         lv_obj_set_style_border_color(row, i == selected_index ? UI_COLOR_ACCENT : UI_COLOR_DIVIDER, 0);
         lv_obj_set_style_radius(row, 8, 0);
@@ -703,10 +703,12 @@ static void rebuild_ap_list(void)
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         bind_ap_click(row, i);
         lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x233932), LV_STATE_FOCUSED);
-        lv_obj_set_style_bg_opa(row, LV_OPA_80, LV_STATE_FOCUSED);
+        lv_obj_set_style_bg_color(row, UI_COLOR_CARD_FOCUS, LV_STATE_FOCUSED);
+        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_FOCUSED);
         lv_obj_set_style_border_color(row, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
         lv_obj_set_style_border_width(row, 1, LV_STATE_FOCUSED);
+        ui_add_accent_focus_style(row);
+        ui_disable_focus_shadow(row);
         lv_group_t *group = lv_group_get_default();
         if (group && lv_obj_get_group(row) != group) {
             lv_group_add_obj(group, row);
@@ -1019,7 +1021,7 @@ void ui_wireless_enter(lv_obj_t *parent)
     keyboard = lv_keyboard_create(lv_layer_top());
     lv_obj_set_style_bg_color(keyboard, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(keyboard, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(keyboard, lv_color_white(), 0);
+    lv_obj_set_style_text_color(keyboard, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
 #endif
 
