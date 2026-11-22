@@ -53,7 +53,8 @@ private:
      * @brief Private destructor.
      */
     ~LilyGoLoRaPager();
-    bool _radio_hardware_present = true;
+    /* Hardware presence is unknown until begin() probes the configured radio. */
+    bool _radio_hardware_present = false;
     LilyGoLoRaPager(const LilyGoLoRaPager &) = delete;
     LilyGoLoRaPager &operator=(const LilyGoLoRaPager &) = delete;
 

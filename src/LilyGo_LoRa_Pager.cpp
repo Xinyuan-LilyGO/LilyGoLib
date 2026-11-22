@@ -602,6 +602,7 @@ uint32_t LilyGoLoRaPager::begin(const LilyGoDeviceInitOptions &init_options)
     _event = xEventGroupCreate();
 
     _devices_probe = 0x00;
+    _radio_hardware_present = false;
 
     while (!psramFound()) {
         LILYGO_LOG_E("ERROR:PSRAM NOT FOUND!"); delay(1000);

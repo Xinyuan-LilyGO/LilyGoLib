@@ -224,8 +224,12 @@ static void stop_expression_imu_process(void);
 
 void ui_ws2812_init(void)
 {
+    const bool has_lora_hardware = hw_has_lora_hardware();
+    LILYGO_LOG_D("[factory][ws2812] init: driver=%d lora_hardware=%d",
+                 UI_WS2812_ENABLED, has_lora_hardware);
 #if UI_WS2812_ENABLED
-    if (hw_has_lora_hardware()) {
+    if (has_lora_hardware) {
+        LILYGO_LOG_D("[factory][ws2812] init skipped: LoRa hardware reported present");
         return;
     }
 
@@ -237,6 +241,8 @@ void ui_ws2812_init(void)
     right_strip.show();
     pinMode(LILYGO_LORA_PAGER_WS2812_LEFT_PIN, INPUT);
     pinMode(LILYGO_LORA_PAGER_WS2812_RIGHT_PIN, INPUT);
+#else
+    LILYGO_LOG_D("[factory][ws2812] init skipped: NeoPixel driver unavailable");
 #endif
 }
 
@@ -2363,7 +2369,11 @@ void ui_ws2812_enter(lv_obj_t *parent)
     page_container = ui_create_app_page(parent, "LED Strip", back_event_handler);
     set_low_power_mode_flag(false);
 
-    if (hw_has_lora_hardware()) {
+    const bool has_lora_hardware = hw_has_lora_hardware();
+    LILYGO_LOG_D("[factory][ws2812] enter: driver=%d lora_hardware=%d",
+                 UI_WS2812_ENABLED, has_lora_hardware);
+    if (has_lora_hardware) {
+        LILYGO_LOG_D("[factory][ws2812] enter unavailable: LoRa hardware reported present");
         lv_obj_t *card = ui_create_card(page_container, "Unavailable");
         ui_create_card_info(card, LV_SYMBOL_WARNING, "Status", "LoRa detected");
         return;
