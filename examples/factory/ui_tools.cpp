@@ -1325,6 +1325,7 @@ uint32_t ui_active_app_bg = 0x1A1A1A;
 uint32_t ui_active_accent = 0x00D4AA;
 uint32_t ui_active_accent_dim = 0x009977;
 uint32_t ui_active_card_bg = 0x1A1A1A;
+uint32_t ui_active_card_focus = 0x2A2A2A;
 uint32_t ui_active_track = 0x333333;
 uint32_t ui_active_text_on_accent = 0xFFFFFF;
 bool ui_active_light_theme = false;
@@ -1338,7 +1339,7 @@ void ui_apply_theme_preset(uint8_t preset_idx)
     if (preset_idx >= UI_THEME_PRESET_COUNT) return;
     const ui_theme_preset_t *p = &ui_theme_presets[preset_idx];
     ui_previous_bg = ui_active_bg;
-    ui_previous_card_focus = ui_active_light_theme ? 0xE8E8E8 : 0x2A2A2A;
+    ui_previous_card_focus = ui_active_card_focus;
     ui_previous_accent = ui_active_accent;
     ui_previous_text_primary = ui_active_light_theme ? 0x222222 : 0xFFFFFF;
     ui_active_bg = p->bg;
@@ -1346,6 +1347,7 @@ void ui_apply_theme_preset(uint8_t preset_idx)
     ui_active_accent = p->accent;
     ui_active_accent_dim = p->accent_dim;
     ui_active_card_bg = p->card_bg;
+    ui_active_card_focus = p->focus_bg;
     ui_active_track = p->track;
     ui_active_text_on_accent = p->text_on_accent;
     ui_active_light_theme = p->light;

@@ -17,6 +17,8 @@
 
 LV_IMG_DECLARE(img_microphone);
 LV_IMG_DECLARE(img_ir_remote);
+LV_IMG_DECLARE(img_ir_send);
+LV_IMG_DECLARE(img_ir_play);
 LV_IMG_DECLARE(img_music);
 LV_IMG_DECLARE(img_wifi);
 LV_IMG_DECLARE(img_configuration);
@@ -30,6 +32,7 @@ LV_IMG_DECLARE(img_monitoring);
 LV_IMG_DECLARE(img_keyboard);
 LV_IMG_DECLARE(img_gyroscope);
 LV_IMG_DECLARE(img_bluetooth);
+LV_IMG_DECLARE(img_bluetooth_hid);
 LV_IMG_DECLARE(img_test);
 LV_IMG_DECLARE(img_si4735);
 LV_IMG_DECLARE(img_track);
@@ -46,6 +49,7 @@ LV_IMG_DECLARE(img_file_manager);
 LV_IMG_DECLARE(img_game);
 LV_IMG_DECLARE(img_lorawan);
 LV_IMG_DECLARE(img_gps_track);
+LV_IMG_DECLARE(img_gps_log);
 
 LV_IMG_DECLARE(img_qrcode);
 LV_IMG_DECLARE(img_tools);
@@ -54,6 +58,21 @@ LV_IMG_DECLARE(img_energy);
 LV_IMG_DECLARE(img_clock);
 LV_IMG_DECLARE(img_network_radio);
 LV_IMG_DECLARE(img_usb);
+LV_IMG_DECLARE(img_nrf24_lab);
+LV_IMG_DECLARE(img_nrf24_scan);
+LV_IMG_DECLARE(img_nfc_card);
+LV_IMG_DECLARE(img_usb_disk);
+LV_IMG_DECLARE(img_wifi_tools);
+LV_IMG_DECLARE(img_wifi_c5);
+LV_IMG_DECLARE(img_i2s);
+LV_IMG_DECLARE(img_led_test);
+LV_IMG_DECLARE(img_lightbar);
+LV_IMG_DECLARE(img_cc1101);
+LV_IMG_DECLARE(img_lora);
+LV_IMG_DECLARE(img_radio_scan);
+LV_IMG_DECLARE(img_wireless_mic);
+LV_IMG_DECLARE(img_vibration);
+LV_IMG_DECLARE(img_max30102);
 
 LV_FONT_DECLARE(font_alibaba_24);
 LV_FONT_DECLARE(font_alibaba_60);
@@ -1923,7 +1942,7 @@ void setupGui()
 
 #if !defined(EXCLUDE_IR_REMOTE)
     extern app_t ui_ir_remote_main;
-    register_app("IR Send", &img_ir_remote, &ui_ir_remote_main);
+    register_app("IR Send", &img_ir_send, &ui_ir_remote_main);
 #endif
 
 #if !defined(EXCLUDE_IR_RECORDER)
@@ -1936,7 +1955,7 @@ void setupGui()
 #if !defined(EXCLUDE_IR_PLAYER)
     extern app_t ui_ir_player_main;
     if (device_has_sd_storage()) {
-        register_app("IR Play", &img_ir_remote, &ui_ir_player_main);
+        register_app("IR Play", &img_ir_play, &ui_ir_player_main);
     }
 #endif
 
@@ -1946,11 +1965,11 @@ void setupGui()
         // extern app_t ui_nrf24_main;
         // register_app("NRF24", &img_radio, &ui_nrf24_main);
         extern app_t ui_nrf24_console_main;
-        register_app("NRF24 Lab", &img_radio, &ui_nrf24_console_main);
+        register_app("NRF24 Lab", &img_nrf24_lab, &ui_nrf24_console_main);
         extern app_t ui_nrf24_scan_main;
-        register_app("NRF24 Scan", &img_radio, &ui_nrf24_scan_main);
+        register_app("NRF24 Scan", &img_nrf24_scan, &ui_nrf24_scan_main);
         extern app_t ui_xiaomi_lightbar_main;
-        register_app("Mi Light Bar", &img_led, &ui_xiaomi_lightbar_main);
+        register_app("Mi Light Bar", &img_lightbar, &ui_xiaomi_lightbar_main);
     }
 #endif
 
@@ -1975,7 +1994,7 @@ void setupGui()
 #endif
 
 #if !defined(EXCLUDE_BLE_HID)
-    register_app("BLE HID", &img_bluetooth, &ui_ble_hid_main);
+    register_app("BLE HID", &img_bluetooth_hid, &ui_ble_hid_main);
 #endif
 
 #if !defined(EXCLUDE_TRACKBALL)
@@ -1991,7 +2010,7 @@ void setupGui()
     register_app("NFC", &img_nfc, &ui_nfc_main);
 #if !defined(EXCLUDE_NFC_EMULATION)
     extern app_t ui_nfc_emulation_main;
-    register_app("NFC Card", &img_nfc, &ui_nfc_emulation_main);
+    register_app("NFC Card", &img_nfc_card, &ui_nfc_emulation_main);
 #endif
 #elif (defined(ARDUINO_TWATCH_BASE) || defined(ARDUINO_T_EMBED_PLUS)) && \
       !defined(EXCLUDE_PN532)
@@ -2033,7 +2052,7 @@ void setupGui()
 #endif
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && !ARDUINO_USB_MODE && !defined(EXCLUDE_USB_DISK)
-        register_app("USB Disk", &img_sdcard, &ui_usb_disk_main);
+        register_app("USB Disk", &img_usb_disk, &ui_usb_disk_main);
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && !ARDUINO_USB_MODE && !defined(EXCLUDE_BAD_USB)
         register_app("BadUSB", &img_usb, &ui_bad_usb_main);
@@ -2052,10 +2071,10 @@ void setupGui()
 #endif
 
 #if !defined(EXCLUDE_WIFI_TOOLS)
-    register_app("WiFi Tools", &img_tools, &ui_wifi_tools_main);
+    register_app("WiFi Tools", &img_wifi_tools, &ui_wifi_tools_main);
 #endif
 #if defined(ARDUINO_T_EMBED_PLUS_V2)
-    register_app("WiFi C5", &img_wireless, &ui_wifi_c5_main);
+    register_app("WiFi C5", &img_wifi_c5, &ui_wifi_c5_main);
 #endif
 
 #if !defined(EXCLUDE_KEYBOARD)
@@ -2071,7 +2090,7 @@ void setupGui()
 
 #if !defined(EXCLUDE_I2S_TEST)
     extern app_t ui_i2s_test_main;
-    register_app("I2S Test", &img_music, &ui_i2s_test_main);
+    register_app("I2S Test", &img_i2s, &ui_i2s_test_main);
 #endif
 
 #endif
@@ -2102,7 +2121,7 @@ void setupGui()
     LILYGO_LOG_D("[factory][ws2812] menu skipped: EXCLUDE_WS2812_STRIP is defined");
 #endif
 #if !defined(EXCLUDE_T_EMBED_LED)
-    register_app("LED Test", &img_led, &ui_t_embed_ws2812_main);
+    register_app("LED Test", &img_led_test, &ui_t_embed_ws2812_main);
 #endif
 
 #if !defined(EXCLUDE_LORA)
@@ -2112,12 +2131,12 @@ void setupGui()
         // extern app_t ui_cc1101_tool_main;
         // register_app("Sub-G", &img_radio, &ui_cc1101_tool_main);
         extern app_t ui_cc1101_console_main;
-        register_app("CC1101 Lab", &img_radio, &ui_cc1101_console_main);
+        register_app("CC1101 Lab", &img_cc1101, &ui_cc1101_console_main);
 #else
-        register_app("LoRa", &img_radio, &ui_lora_hub_main);
+        register_app("LoRa", &img_lora, &ui_lora_hub_main);
 #endif
 #if !defined(EXCLUDE_CC1101_SCAN)
-        register_app("CC1101 Scan", &img_radio, &ui_cc1101_scan_main);
+        register_app("CC1101 Scan", &img_radio_scan, &ui_cc1101_scan_main);
 #endif
 #if !defined(EXCLUDE_LORAWAN)
         extern app_t ui_lorawan_lr1121_main;
@@ -2139,7 +2158,7 @@ void setupGui()
     register_app("Walkie", &img_walkie, &ui_walkie_main);
 #endif
 #if FACTORY_HAS_WIRELESS_MIC_DEPS
-    register_app("Wireless Mic", &img_microphone, &ui_wireless_mic_main);
+    register_app("Wireless Mic", &img_wireless_mic, &ui_wireless_mic_main);
 #endif
 #endif
 #endif
@@ -2151,7 +2170,7 @@ void setupGui()
 #if !defined(EXCLUDE_TRACK_LOGGER)
     extern app_t ui_track_logger_main;
     if (device_has_sd_storage()) {
-        register_app("Track Log", &img_gps_track, &ui_track_logger_main);
+        register_app("Track Log", &img_gps_log, &ui_track_logger_main);
     }
 #endif
 
@@ -2161,7 +2180,7 @@ void setupGui()
 
 #if !defined(EXCLUDE_DRV2605)
     if (hw_get_device_online() & HW_DRV_ONLINE) {
-        register_app("Vibration", &img_tools, &ui_vibration_main);
+        register_app("Vibration", &img_vibration, &ui_vibration_main);
     }
 #endif
 
@@ -2182,7 +2201,7 @@ void setupGui()
 
 #if !defined(EXCLUDE_MAX30102)
     if (ui_max30102_probe()) {
-        register_app("MAX30102", &img_monitoring, &ui_max30102_main);
+        register_app("MAX30102", &img_max30102, &ui_max30102_main);
     }
 #endif
 
