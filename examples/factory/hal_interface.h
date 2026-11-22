@@ -1533,6 +1533,21 @@ uint16_t hw_get_max_charge_current();
 uint8_t hw_get_charge_level_nums();
 
 /**
+ * @brief Convert a charging level index to the device-specific current.
+ *
+ * @param level The charging level index.
+ * @return The corresponding current in milliamperes.
+ */
+uint16_t hw_get_charger_current_for_level(uint8_t level);
+
+/**
+ * @brief Get the device-recommended maximum charging current.
+ *
+ * @return The recommended maximum current in milliamperes.
+ */
+uint16_t hw_get_recommended_charge_current();
+
+/**
  * @brief Get the charging steps.
  *
  * This function retrieves the charging steps.
@@ -1559,6 +1574,17 @@ uint16_t hw_set_charger_current_level(uint8_t level);
  * @return The current charger current level.
  */
 uint8_t hw_get_charger_current_level();
+
+/** @brief Get the current Factory display rotation index. */
+uint8_t hw_get_display_rotation();
+
+/**
+ * @brief Set the Factory display rotation index.
+ *
+ * Embed boards accept 0 (0 degrees) and 2 (180 degrees). Other boards keep
+ * their default orientation.
+ */
+void hw_set_display_rotation(uint8_t rotation);
 
 /**
  * @brief Print memory information.

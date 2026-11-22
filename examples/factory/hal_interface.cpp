@@ -47,8 +47,9 @@ typedef struct {
     uint8_t haptic_effect;
     uint8_t touch_guide_dismissed;
     uint8_t keyboard_navigation_mode;
+    uint8_t display_rotation;
     // Keep the blob size stable when adding small persisted settings later.
-    uint8_t reserved[59];
+    uint8_t reserved[58];
 } app_settings_storage_t;
 
 static user_setting_params_t user_setting;
@@ -62,6 +63,7 @@ static uint8_t mic_input_source = MIC_INPUT_SOURCE_INTERNAL;
 static uint8_t haptic_effect = HAPTIC_EFFECT_DEFAULT;
 static bool touch_guide_dismissed = false;
 static bool keyboard_navigation_enabled = true;
+static uint8_t display_rotation = 0;
 static uint8_t keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
 static bool keyboard_layout_loaded = false;
 
@@ -133,6 +135,28 @@ static uint8_t clamp_haptic_effect(uint8_t effect)
         return HAPTIC_EFFECT_DEFAULT;
     }
     return effect;
+}
+
+static uint8_t clamp_display_rotation(uint8_t rotation)
+{
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
+    return rotation == 2 ? 2 : 0;
+#else
+    (void)rotation;
+    return 0;
+#endif
+}
+
+static uint8_t apply_display_rotation(uint8_t rotation)
+{
+    display_rotation = clamp_display_rotation(rotation);
+#if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
+    lv_display_t *display = lv_display_get_default();
+    if (display && lv_display_get_rotation(display) != (lv_display_rotation_t)display_rotation) {
+        lv_display_set_rotation(display, (lv_display_rotation_t)display_rotation);
+    }
+#endif
+    return display_rotation;
 }
 
 typedef struct {
@@ -338,6 +362,7 @@ static void set_default_app_settings(app_settings_storage_t &settings)
     settings.haptic_effect = HAPTIC_EFFECT_DEFAULT;
     settings.touch_guide_dismissed = false;
     settings.keyboard_navigation_mode = KEYBOARD_NAV_ENABLED;
+    settings.display_rotation = 0;
 #ifdef ARDUINO
     settings.rotary_step_divider = get_default_rotary_step_divider();
 #else
@@ -366,6 +391,7 @@ static void normalize_app_settings(app_settings_storage_t &settings)
     settings.keyboard_navigation_mode =
         settings.keyboard_navigation_mode == KEYBOARD_NAV_DISABLED ?
         KEYBOARD_NAV_DISABLED : KEYBOARD_NAV_ENABLED;
+    settings.display_rotation = clamp_display_rotation(settings.display_rotation);
 }
 
 static void apply_app_settings(const app_settings_storage_t &settings)
@@ -380,6 +406,7 @@ static void apply_app_settings(const app_settings_storage_t &settings)
     haptic_effect = clamp_haptic_effect(settings.haptic_effect);
     touch_guide_dismissed = settings.touch_guide_dismissed != 0;
     keyboard_navigation_enabled = settings.keyboard_navigation_mode != KEYBOARD_NAV_DISABLED;
+    apply_display_rotation(settings.display_rotation);
 }
 
 static void print_user_setting(const char *tag, const user_setting_params_t &setting)
@@ -406,7 +433,7 @@ static void print_user_setting(const char *tag, const user_setting_params_t &set
     LILYGO_LOG_PRINTF("  %-22s : %u mA\n", "Charge current", (unsigned)setting.charger_current);
     LILYGO_LOG_PRINTF("  %-22s : %u - %u mA\n", "Charge range",
            (unsigned)device_limits.min_charge_current_ma,
-           (unsigned)device_limits.max_charge_current_ma);
+           (unsigned)hw_get_max_charge_current());
     LILYGO_LOG_PRINTF("  %-22s : %u mA\n", "Charge step", (unsigned)device_limits.charge_current_step_ma);
     LILYGO_LOG_PRINTF("  %-22s : 0 - %u\n", "Charge level range", (unsigned)device_limits.max_charge_level_index);
     LILYGO_LOG_PRINTF("  %-22s : %u\n", "LED indicator", (unsigned)setting.led_indicator_level);
@@ -2220,6 +2247,11 @@ void hw_init()
                              device_limits.max_charge_current_ma,
                              device_limits.charge_current_step_ma,
                              device_limits.max_charge_level_index);
+    if (user_setting.charger_current > hw_get_recommended_charge_current()) {
+        user_setting.charger_current = hw_set_charger_current_level(hw_get_charger_current_level());
+        app_settings.user = user_setting;
+        save_app_settings();
+    }
 #endif
     print_user_setting("INIT", user_setting);
 
@@ -2325,6 +2357,21 @@ void hw_set_touch_guide_dismissed(bool dismissed)
 #ifdef ARDUINO
     save_app_settings();
 #endif
+}
+
+uint8_t hw_get_display_rotation()
+{
+    return display_rotation;
+}
+
+void hw_set_display_rotation(uint8_t rotation)
+{
+    const uint8_t applied = apply_display_rotation(rotation);
+    app_settings.display_rotation = applied;
+#ifdef ARDUINO
+    save_app_settings();
+#endif
+    LILYGO_LOG_PRINTF("display_rotation    :%u\n", (unsigned)applied);
 }
 
 const uint32_t hw_get_disp_timeout_ms()
@@ -3694,8 +3741,47 @@ uint8_t hw_get_charger_current_level()
 #endif
 }
 
+uint16_t hw_get_charger_current_for_level(uint8_t level)
+{
+#if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
+    return instance.getChargeLevelToCurrent(level);
+#else
+    /* Keep the host-side Factory model usable without a PMIC instance. */
+    static const uint16_t table[] = {
+        100, 125, 150, 175,
+        200, 300, 400, 500,
+        600, 700, 800, 900,
+        1000
+    };
+    const size_t last = (sizeof(table) / sizeof(table[0])) - 1;
+    return table[level > last ? last : level];
+#endif
+}
+
+uint16_t hw_get_recommended_charge_current()
+{
+#ifdef DEVICE_CHARGE_CURRENT_RECOMMEND
+    return DEVICE_CHARGE_CURRENT_RECOMMEND;
+#else
+    return hw_get_max_charge_current();
+#endif
+}
+
 uint16_t hw_set_charger_current_level(uint8_t level)
 {
+    const uint16_t recommended = hw_get_recommended_charge_current();
+    const uint16_t max_level = hw_get_charge_level_nums();
+    uint8_t recommended_level = 0;
+    for (uint16_t candidate = 0; candidate <= max_level; ++candidate) {
+        if (hw_get_charger_current_for_level((uint8_t)candidate) > recommended) {
+            break;
+        }
+        recommended_level = (uint8_t)candidate;
+    }
+    if (level > recommended_level) {
+        level = recommended_level;
+    }
+
 #if defined(ARDUINO) && FACTORY_HAS_POWER_MANAGE
 
     uint16_t current =  instance.getChargeLevelToCurrent(level);
@@ -4313,7 +4399,13 @@ uint8_t hw_get_min_charge_current()
 
 uint16_t hw_get_max_charge_current()
 {
-    return device_limits.max_charge_current_ma;
+    uint16_t max_current = device_limits.max_charge_current_ma;
+#ifdef DEVICE_CHARGE_CURRENT_RECOMMEND
+    if (max_current > DEVICE_CHARGE_CURRENT_RECOMMEND) {
+        max_current = DEVICE_CHARGE_CURRENT_RECOMMEND;
+    }
+#endif
+    return max_current;
 }
 
 uint8_t hw_get_charge_level_nums()
@@ -4985,6 +5077,15 @@ void hw_get_button_monitor_status(char *buffer, size_t size)
     if (!buffer || size == 0) {
         return;
     }
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+    pinMode(USER_KEY, INPUT_PULLUP);
+    snprintf(buffer, size, "IO6 %s", digitalRead(USER_KEY) == LOW ? "Pressed" : "Released");
+    return;
+#elif defined(ARDUINO_T_EMBED_PLUS)
+    pinMode(BOARD_USER_KEY, INPUT_PULLUP);
+    snprintf(buffer, size, "IO6 %s", digitalRead(BOARD_USER_KEY) == LOW ? "Pressed" : "Released");
+    return;
+#endif
     if (button_monitor_count == 0) {
         snprintf(buffer, size, "Waiting");
         return;
