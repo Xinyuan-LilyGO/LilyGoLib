@@ -523,8 +523,8 @@ static bool run_sys_deferred_step()
         break;
 
     case UI_SYS_BUILD_DISPLAY_TIMEOUT:
-        ui_create_card_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Timeout",
-                              0, 180, local_param.disp_timeout_second, disp_timeout_cb);
+        ui_create_card_seconds_slider(sys_deferred_card, LV_SYMBOL_SETTINGS, "Display Timeout",
+                                      0, 180, local_param.disp_timeout_second, disp_timeout_cb);
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_NAV;
         break;
 
