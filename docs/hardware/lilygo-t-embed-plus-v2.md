@@ -38,7 +38,7 @@
 | Supported radio bands    | 300-348 MHz, 387-464 MHz, and 779-928 MHz             |
 | 2.4 GHz radio            | [nRF24L01][9]                                         |
 | NFC                      | [ST25R3916][3],13.56 MHz,SPI                          |
-| Battery Charger          | [TI BQ25896][4]                                       |
+| Battery Charger          | [Silergy SY6970][4]                                   |
 | Battery Gauge            | [TI BQ27220][5]                                       |
 | GPIO Expander            | [XINLUDA XL9555][6]                                   |
 | Input                    | Rotary encoder with center switch and one user button |
@@ -55,7 +55,7 @@
 [1]: https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf "ESP32-S3-WROOM-1U"
 [2]: https://www.ti.com/product/CC1101 "TI CC1101"
 [3]: https://www.st.com/en/nfc/st25r3916.html "ST25R3916"
-[4]: https://www.ti.com/product/BQ25896 "BQ25896"
+[4]: https://www.silergy.com/ "Silergy SY6970"
 [5]: https://www.ti.com/product/BQ27220 "BQ27220"
 [6]: https://www.xinluda.com/en/I2C-to-GPIO-extension/ "XL9555"
 [7]: https://media.digikey.com/pdf/Data%20Sheets/Knowles%20Acoustics%20PDFs/SPM1423HM4H-B.pdf "SPM1423HM4H"
@@ -164,7 +164,7 @@ download/log output.
 | Device                  | 7-Bit Address | Shared Bus |
 | ----------------------- | ------------- | ---------- |
 | GPIO Expander XL9555    | 0x22          | ✅️          |
-| Battery Charger BQ25896 | 0x6B          | ✅️          |
+| Battery Charger SY6970  | 0x6A          | ✅️          |
 | Battery Gauge BQ27220   | 0x55          | ✅️          |
 
 ### XL9555 Outputs
@@ -202,7 +202,7 @@ download/log output.
 
 > [!IMPORTANT]
 >
-> LilyGoLib configures the fast-charge current for the BQ25896 to 640 mA. According to the battery datasheet, the charging current should not exceed half of the battery's capacity. If you are not using LilyGoLib, please ensure that the power management IC is initialized with a charging current of 640 mA or less. If it is not initialized, the device will default to a 2A charging current, which will reduce the battery's lifespan.
+> LilyGoLib configures the fast-charge current for the SY6970 to 640 mA. According to the battery datasheet, the charging current should not exceed half of the battery's capacity. If you are not using LilyGoLib, please ensure that the power management IC is initialized with a charging current of 640 mA or less. If it is not initialized, the device will default to a 2A charging current, which will reduce the battery's lifespan.
 >
 
 ### Resources
@@ -210,6 +210,6 @@ download/log output.
 * [ESP32-S3](https://www.espressif.com/en/products/socs/esp32-s3)
 * [CC1101](https://www.ti.com/product/CC1101)
 * [ST25R3916](https://www.st.com/en/nfc/st25r3916.html)
-* [BQ25896](https://www.ti.com/product/BQ25896)
+* [SY6970](https://www.silergy.com/)
 * [BQ27220](https://www.ti.com/product/BQ27220)
 * [XL9555](https://www.xinluda.com/en/I2C-to-GPIO-extension/)

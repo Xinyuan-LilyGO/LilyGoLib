@@ -169,7 +169,7 @@ LilyGoTEmbedPlus::LilyGoTEmbedPlus() :
     LilyGo_Display(SPI_DRIVER, false),
     LilyGoDispArduinoSPI(170, 320, st7789Init,
                          sizeof(st7789Init) / sizeof(st7789Init[0]), rotationConfig),
-    LilyGoPowerManageInf(pmic, PMIC_TYPE_BQ25896)
+    LilyGoPowerManageInf(pmic, PMIC_TYPE_SY6970)
 {
     _brightness = 0;
     brightnessLevel = 0;
@@ -185,7 +185,7 @@ const LilyGoDeviceCapability &LilyGoTEmbedPlus::getCapability() const
     static const LilyGoDeviceCapability capability = {
         "LilyGo T-Embed-Plus V2", // Board name
         "CC1101",                  // Radio name
-        "BQ25896",                 // PMIC name
+        "SY6970",                  // PMIC name
         "BQ27220",                 // Fuel gauge name
         true,  // SD card
         false, // GPS
@@ -208,7 +208,7 @@ const LilyGoDeviceCapability &LilyGoTEmbedPlus::getCapability() const
         false, // External SPI (nRF24 is on-board)
         false, // External UART
         false, // External GPIO
-        PMIC_TYPE_BQ25896, // PMIC type
+        PMIC_TYPE_SY6970,  // PMIC type
         true,              // Board button
         false,             // PMIC button
     };
@@ -356,7 +356,7 @@ uint32_t LilyGoTEmbedPlus::begin(const LilyGoDeviceInitOptions &options)
 
 bool LilyGoTEmbedPlus::initPMU()
 {
-    if (!pmic.begin(Wire, BQ25896_SLAVE_ADDRESS, SDA, SCL)) {
+    if (!pmic.begin(Wire, SY6970_SLAVE_ADDRESS, SDA, SCL)) {
         return false;
     }
     pmic.charger().setChargeVoltage(4288);

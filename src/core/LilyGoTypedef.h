@@ -150,6 +150,7 @@ enum PmicType {
     PMIC_TYPE_AXP2101, /**< X-Powers AXP2101 PMIC. */
     PMIC_TYPE_AXP202,  /**< X-Powers AXP202 PMIC. */
     PMIC_TYPE_BQ25896, /**< TI BQ25896 charger. */
+    PMIC_TYPE_SY6970,  /**< Silergy SY6970 charger. */
 };
 
 /**

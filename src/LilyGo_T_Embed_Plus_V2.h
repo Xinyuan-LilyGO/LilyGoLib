@@ -31,7 +31,7 @@
 #include "rotary/Rotary.h"
 
 #include <GaugeDrv.hpp>
-#include <PmicTI.hpp>
+#include <PmicSilergy.hpp>
 #include <AW9364LedDriver.hpp>
 
 /** @brief Create the RadioLib module used by the on-board CC1101. */
@@ -44,7 +44,7 @@
  * @brief LilyGo T-Embed-Plus V2 singleton and board interface.
  *
  * V2 uses an XL9555 GPIO expander for board power and reset control, an
- * ST25R3916 NFC controller on the display's shared SPI bus, and a BQ25896
+ * ST25R3916 NFC controller on the display's shared SPI bus, and a SY6970
  * charger with a BQ27220 fuel gauge. The public interface follows the other
  * LilyGoLib board classes while keeping the V2 implementation independent.
  */
@@ -67,8 +67,8 @@ private:
 public:
     /// BQ27220 battery fuel gauge.
     GaugeBQ27220 gauge;
-    /// BQ25896 battery charger and power management controller.
-    PmicBQ25896 pmic;
+    /// SY6970 battery charger and power management controller.
+    PmicSY6970 pmic;
     /// XL9555 GPIO expander used for board power, reset, and RF controls.
     IoExpanderXL9555 io;
     /// AW9364 display backlight controller with levels from 0 to 16.
@@ -325,7 +325,7 @@ public:
     void powerControl(PowerCtrlChannel_t channel, bool enable);
 
     /**
-     * @brief Initialize the BQ25896 charger.
+     * @brief Initialize the SY6970 charger.
      * @return true if the charger was detected and configured.
      */
     bool initPMU();
@@ -344,7 +344,7 @@ public:
     bool readPowerSnapshot(LilyGoPowerSnapshot &snapshot) override;
 
     /**
-     * @brief Enter BQ25896 ship mode to shut down the board.
+     * @brief Enter SY6970 ship mode to shut down the board.
      * @return true if ship mode was enabled successfully.
      * @note Shutdown is rejected while VBUS is present.
      */
@@ -369,25 +369,25 @@ public:
     float getTemperature() override;
 
     /**
-     * @brief Check whether BQ25896 OTG boost control is available.
-     * @return true if the BQ25896 is online.
+     * @brief Check whether SY6970 OTG boost control is available.
+     * @return true if the SY6970 is online.
      */
     bool hasOTG() override;
 
     /**
-     * @brief Check whether the BQ25896 OTG boost output is enabled.
+     * @brief Check whether the SY6970 OTG boost output is enabled.
      * @return true if boost output is enabled.
      */
     bool isOTGEnabled() override;
 
     /**
-     * @brief Enable the BQ25896 OTG boost output.
+     * @brief Enable the SY6970 OTG boost output.
      * @return true if the PMU accepted the request.
      */
     bool enableOTG() override;
 
     /**
-     * @brief Disable the BQ25896 OTG boost output.
+     * @brief Disable the SY6970 OTG boost output.
      * @return true if the PMU accepted the request.
      */
     bool disableOTG() override;

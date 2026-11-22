@@ -127,7 +127,7 @@ V2 has a separate hardware path from T-Embed-Plus V1:
 * The ST25R3916 NFC controller is on SPI, not I2C.
 * The XL9555 at `0x22` controls the CC1101 RF path, display reset, shared
   peripheral power, amplifier shutdown, ESP32-C5 reset, and module selection.
-* The BQ25896 charger and BQ27220 gauge are configured for the 1300 mAh
+* The SY6970 charger and BQ27220 gauge are configured for the 1300 mAh
   battery. LilyGoLib uses a 640 mA charge-current setting.
 * V2 has eight WS2812-compatible RGB pixels, infrared TX/RX, a PDM microphone,
   and a MAX98357A I2S audio output.

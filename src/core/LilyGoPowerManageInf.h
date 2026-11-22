@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <PmicTI.hpp>
+#include <PmicSilergy.hpp>
 #include <PmicXPowers.hpp>
 #include "LilyGoTypedef.h"
 
@@ -364,7 +365,9 @@ public:
             PmicChargerBase::Status chargeStatus = getChargeStatus();
             snapshot.vbusPresentValid = chargeStatus.online;
             snapshot.vbusPresent = chargeStatus.vbusPresent;
-            snapshot.batteryPresentValid = chargeStatus.online && getPmicType() != PMIC_TYPE_BQ25896;
+            snapshot.batteryPresentValid = chargeStatus.online &&
+                                           getPmicType() != PMIC_TYPE_BQ25896 &&
+                                           getPmicType() != PMIC_TYPE_SY6970;
             snapshot.batteryPresent = chargeStatus.batteryPresent;
             snapshot.charging = chargeStatus.charging;
             snapshot.chargeDone = chargeStatus.chargeDone;
@@ -643,6 +646,8 @@ private:
             return "AXP202";
         case PMIC_TYPE_BQ25896:
             return "BQ25896";
+        case PMIC_TYPE_SY6970:
+            return "SY6970";
         default:
             return "PMIC";
         }

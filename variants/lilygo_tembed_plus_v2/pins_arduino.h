@@ -69,6 +69,7 @@ static const uint8_t SCK = 11;
 #define EXPANDS_ADDR       (0x22)
 #define BQ27220_ADDR       (0x55)
 #define BQ25896_ADDR       (0x6B)
+#define SY6970_ADDR        (0x6A)
 #define EXPANDS_CC_SW1     (0)
 #define EXPANDS_CC_SW0     (1)
 #define EXPANDS_LCD_RST    (2)
@@ -143,6 +144,7 @@ static const uint8_t SCK = 11;
 #define BOARD_I2C_XL9555 EXPANDS_ADDR
 #define BOARD_I2C_BQ27220 BQ27220_ADDR
 #define BOARD_I2C_BQ25896 BQ25896_ADDR
+#define BOARD_I2C_SY6970 SY6970_ADDR
 #define BOARD_XL9555_INT (-1)
 #define BOARD_XL9555_CC_SW1 EXPANDS_CC_SW1
 #define BOARD_XL9555_CC_SW0 EXPANDS_CC_SW0
