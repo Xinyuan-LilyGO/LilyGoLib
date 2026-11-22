@@ -55,6 +55,18 @@ void lv_reset_rotary_diagnostics();
  */
 bool lv_get_rotary_diagnostics(lv_rotary_diagnostics_t *snapshot);
 
+/**
+ * @brief Consume a pending rotary encoder movement.
+ *
+ * The flag is set for either encoder direction when the LVGL input driver
+ * receives a non-zero rotary delta.
+ * @return true when at least one rotary movement was pending.
+ */
+bool lv_consume_encoder_activity();
+
+/** Clear queued encoder messages and optionally suppress encoder delivery. */
+void lv_set_encoder_input_suppressed(bool suppressed);
+
 #if defined(LILYGO_SCREEN_CAPTURE_ENABLED) && LILYGO_SCREEN_CAPTURE_ENABLED
 typedef struct {
     const uint16_t *pixels;

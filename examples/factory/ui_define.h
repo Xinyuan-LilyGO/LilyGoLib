@@ -214,6 +214,8 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt,
 void destroy_msgbox(lv_obj_t *msgbox);
 
 lv_indev_t *lv_get_encoder_indev();
+bool lv_consume_encoder_activity();
+void lv_set_encoder_input_suppressed(bool suppressed);
 lv_indev_t *lv_get_keyboard_indev();
 void menu_show();
 void menu_hidden();

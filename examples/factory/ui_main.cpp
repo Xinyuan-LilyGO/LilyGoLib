@@ -82,6 +82,8 @@ LV_FONT_DECLARE(font_alibaba_100);
 #define DEVICE_CAN_SLEEP                (LV_OBJ_FLAG_USER_1)
 #define SCREEN_TIMEOUT 10000
 #define GRID_MAX_APPS  48
+/* Discard encoder input while the lock-screen transition settles. */
+#define LOCKSCREEN_ENCODER_DRAIN_MS 300
 
 #if defined(USING_TOUCHPAD) || defined(USING_INPUT_DEV_TOUCHPAD) || defined(HAS_TOUCHSCREEN)
 #define LOCKSCREEN_HAS_TOUCH_UNLOCK 1
@@ -1081,8 +1083,22 @@ static void colon_anim_exec_cb(void *var, int32_t val)
     lv_obj_set_style_opa((lv_obj_t *)var, val, 0);
 }
 
-/* ── Swipe wake flag (set by swipe zone or button, read by poll timer) ── */
+/* ── Lock screen wake flag (set by swipe, button, or encoder activity) ── */
 static volatile bool clock_swipe_wake = false;
+static bool lockscreen_encoder_draining = false;
+static uint32_t lockscreen_encoder_drain_until = 0;
+
+static bool lockscreen_encoder_unlock_enabled()
+{
+#if LOCKSCREEN_HAS_BOOT_UNLOCK
+    user_setting_params_t settings;
+    hw_get_user_setting(settings);
+    return hw_has_encoder() &&
+           settings.lockscreen_unlock_mode == FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT;
+#else
+    return false;
+#endif
+}
 
 /* BOOT button (GPIO0) unlock is kept separate from keyboard/button callbacks. */
 static lv_obj_t *charge_edge_ref = NULL; /* charging edge glow */
@@ -1393,11 +1409,19 @@ lv_obj_t *setupClock()
     /* ── Unlock hint at bottom ── */
     lv_obj_t *hint = lv_label_create(page);
 #if LOCKSCREEN_HAS_TOUCH_UNLOCK && LOCKSCREEN_HAS_BOOT_UNLOCK
-    lv_label_set_text(hint, LV_SYMBOL_UP " Swipe up or press BOOT");
+    if (lockscreen_encoder_unlock_enabled()) {
+        lv_label_set_text(hint, LV_SYMBOL_UP " Swipe, rotate, or press BOOT");
+    } else {
+        lv_label_set_text(hint, LV_SYMBOL_UP " Swipe up or press BOOT");
+    }
 #elif LOCKSCREEN_HAS_TOUCH_UNLOCK
     lv_label_set_text(hint, LV_SYMBOL_UP " Swipe up to unlock");
 #elif LOCKSCREEN_HAS_BOOT_UNLOCK
-    lv_label_set_text(hint, LV_SYMBOL_POWER " Press BOOT Button to unlock");
+    if (lockscreen_encoder_unlock_enabled()) {
+        lv_label_set_text(hint, LV_SYMBOL_POWER " Rotate encoder or press BOOT");
+    } else {
+        lv_label_set_text(hint, LV_SYMBOL_POWER " Press BOOT Button to unlock");
+    }
 #else
     lv_label_set_text(hint, "Unlock unavailable");
 #endif
@@ -1573,6 +1597,17 @@ static uint32_t clock_display_off_tick = 0;
 /* ── Sleep/wake poll timer ── */
 static void ui_poll_timer_callback(lv_timer_t *t)
 {
+    if (lockscreen_encoder_draining) {
+        if ((int32_t)(lv_tick_get() - lockscreen_encoder_drain_until) < 0) {
+            lv_set_encoder_input_suppressed(true);
+        } else {
+            lv_set_encoder_input_suppressed(false);
+            lockscreen_encoder_draining = false;
+        }
+    }
+
+    const bool encoder_rotated = lv_consume_encoder_activity();
+
     /* ── Clock page is showing ── */
     if (!lv_obj_has_flag(clock_page, LV_OBJ_FLAG_HIDDEN)) {
 
@@ -1582,17 +1617,22 @@ static void ui_poll_timer_callback(lv_timer_t *t)
             clock_swipe_wake = true;
         }
 #endif
+        if (encoder_rotated && lockscreen_encoder_unlock_enabled()) {
+            clock_swipe_wake = true;
+        }
 
         /* Check if swipe/button triggered wake */
         if (clock_swipe_wake) {
             clock_swipe_wake = false;
 
-            /* BOOT is only for unlocking; discard its held click from the app UI. */
-#if LOCKSCREEN_HAS_BOOT_UNLOCK
+            lockscreen_encoder_draining = true;
+            lockscreen_encoder_drain_until = lv_tick_get() + LOCKSCREEN_ENCODER_DRAIN_MS;
+            lv_set_encoder_input_suppressed(true);
+
+            /* Discard the unlock input from the app UI after leaving the lock screen. */
             if (lv_indev_t *encoder = lv_get_encoder_indev()) {
                 lv_indev_wait_release(encoder);
             }
-#endif
 
             hw_set_cpu_freq(240);
 

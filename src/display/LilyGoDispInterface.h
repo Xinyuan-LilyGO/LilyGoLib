@@ -180,6 +180,14 @@ public:
     virtual RotaryMsg_t getRotary(){RotaryMsg_t msg = {};return msg;}
 
     /**
+     * @brief Discard queued rotary encoder messages.
+     *
+     * Boards with a rotary encoder override this method so applications can
+     * drop input accumulated during a screen transition.
+     */
+    virtual void clearRotaryMsg() {}
+
+    /**
      * @brief Read optional touch points.
      * @param x Receives touch X coordinates.
      * @param y Receives touch Y coordinates.

@@ -26,7 +26,7 @@ extern "C" void lilygo_power_menu_request(void);
 #define ROTARY_STEP_DIVIDER_MIN 1
 #define ROTARY_STEP_DIVIDER_MAX 4
 static constexpr uint32_t APP_SETTINGS_MAGIC = 0x53455431; // SET1
-static constexpr uint16_t APP_SETTINGS_VERSION = 1;
+static constexpr uint16_t APP_SETTINGS_VERSION = 2;
 static constexpr uint8_t HAPTIC_EFFECT_MIN = 1;
 static constexpr uint8_t HAPTIC_EFFECT_MAX = 117;
 static constexpr uint8_t HAPTIC_EFFECT_DEFAULT = 1;
@@ -49,7 +49,7 @@ typedef struct {
     uint8_t keyboard_navigation_mode;
     uint8_t display_rotation;
     // Keep the blob size stable when adding small persisted settings later.
-    uint8_t reserved[58];
+    uint8_t reserved[54];
 } app_settings_storage_t;
 
 static user_setting_params_t user_setting;
@@ -127,6 +127,13 @@ static uint8_t clamp_audio_jack_mode(uint8_t mode)
 static uint8_t clamp_mic_input_source(uint8_t source)
 {
     return source == MIC_INPUT_SOURCE_JACK ? MIC_INPUT_SOURCE_JACK : MIC_INPUT_SOURCE_INTERNAL;
+}
+
+static uint8_t clamp_lockscreen_unlock_mode(uint8_t mode)
+{
+    return mode == FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT
+           ? FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT
+           : FACTORY_LOCKSCREEN_UNLOCK_BOOT_ONLY;
 }
 
 static uint8_t clamp_haptic_effect(uint8_t effect)
@@ -345,6 +352,7 @@ static void set_default_user_setting(user_setting_params_t &setting)
     setting.charger_enable = true;
 #endif
     setting.theme_preset_idx = 0;
+    setting.lockscreen_unlock_mode = FACTORY_LOCKSCREEN_UNLOCK_BOOT_ONLY;
 }
 
 static void set_default_app_settings(app_settings_storage_t &settings)
@@ -392,6 +400,7 @@ static void normalize_app_settings(app_settings_storage_t &settings)
         settings.keyboard_navigation_mode == KEYBOARD_NAV_DISABLED ?
         KEYBOARD_NAV_DISABLED : KEYBOARD_NAV_ENABLED;
     settings.display_rotation = clamp_display_rotation(settings.display_rotation);
+    settings.user.lockscreen_unlock_mode = clamp_lockscreen_unlock_mode(settings.user.lockscreen_unlock_mode);
 }
 
 static void apply_app_settings(const app_settings_storage_t &settings)
@@ -419,6 +428,7 @@ static void print_user_setting(const char *tag, const user_setting_params_t &set
     LILYGO_LOG_PRINTF("  %-22s : %u s\n", "Timeout", (unsigned)setting.disp_timeout_second);
     LILYGO_LOG_PRINTF("  %-22s : %s\n", "Nav auto hide", nav_auto_hide_enabled ? "enabled" : "disabled");
     LILYGO_LOG_PRINTF("  %-22s : %u\n", "Theme preset", (unsigned)setting.theme_preset_idx);
+    LILYGO_LOG_PRINTF("  %-22s : %u\n", "Lockscreen unlock", (unsigned)setting.lockscreen_unlock_mode);
 
     LILYGO_LOG_PRINTF("[Input]\n");
     LILYGO_LOG_PRINTF("  %-22s : %u\n", "Keyboard backlight", (unsigned)setting.keyboard_bl_level);
@@ -470,6 +480,8 @@ static void print_user_setting_changes(const user_setting_params_t &before,
     changed |= print_setting_change_u32("charger_current", before.charger_current, after.charger_current);
     changed |= print_setting_change_u32("charger_enable", before.charger_enable, after.charger_enable);
     changed |= print_setting_change_u32("theme_preset_idx", before.theme_preset_idx, after.theme_preset_idx);
+    changed |= print_setting_change_u32("lockscreen_unlock_mode", before.lockscreen_unlock_mode,
+                                        after.lockscreen_unlock_mode);
     if (!changed) {
         LILYGO_LOG_PRINTF("- no change\n");
     }
@@ -484,7 +496,8 @@ static bool user_setting_has_changed(const user_setting_params_t &before,
            before.disp_timeout_second != after.disp_timeout_second ||
            before.charger_current != after.charger_current ||
            before.charger_enable != after.charger_enable ||
-           before.theme_preset_idx != after.theme_preset_idx;
+           before.theme_preset_idx != after.theme_preset_idx ||
+           before.lockscreen_unlock_mode != after.lockscreen_unlock_mode;
 }
 
 static uint8_t button_monitor_id = 0;

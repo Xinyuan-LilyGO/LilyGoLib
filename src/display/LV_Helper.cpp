@@ -25,6 +25,9 @@ static lv_indev_t *encoder_indev;
 static lv_indev_t *touchpad_indev;
 static lv_rotary_diagnostics_t rotary_diagnostics;
 static int8_t rotary_last_direction;
+static volatile bool rotary_activity_pending;
+static LilyGo_Display *rotary_plane;
+static volatile bool encoder_input_suppressed;
 
 
 void updateLvglHelper()
@@ -104,7 +107,17 @@ static void lv_encoder_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     RotaryMsg_t msg = plane->getRotary();
     data->enc_diff = msg.enc_diff;
     data->state = msg.centerBtnPressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    if (encoder_input_suppressed) {
+        plane->clearRotaryMsg();
+        data->enc_diff = 0;
+        data->state = LV_INDEV_STATE_RELEASED;
+        rotary_activity_pending = false;
+        return;
+    }
     update_rotary_diagnostics(msg);
+    if (msg.enc_diff != 0) {
+        rotary_activity_pending = true;
+    }
     if (msg.enc_diff != 0 || msg.centerBtnClicked || msg.centerBtnReleased) {
         plane->feedback((void *)indev_drv);
     }
@@ -115,6 +128,26 @@ void lv_reset_rotary_diagnostics()
 {
     memset(&rotary_diagnostics, 0, sizeof(rotary_diagnostics));
     rotary_last_direction = 0;
+    rotary_activity_pending = false;
+}
+
+bool lv_consume_encoder_activity()
+{
+    const bool pending = rotary_activity_pending;
+    rotary_activity_pending = false;
+    return pending;
+}
+
+void lv_set_encoder_input_suppressed(bool suppressed)
+{
+    encoder_input_suppressed = suppressed;
+    rotary_activity_pending = false;
+    if (rotary_plane) {
+        rotary_plane->clearRotaryMsg();
+    }
+    if (suppressed && encoder_indev) {
+        lv_indev_wait_release(encoder_indev);
+    }
 }
 
 bool lv_get_rotary_diagnostics(lv_rotary_diagnostics_t *snapshot)
@@ -165,6 +198,7 @@ static void keypad_feedback_cb(lv_indev_drv_t *indev_drv, uint8_t code)
 
 void beginLvglHelper(LilyGo_Display &display, bool debug)
 {
+    rotary_plane = &display;
     size_t lv_buffer_size = display.width() * display.height() * sizeof(lv_color_t);
     LILYGO_LOG_D("lv buffer size : %lu , width:%u height:%u", lv_buffer_size, display.width(), display.height());
 

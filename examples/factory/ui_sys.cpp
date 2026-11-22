@@ -255,6 +255,14 @@ static void display_rotation_cb(lv_event_t *e)
     hw_set_display_rotation(rotation);
 }
 
+static void lockscreen_unlock_mode_cb(lv_event_t *e)
+{
+    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
+    local_param.lockscreen_unlock_mode = lv_dropdown_get_selected(obj) == 0
+                                         ? FACTORY_LOCKSCREEN_UNLOCK_BOOT_ONLY
+                                         : FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT;
+}
+
 #if UI_SYS_HAS_KEYBOARD_NAV_SETTING
 static void keyboard_navigation_cb(lv_event_t *e)
 {
@@ -490,6 +498,7 @@ typedef enum {
     UI_SYS_BUILD_DISPLAY_LED,
     UI_SYS_BUILD_DISPLAY_TIMEOUT,
     UI_SYS_BUILD_DISPLAY_NAV,
+    UI_SYS_BUILD_DISPLAY_LOCKSCREEN,
     UI_SYS_BUILD_DISPLAY_ROTATION,
     UI_SYS_BUILD_DISPLAY_FONT,
     UI_SYS_BUILD_DISPLAY_THEME,
@@ -583,6 +592,16 @@ static bool run_sys_deferred_step()
         ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_SETTINGS, "Auto Hide Bar",
                                 "Off\nOn", hw_get_nav_auto_hide_enabled() ? 1 : 0,
                                 nav_auto_hide_cb);
+        sys_deferred_step = UI_SYS_BUILD_DISPLAY_LOCKSCREEN;
+        break;
+
+    case UI_SYS_BUILD_DISPLAY_LOCKSCREEN:
+        if (hw_has_encoder()) {
+            ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_POWER, "Lockscreen Unlock",
+                                    "BOOT only\nEncoder + BOOT",
+                                    local_param.lockscreen_unlock_mode == FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT ? 1 : 0,
+                                    lockscreen_unlock_mode_cb);
+        }
         sys_deferred_step = UI_SYS_BUILD_DISPLAY_ROTATION;
         break;
 

@@ -371,10 +371,17 @@ typedef struct {
 } power_monitor_snapshot_t;
 
 /**
+ * @brief Lock screen unlock policy.
+ */
+typedef enum {
+    FACTORY_LOCKSCREEN_UNLOCK_BOOT_ONLY = 0,       /**< Unlock with the BOOT button only. */
+    FACTORY_LOCKSCREEN_UNLOCK_ENCODER_OR_BOOT = 1, /**< Unlock with encoder movement or BOOT. */
+} factory_lockscreen_unlock_mode_t;
+
+/**
  * @brief Structure to hold user setting parameters.
  *
- * This structure stores user-defined settings, such as display brightness level,
- * keyboard backlight level, display timeout in seconds, charger current, and charger enable status.
+ * This structure stores user-defined display, input, power, and lock screen settings.
  */
 typedef struct {
     uint8_t brightness_level;
@@ -384,6 +391,7 @@ typedef struct {
     uint16_t charger_current;
     uint8_t charger_enable;
     uint8_t theme_preset_idx;
+    uint8_t lockscreen_unlock_mode;
 } user_setting_params_t;
 
 typedef enum {

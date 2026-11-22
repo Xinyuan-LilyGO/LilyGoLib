@@ -20,6 +20,9 @@ static lv_indev_t   *indev_encoder;
 static lv_indev_t   *indev_keyboard;
 static lv_rotary_diagnostics_t rotary_diagnostics;
 static int8_t rotary_last_direction;
+static volatile bool rotary_activity_pending;
+static LilyGo_Display *rotary_plane;
+static volatile bool encoder_input_suppressed;
 
 static lv_color16_t *buf  = NULL;
 static lv_color16_t *buf1  = NULL;
@@ -140,7 +143,17 @@ static void lv_encoder_read(lv_indev_t *drv, lv_indev_data_t *data)
     RotaryMsg_t msg =  plane->getRotary();
     data->enc_diff = msg.enc_diff;
     data->state = msg.centerBtnPressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    if (encoder_input_suppressed) {
+        plane->clearRotaryMsg();
+        data->enc_diff = 0;
+        data->state = LV_INDEV_STATE_RELEASED;
+        rotary_activity_pending = false;
+        return;
+    }
     update_rotary_diagnostics(msg);
+    if (msg.enc_diff != 0) {
+        rotary_activity_pending = true;
+    }
 
     if (msg.enc_diff != 0 || msg.centerBtnClicked || msg.centerBtnReleased) {
         plane->feedback((void *)drv);
@@ -152,6 +165,26 @@ void lv_reset_rotary_diagnostics()
 {
     memset(&rotary_diagnostics, 0, sizeof(rotary_diagnostics));
     rotary_last_direction = 0;
+    rotary_activity_pending = false;
+}
+
+bool lv_consume_encoder_activity()
+{
+    const bool pending = rotary_activity_pending;
+    rotary_activity_pending = false;
+    return pending;
+}
+
+void lv_set_encoder_input_suppressed(bool suppressed)
+{
+    encoder_input_suppressed = suppressed;
+    rotary_activity_pending = false;
+    if (rotary_plane) {
+        rotary_plane->clearRotaryMsg();
+    }
+    if (suppressed && indev_encoder) {
+        lv_indev_wait_release(indev_encoder);
+    }
 }
 
 bool lv_get_rotary_diagnostics(lv_rotary_diagnostics_t *snapshot)
@@ -231,6 +264,7 @@ static void lv_log_print_g_cb(lv_log_level_t level, const char *buf)
 
 void beginLvglHelper(LilyGo_Display &board, bool debug)
 {
+    rotary_plane = &board;
 
 
     lv_init();
