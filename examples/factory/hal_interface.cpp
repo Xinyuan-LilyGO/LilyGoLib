@@ -2951,7 +2951,6 @@ uint8_t hw_get_kb_backlight()
 int16_t hw_set_wifi_scan()
 {
 #ifdef ARDUINO
-    LILYGO_LOG_PRINTF("hw_set_wifi_scan\n");
     return  WiFi.scanNetworks(true);
 #endif
     return 0;
@@ -2972,10 +2971,7 @@ void hw_get_wifi_scan_result(vector < wifi_scan_params_t > &list)
 #ifdef ARDUINO
     int16_t nums = WiFi.scanComplete();
     if (nums < 0) {
-        LILYGO_LOG_PRINTF("Nothing network found. return code : %d\n", nums);
         return;
-    } else {
-        LILYGO_LOG_PRINTF("find %d network\n", nums);
     }
     // uint8_t networkItem, String &ssid, uint8_t &encryptionType, int32_t &RSSI, uint8_t *&BSSID, int32_t &channel
     wifi_scan_params_t param = {};
@@ -2986,7 +2982,6 @@ void hw_get_wifi_scan_result(vector < wifi_scan_params_t > &list)
         uint8_t *BSSID;
         int32_t channel;
         WiFi.getNetworkInfo(i, ssid, encryptionType, rssi, BSSID, channel);
-        LILYGO_LOG_PRINTF("SSID:%s RSSI:%d\n", ssid.c_str(), rssi);
         param.authmode = encryptionType;
         copy_cstr(param.ssid, sizeof(param.ssid), ssid.c_str());
         param.rssi = rssi;

@@ -596,7 +596,78 @@ void update_page_indicator(void)
     }
 }
 
+void ui_refresh_app_grid_theme(void)
+{
+    if (!grid_page_containers) return;
+
+    for (uint32_t page = 0; page < grid_pages; ++page) {
+        lv_obj_t *grid = grid_page_containers[page];
+        if (!grid) continue;
+        for (uint32_t row_index = 0; row_index < lv_obj_get_child_count(grid); ++row_index) {
+            lv_obj_t *row = lv_obj_get_child(grid, row_index);
+            for (uint32_t cell_index = 0; cell_index < lv_obj_get_child_count(row); ++cell_index) {
+                lv_obj_t *cell = lv_obj_get_child(row, cell_index);
+                if (lv_obj_get_child_count(cell) < 2) continue;
+
+                lv_obj_t *button = lv_obj_get_child(cell, 0);
+                if (button && lv_obj_check_type(button, &lv_button_class)) {
+                    lv_obj_add_style(button, &ui_styles.app_btn, LV_PART_MAIN);
+                    for (uint32_t image_index = 0;
+                            image_index < lv_obj_get_child_count(button); ++image_index) {
+                        lv_obj_t *image = lv_obj_get_child(button, image_index);
+                        if (image && lv_obj_check_type(image, &lv_image_class)) {
+                            lv_obj_set_style_image_recolor(image, UI_COLOR_APP_ICON, 0);
+                            lv_obj_set_style_image_recolor(
+                                image, ui_active_light_theme ? lv_color_white() : UI_COLOR_APP_ICON,
+                                LV_STATE_PRESSED);
+                        }
+                    }
+                }
+
+                lv_obj_t *label = lv_obj_get_child(cell, 1);
+                if (label && lv_obj_check_type(label, &lv_label_class)) {
+                    lv_obj_set_style_text_color(label, UI_COLOR_MENU_LABEL, 0);
+                }
+            }
+        }
+    }
+}
+
 /* ── Grid icon button callbacks ── */
+static void grid_icon_visual_state_cb(lv_event_t *e)
+{
+    lv_obj_t *button = lv_event_get_target_obj(e);
+    if (!button) return;
+
+    lv_obj_t *image = NULL;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(button); ++i) {
+        lv_obj_t *child = lv_obj_get_child(button, i);
+        if (child && lv_obj_check_type(child, &lv_image_class)) {
+            image = child;
+            break;
+        }
+    }
+
+    const lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_PRESSED || code == LV_EVENT_PRESSING) {
+        if (image && ui_active_light_theme) {
+            lv_obj_set_style_image_recolor(image, lv_color_white(), LV_PART_MAIN);
+        }
+        return;
+    }
+
+    if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST ||
+            code == LV_EVENT_CANCEL || code == LV_EVENT_CLICKED ||
+            code == LV_EVENT_DEFOCUSED) {
+        if (lv_obj_has_state(button, LV_STATE_PRESSED)) {
+            lv_obj_remove_state(button, LV_STATE_PRESSED);
+        }
+        if (image) {
+            lv_obj_set_style_image_recolor(image, UI_COLOR_APP_ICON, LV_PART_MAIN);
+        }
+    }
+}
+
 static void grid_icon_click_cb(lv_event_t *e)
 {
     app_t *func_cb = (app_t *)lv_event_get_user_data(e);
@@ -672,6 +743,7 @@ static lv_obj_t *create_grid_icon(lv_obj_t *parent, const char *name, const lv_i
 
     /* Icon button — fixed at top */
     lv_obj_t *btn = lv_btn_create(cont);
+    lv_obj_add_style(btn, &ui_styles.app_btn, LV_PART_MAIN);
     lv_obj_set_size(btn, icon_size, icon_size);
     lv_obj_set_style_radius(btn, 16, 0);
     lv_obj_set_style_radius(btn, 16, LV_STATE_PRESSED);
@@ -679,12 +751,15 @@ static lv_obj_t *create_grid_icon(lv_obj_t *parent, const char *name, const lv_i
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 0);
 
-    /* Icon — recolor to white and scale to fit */
+    /* Icon — use a light-theme dark gray so it remains legible without a heavy black tile. */
     if (img != NULL) {
         lv_obj_t *icon = lv_image_create(btn);
         lv_image_set_src(icon, img);
-        lv_obj_set_style_image_recolor(icon, lv_color_white(), 0);
+        lv_obj_set_style_image_recolor(icon, UI_COLOR_APP_ICON, 0);
         lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+        lv_obj_set_style_image_recolor(icon,
+                                       ui_active_light_theme ? lv_color_white() : UI_COLOR_APP_ICON,
+                                       LV_STATE_PRESSED);
         uint32_t img_w = img->header.w;
         uint32_t img_h = img->header.h;
         uint32_t target = (icon_size > 16) ? (icon_size - 8) : icon_size;
@@ -695,7 +770,7 @@ static lv_obj_t *create_grid_icon(lv_obj_t *parent, const char *name, const lv_i
     /* Name label — use the full grid cell; truncate only when the name still does not fit. */
     lv_obj_t *lbl = lv_label_create(cont);
     lv_label_set_text(lbl, grid_short_app_name(name));
-    lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_color(lbl, UI_COLOR_MENU_LABEL, 0);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
@@ -703,6 +778,7 @@ static lv_obj_t *create_grid_icon(lv_obj_t *parent, const char *name, const lv_i
     lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, 0);
 
     /* Events — on the button so encoder can click */
+    lv_obj_add_event_cb(btn, grid_icon_visual_state_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(btn, grid_icon_click_cb, LV_EVENT_CLICKED, app_fun);
     lv_obj_add_event_cb(btn, grid_icon_focus_cb, LV_EVENT_FOCUSED, (void *)name);
 
@@ -1096,7 +1172,9 @@ lv_obj_t *setupClock()
     lv_obj_set_size(page, LV_PCT(100), LV_PCT(100));
     lv_obj_remove_flag(page, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_remove_flag(page, LV_OBJ_FLAG_CLICKABLE); /* NOT clickable — prevents tap wake */
+    lv_obj_set_style_pad_all(page, 0, 0);
     lv_obj_set_style_border_width(page, 0, 0);
+    lv_obj_set_style_shadow_width(page, 0, 0);
     lv_obj_set_style_radius(page, 0, 0);
     lv_obj_set_style_bg_opa(page, LV_OPA_TRANSP, 0);
 
@@ -1104,9 +1182,11 @@ lv_obj_t *setupClock()
     clock_label.overlay = lv_obj_create(page);
     lv_obj_set_size(clock_label.overlay, LV_PCT(100), LV_PCT(100));
     lv_obj_remove_flag(clock_label.overlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_pad_all(clock_label.overlay, 0, 0);
     lv_obj_set_style_bg_color(clock_label.overlay, lv_color_hex(0x050510), 0);
     lv_obj_set_style_bg_opa(clock_label.overlay, LV_OPA_80, 0);
     lv_obj_set_style_border_width(clock_label.overlay, 0, 0);
+    lv_obj_set_style_shadow_width(clock_label.overlay, 0, 0);
     lv_obj_set_style_radius(clock_label.overlay, 0, 0);
     lv_obj_center(clock_label.overlay);
 
@@ -1136,7 +1216,7 @@ lv_obj_t *setupClock()
     /* Decorative accent glow — bottom-right circle with breathing animation */
     lv_obj_t *glow2 = lv_obj_create(page);
     lv_obj_set_size(glow2, glow_size, glow_size);
-    lv_obj_set_style_bg_color(glow2, lv_color_hex(0x0088FF), 0);
+    lv_obj_set_style_bg_color(glow2, UI_COLOR_ACCENT_DIM, 0);
     lv_obj_set_style_bg_opa(glow2, LV_OPA_30, 0);
     lv_obj_set_style_radius(glow2, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_width(glow2, 0, 0);
@@ -1325,8 +1405,10 @@ lv_obj_t *setupClock()
     /* Swipe zone — full-screen for finger tracking on touch-capable boards. */
     lv_obj_t *swipe_zone = lv_obj_create(page);
     lv_obj_set_size(swipe_zone, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_pad_all(swipe_zone, 0, 0);
     lv_obj_set_style_bg_opa(swipe_zone, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(swipe_zone, 0, 0);
+    lv_obj_set_style_shadow_width(swipe_zone, 0, 0);
     lv_obj_set_style_radius(swipe_zone, 0, 0);
     lv_obj_center(swipe_zone);
 #if LOCKSCREEN_HAS_TOUCH_UNLOCK
@@ -1748,8 +1830,9 @@ void setupGui()
     disable_keyboard();
 
     const lv_font_t  *main_font = MAIN_FONT;
-    lv_theme_default_init(NULL, UI_COLOR_BG, lv_palette_darken(LV_PALETTE_GREY, 3),
-                          LV_THEME_DEFAULT_DARK, main_font);
+    lv_theme_default_init(NULL, UI_COLOR_ACCENT, UI_COLOR_TRACK,
+                          !ui_active_light_theme,
+                          main_font);
 
     theme_init();
 
@@ -2005,9 +2088,18 @@ void setupGui()
 #endif
 
 #if !defined(EXCLUDE_WS2812_STRIP)
+    LILYGO_LOG_D("[factory][ws2812] menu gate: lora_hardware=%d app_count=%u",
+                 has_lora_hardware, static_cast<unsigned>(app_count));
     if (!has_lora_hardware) {
+        const uint32_t app_index = app_count;
         register_app("LED Strip", &img_led, &ui_ws2812_main);
+        LILYGO_LOG_D("[factory][ws2812] menu registered: index=%u app_count=%u",
+                     static_cast<unsigned>(app_index), static_cast<unsigned>(app_count));
+    } else {
+        LILYGO_LOG_D("[factory][ws2812] menu skipped: LoRa hardware reported present");
     }
+#else
+    LILYGO_LOG_D("[factory][ws2812] menu skipped: EXCLUDE_WS2812_STRIP is defined");
 #endif
 #if !defined(EXCLUDE_T_EMBED_LED)
     register_app("LED Test", &img_led, &ui_t_embed_ws2812_main);
