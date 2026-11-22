@@ -133,7 +133,6 @@ typedef struct {
     lv_obj_t *battery_bar;
     lv_obj_t *battery_icon;
     lv_obj_t *battery_label;
-    lv_obj_t *build_info;
     lv_coord_t battery_y;
     lv_obj_t *overlay;
 } clock_label_t;
@@ -1407,18 +1406,6 @@ lv_obj_t *setupClock()
     lv_obj_set_style_opa(hint, LV_OPA_40, 0);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -8);
 
-    /* Build identity helps correlate a flashed image with its source commit. */
-    lv_obj_t *build_info = lv_label_create(page);
-    lv_label_set_text_fmt(build_info, "Factory %s  %s",
-                          FACTORY_BUILD_VERSION, FACTORY_BUILD_COMMIT);
-    lv_obj_set_width(build_info, LV_PCT(100));
-    lv_obj_set_style_text_align(build_info, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(build_info, UI_COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(build_info, &lv_font_montserrat_10, 0);
-    lv_obj_set_style_opa(build_info, LV_OPA_70, 0);
-    lv_obj_align(build_info, LV_ALIGN_BOTTOM_MID, 0, -26);
-    clock_label.build_info = build_info;
-
     /* Breathing animation for hint */
     static lv_anim_t hint_anim;
     lv_anim_init(&hint_anim);
@@ -1830,6 +1817,17 @@ void setupGui()
     lv_obj_set_style_bg_color(boot_progress_bar, UI_COLOR_TRACK, LV_PART_MAIN);
     lv_obj_set_style_bg_color(boot_progress_bar, UI_COLOR_ACCENT, LV_PART_INDICATOR);
     lv_obj_align(boot_progress_bar, LV_ALIGN_CENTER, 0, 40);
+
+    /* Keep the build identity on the boot animation, before the lock screen exists. */
+    lv_obj_t *build_info = lv_label_create(boot_bg);
+    lv_label_set_text_fmt(build_info, "Factory %s  %s",
+                          FACTORY_BUILD_VERSION, FACTORY_BUILD_COMMIT);
+    lv_obj_set_width(build_info, LV_PCT(100));
+    lv_obj_set_style_text_align(build_info, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(build_info, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(build_info, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_opa(build_info, LV_OPA_70, 0);
+    lv_obj_align(build_info, LV_ALIGN_BOTTOM_MID, 0, -8);
 
     lv_refr_now(NULL);
     hw_play_boot_sound_async();
