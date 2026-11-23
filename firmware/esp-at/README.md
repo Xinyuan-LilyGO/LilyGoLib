@@ -29,4 +29,5 @@ The C5 firmware is a separate image from the ESP32-S3 application. It must be
 flashed to the C5 separately; uploading the LilyGoLib application does not
 program or update the C5. The official default AT command port is UART1 at
 115200 baud. On T-Embed-Plus V2, wire the crossed link as C5 GPIO23 (TX) to S3
-GPIO44 (RX), and C5 GPIO24 (RX) to S3 GPIO43 (TX).
+GPIO48 (RX), and C5 GPIO24 (RX) to S3 GPIO47 (TX). XL9555 P06 must be HIGH for
+the C5 route, and P07/P10 must be HIGH to enable the extension power rails.

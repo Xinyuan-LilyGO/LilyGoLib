@@ -19,8 +19,8 @@
           },
           "url": "https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGoLib/master/arduino/temporary_t_embed_plus/dist/lilygo-t-embed-plus-temp-0.1.0.zip",
           "archiveFileName": "lilygo-t-embed-plus-temp-0.1.0.zip",
-          "checksum": "SHA-256:ce425599b93b5d5cb5d0c9727ea27afde5b502cdd51c289f6914ac17b1fa3156",
-          "size": "5008",
+          "checksum": "SHA-256:160ada148ff9f036a264f22b1ca1e52a173558b4cb79156fe7956301c6dd1a79",
+          "size": "4316",
           "boards": [
             {
               "name": "LilyGo T-Embed-Plus"

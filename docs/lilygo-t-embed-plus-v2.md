@@ -137,9 +137,16 @@ ESP-AT firmware already programmed; the corresponding firmware is stored in
 the repository under the [`firmware/esp-at/`](../firmware/esp-at/) directory.
 Its firmware is not programmed by the ESP32-S3 upload process. Espressif's
 default ESP32-C5-4MB ESP-AT firmware uses C5 UART1 GPIO23 (TX) and GPIO24 (RX)
-at 115200 baud. The crossed V2 link is C5 GPIO23 (TX) to S3 GPIO44 (RX), and C5
-GPIO24 (RX) to S3 GPIO43 (TX). C5 UART0 GPIO11 (TX) and GPIO12 (RX) remain the
+at 115200 baud. The crossed V2 link is C5 GPIO23 (TX) to S3 GPIO48 (RX), and C5
+GPIO24 (RX) to S3 GPIO47 (TX). C5 UART0 GPIO11 (TX) and GPIO12 (RX) remain the
 download/log port.
+
+GPIO47 and GPIO48 are shared with the on-board nRF24 CE and CS signals through
+the SN74LVC1G3157DTBR analog switches. XL9555 P06 selects the route: HIGH
+connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 and P10
+must be HIGH to power the extension module. Factory selects C5, pulses P05
+low then high to reset it, and restores P06 LOW when leaving the C5 page before
+nRF24 initialization.
 
 The C5 firmware must be flashed separately. Uploading `t_embed_plus_v2` only
 programs the ESP32-S3. For a blank C5 flash, use the factory image from the

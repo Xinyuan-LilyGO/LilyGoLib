@@ -84,8 +84,8 @@ The LilyGoLib board definition is available in the
 
 | Name                         | GPIO                | Free |
 | ---------------------------- | ------------------- | ---- |
-| UART TX / C5 link            | 43                  | ❌    |
-| UART RX / C5 link            | 44                  | ❌    |
+| C5 UART host TX              | 47                  | ❌    |
+| C5 UART host RX              | 48                  | ❌    |
 | SDA                          | 3                   | ❌    |
 | SCL                          | 2                   | ❌    |
 | SPI MOSI                     | 9                   | ❌    |
@@ -125,8 +125,8 @@ The LilyGoLib board definition is available in the
 | Speaker I2S BCLK             | 46                  | ❌    |
 | Speaker I2S LRCLK            | 40                  | ❌    |
 | Speaker I2S data             | 7                   | ❌    |
-| nRF24 CS                     | 48                  | ❌    |
-| nRF24 CE                     | 47                  | ❌    |
+| nRF24 CS                     | 47                  | ❌    |
+| nRF24 CE                     | 48                  | ❌    |
 | nRF24 Interrupt              | Not connected       | ❌    |
 | USB D-                       | 19                  | ❌    |
 | USB D+                       | 20                  | ❌    |
@@ -152,12 +152,22 @@ LilyGoLib selects the RF path when the CC1101 frequency is changed.
 
 The ESP32-C5 module is a separate co-processor and is not programmed when the
 ESP32-S3 application is uploaded. The board is shipped with AT firmware
-pre-flashed. The V2 board routes S3 GPIO43 (TX)
-and GPIO44 (RX) to the C5 AT command link. Espressif's default ESP32-C5-4MB
-ESP-AT firmware uses C5 UART1 GPIO23 (TX) and GPIO24 (RX) at 115200 baud. The
-crossed connection is C5 GPIO23 (TX) to S3 GPIO44 (RX), and C5 GPIO24 (RX) to
-S3 GPIO43 (TX). C5 UART0 GPIO11 (TX) and GPIO12 (RX) are reserved for
-download/log output.
+pre-flashed. Espressif's default ESP32-C5-4MB ESP-AT firmware uses C5 UART1
+GPIO23 (TX) and GPIO24 (RX) at 115200 baud. The crossed V2 connection is C5
+GPIO23 (TX) to S3 GPIO48 (RX), and C5 GPIO24 (RX) to S3 GPIO47 (TX). C5 UART0
+GPIO11 (TX) and GPIO12 (RX) are reserved for download/log output.
+
+GPIO47 and GPIO48 are shared with the on-board nRF24 CE and CS signals through
+the SN74LVC1G3157DTBR analog switches. XL9555 P06 selects the route: HIGH
+connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 and P10
+must be HIGH to power the extension module. Factory selects C5, pulses P05
+low then high to reset it, and restores P06 LOW when leaving the C5 page before
+nRF24 initialization.
+
+| S3 signal / U6 pin 4 | U6 pin 1, P06=HIGH (C5) | U6 pin 3, P06=LOW (nRF24) |
+| -------------------- | ------------------------ | -------------------------- |
+| GPIO48               | C5 IO23 / UART1 TX       | nRF24 CE                   |
+| GPIO47               | C5 IO24 / UART1 RX       | nRF24 CS                   |
 
 ### I2C Device Addresses
 
