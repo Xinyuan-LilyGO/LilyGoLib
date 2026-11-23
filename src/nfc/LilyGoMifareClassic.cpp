@@ -254,6 +254,8 @@ static bool authenticate(RfalNfcClass &reader,
     if (!transceiveRaw(reader, firstTx, rfalConvBytesToBits(sizeof(firstTx)),
                        firstRx, sizeof(firstRx), &firstRxBits, kFirstAuthFlags) ||
             firstRxBits < 32U) {
+        LILYGO_NFC_LOG_D("[ST25][MFC] auth nonce unavailable block=%u bits=%u",
+                         static_cast<unsigned>(block), static_cast<unsigned>(firstRxBits));
         return false;
     }
 
@@ -265,6 +267,9 @@ static bool authenticate(RfalNfcClass &reader,
                      (static_cast<uint32_t>(nonceBytes[1]) << 16U) |
                      (static_cast<uint32_t>(nonceBytes[2]) << 8U) |
                      nonceBytes[3];
+    LILYGO_NFC_LOG_D("[ST25][MFC] auth nonce block=%u key=%c nt=%08lX bits=%u",
+                     static_cast<unsigned>(block), keyB ? 'B' : 'A',
+                     static_cast<unsigned long>(nonce), static_cast<unsigned>(firstRxBits));
 
     const uint8_t uidOffset = uidLen > 4U ? static_cast<uint8_t>(uidLen - 4U) : 0U;
     const uint32_t uid32 = (static_cast<uint32_t>(uid[uidOffset]) << 24U) |
@@ -285,8 +290,10 @@ static bool authenticate(RfalNfcClass &reader,
         answerData[index] = static_cast<uint8_t>(
             lilygoMifareClassicCrypto1Byte(&cipher, readerNonceBytes[index], false) ^
             readerNonceBytes[index]);
+        // MIFARE Classic reuses the next data-bit keystream for parity; do
+        // not clock Crypto1 a ninth time here.
         answerParity[index] = static_cast<uint8_t>(
-            lilygoMifareClassicCrypto1Bit(&cipher, 0U, false) ^
+            lilygoMifareClassicCrypto1FilterBit(&cipher) ^
             lilygoMifareClassicOddParity(readerNonceBytes[index]));
     }
 
@@ -296,7 +303,7 @@ static bool authenticate(RfalNfcClass &reader,
         answerData[4U + index] = static_cast<uint8_t>(
             lilygoMifareClassicCrypto1Byte(&cipher, 0U, false) ^ plain);
         answerParity[4U + index] = static_cast<uint8_t>(
-            lilygoMifareClassicCrypto1Bit(&cipher, 0U, false) ^
+            lilygoMifareClassicCrypto1FilterBit(&cipher) ^
             lilygoMifareClassicOddParity(plain));
     }
 
@@ -315,6 +322,8 @@ static bool authenticate(RfalNfcClass &reader,
             !transceiveRaw(reader, answerTx, answerBits, cardAnswer, sizeof(cardAnswer),
                            &cardAnswerBits, kEncryptedFlags) ||
             cardAnswerBits < 32U) {
+        LILYGO_NFC_LOG_D("[ST25][MFC] auth AT unavailable block=%u bits=%u",
+                         static_cast<unsigned>(block), static_cast<unsigned>(cardAnswerBits));
         return false;
     }
 
@@ -322,6 +331,8 @@ static bool authenticate(RfalNfcClass &reader,
     uint8_t encryptedAtParity[4] = {};
     if (unpackBitsWithParity(cardAnswer, cardAnswerBits, encryptedAt, encryptedAtParity,
                              sizeof(encryptedAt)) < sizeof(encryptedAt)) {
+        LILYGO_NFC_LOG_D("[ST25][MFC] auth AT frame too short bits=%u",
+                         static_cast<unsigned>(cardAnswerBits));
         return false;
     }
     uint32_t cardAnswerValue = 0U;
@@ -330,15 +341,19 @@ static bool authenticate(RfalNfcClass &reader,
             &cipher, 0U, false);
         const uint8_t plain = static_cast<uint8_t>(encryptedAt[index] ^ keyStream);
         const uint8_t plainParity = static_cast<uint8_t>(
-            lilygoMifareClassicCrypto1Bit(&cipher, 0U, false) ^
-            encryptedAtParity[index]);
-        if (plainParity != lilygoMifareClassicOddParity(plain)) return false;
+            lilygoMifareClassicCrypto1FilterBit(&cipher) ^ encryptedAtParity[index]);
+        if (plainParity != lilygoMifareClassicOddParity(plain)) {
+            LILYGO_NFC_LOG_D("[ST25][MFC] auth AT parity mismatch byte=%u",
+                             static_cast<unsigned>(index));
+            return false;
+        }
         cardAnswerValue = (cardAnswerValue << 8U) |
                           plain;
     }
     const uint32_t expectedCardAnswer = lilygoMifareClassicPrngSuccessor(nonce, 96U);
     if (cardAnswerValue != expectedCardAnswer) {
-        LILYGO_NFC_LOG_D("[ST25][MFC] auth AT mismatch got=%08lX expected=%08lX",
+        LILYGO_NFC_LOG_D("[ST25][MFC] auth AT mismatch nonce=%08lX got=%08lX expected=%08lX",
+                         static_cast<unsigned long>(nonce),
                          static_cast<unsigned long>(cardAnswerValue),
                          static_cast<unsigned long>(expectedCardAnswer));
         return false;
@@ -362,8 +377,9 @@ static bool readBlock(RfalNfcClass &reader,
     for (uint8_t index = 0; index < sizeof(plain); ++index) {
         encrypted[index] = static_cast<uint8_t>(
             lilygoMifareClassicCrypto1Byte(&cipher, 0U, false) ^ plain[index]);
+        // The parity bit reuses the filter output at the next byte boundary.
         parity[index] = static_cast<uint8_t>(
-            lilygoMifareClassicCrypto1Bit(&cipher, 0U, false) ^
+            lilygoMifareClassicCrypto1FilterBit(&cipher) ^
             lilygoMifareClassicOddParity(plain[index]));
     }
 
@@ -394,9 +410,10 @@ static bool readBlock(RfalNfcClass &reader,
             &cipher, 0U, false);
         encryptedData[index] ^= keyStream;
         const uint8_t plainParity = static_cast<uint8_t>(
-            lilygoMifareClassicCrypto1Bit(&cipher, 0U, false) ^
-            encryptedParity[index]);
+            lilygoMifareClassicCrypto1FilterBit(&cipher) ^ encryptedParity[index]);
         if (plainParity != lilygoMifareClassicOddParity(encryptedData[index])) {
+            LILYGO_NFC_LOG_W("[ST25][MFC] block=%u parity mismatch byte=%u",
+                             static_cast<unsigned>(block), static_cast<unsigned>(index));
             return false;
         }
     }
