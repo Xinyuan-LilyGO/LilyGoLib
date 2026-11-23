@@ -176,6 +176,27 @@ static bool configureGaugeCapacityIfNeeded(GaugeBQ27220 &gauge)
 LILYGO_DEFINE_RADIO();
 RfalRfST25R3916Class nfc_hw(&SPI, NFC_CS, NFC_INT);
 RfalNfcClass NFCReader(&nfc_hw);
+
+#if LILYGO_NFC_DEBUG_ENABLED
+static void logNfcChipDiagnostics(ReturnCode initErr)
+{
+    uint8_t identity = 0;
+    uint8_t operation = 0;
+    uint8_t revision = 0;
+    const ReturnCode identityErr = nfc_hw.rfalChipReadReg(ST25R3916_REG_IC_IDENTITY,
+                                                          &identity, 1U);
+    const ReturnCode operationErr = nfc_hw.rfalChipReadReg(ST25R3916_REG_OP_CONTROL,
+                                                           &operation, 1U);
+    const bool chipMatches = nfc_hw.st25r3916CheckChipID(&revision);
+
+    LILYGO_NFC_LOG_I("[TEmbedPlusV2][ST25][NFC] init=%u identity_read=%u identity=0x%02X "
+                 "chip_match=%u revision=%u operation_read=%u operation=0x%02X irq=%d",
+                 static_cast<unsigned>(initErr), static_cast<unsigned>(identityErr), identity,
+                 chipMatches ? 1U : 0U, static_cast<unsigned>(revision),
+                 static_cast<unsigned>(operationErr), operation, digitalRead(NFC_INT));
+}
+#endif
+
 #ifndef RADIOLIB_EXCLUDE_NRF24
 nRF24 nrf24 = new Module(NRF24_CS, NRF24_IRQ, NRF24_CE,
                          RADIOLIB_NC, SPI);
@@ -495,14 +516,21 @@ int16_t LilyGoTEmbedPlus::setRFFrequencyBand(float frequency)
 bool LilyGoTEmbedPlus::initNFC()
 {
     // ST25R3916 shares the display, SD, and radio SPI bus; Wire is only used by I2C devices.
+    pinMode(NFC_CS, OUTPUT);
+    digitalWrite(NFC_CS, HIGH);
     pinMode(NFC_INT, INPUT);
-    const bool ready = NFCReader.rfalNfcInitialize() == ST_ERR_NONE;
+    LILYGO_NFC_LOG_I("[TEmbedPlusV2][ST25][NFC] init begin spi_sck=%d spi_miso=%d spi_mosi=%d cs=%d irq=%d",
+                 DISP_SCK, DISP_MISO, DISP_MOSI, NFC_CS, NFC_INT);
+    const ReturnCode initErr = NFCReader.rfalNfcInitialize();
+    LILYGO_NFC_LOG_ONLY(logNfcChipDiagnostics(initErr));
+    const bool ready = initErr == ST_ERR_NONE;
     if (!ready) {
         devicesProbe &= ~HW_NFC_ONLINE;
-        LILYGO_LOG_E("ST25R3916 init failed");
+        LILYGO_NFC_LOG_E("[TEmbedPlusV2][ST25][NFC] init failed code=%u", static_cast<unsigned>(initErr));
         return false;
     }
     devicesProbe |= HW_NFC_ONLINE;
+    LILYGO_NFC_LOG_I("[TEmbedPlusV2][ST25][NFC] init ready");
     return true;
 }
 
@@ -852,7 +880,7 @@ void LilyGoTEmbedPlus::lightSleep(WakeupSource_t wakeupSource)
         powerControl(POWER_NFC, true);
         if (!initNFC()) {
             devicesProbe &= ~HW_NFC_ONLINE;
-            LILYGO_LOG_W("Failed to restore ST25R3916 after light sleep");
+            LILYGO_NFC_LOG_W("[TEmbedPlusV2][ST25][NFC] failed to restore after light sleep");
         }
     }
     if (audioWasOnline) {

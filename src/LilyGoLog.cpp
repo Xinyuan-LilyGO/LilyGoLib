@@ -1,6 +1,14 @@
+/**
+ * @file      LilyGoLog.cpp
+ * @license   MIT
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-23
+ *
+ * Implements the Arduino serial backend for LilyGoLib diagnostic logging.
+ */
 #include "LilyGoLog.h"
 
-#if defined(ARDUINO) && LILYGO_DEBUG_ENABLED
+#if defined(ARDUINO) && (LILYGO_DEBUG_ENABLED || LILYGO_NFC_DEBUG_ENABLED)
 void lilygo_log_printf(const char *format, ...)
 {
     va_list args;

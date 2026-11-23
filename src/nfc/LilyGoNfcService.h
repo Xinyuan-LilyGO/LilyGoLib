@@ -534,6 +534,10 @@ private:
     uint32_t _lastPresenceCheckMs;
     /** Number of consecutive failed presence checks. */
     uint8_t _missingPresenceCount;
+    /** Last RFAL state emitted to the diagnostic log. */
+    rfalNfcState _lastLoggedRfalState;
+    /** Whether an initial RFAL state has already been emitted. */
+    bool _rfalStateLogged;
 };
 
 /** Global NFC service instance. */

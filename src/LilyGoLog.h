@@ -1,8 +1,17 @@
+/**
+ * @file      LilyGoLog.h
+ * @license   MIT
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-23
+ *
+ * Defines the global and per-feature LilyGoLib diagnostic logging macros.
+ */
 #pragma once
 
 #include "LilyGoLogConfig.h"
 
-#if LILYGO_DEBUG_ENABLED
+// Keep the logging backend available when only the NFC stream is enabled.
+#if LILYGO_DEBUG_ENABLED || LILYGO_NFC_DEBUG_ENABLED
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -41,9 +50,16 @@ static inline void lilygo_log_message(const char *level, const char *tag, const 
 
 #ifdef __cplusplus
 }
+#endif
+#endif
 
-#ifdef ARDUINO
+#if defined(ARDUINO) && (LILYGO_DEBUG_ENABLED || LILYGO_NFC_DEBUG_ENABLED)
 #include <Arduino.h>
+#endif
+
+#if LILYGO_DEBUG_ENABLED
+#ifdef __cplusplus
+#ifdef ARDUINO
 #define LILYGO_LOG_PRINT(...) do { Serial.print(__VA_ARGS__); } while (0)
 #define LILYGO_LOG_PRINTLN(...) do { Serial.println(__VA_ARGS__); } while (0)
 #define LILYGO_LOG_WRITE(...) do { Serial.write(__VA_ARGS__); } while (0)
@@ -75,6 +91,28 @@ template <typename T> inline void println(const T &value) { std::cout << value <
 #define LILYGO_LOG_I(...) do {} while (0)
 #define LILYGO_LOG_D(...) do {} while (0)
 #define LILYGO_LOG_V(...) do {} while (0)
+#endif
+
+/**
+ * ST25R3916/NFC diagnostics. This stream can be enabled independently with
+ * LILYGO_NFC_DEBUG_ENABLED, even when the general diagnostics are disabled.
+ */
+#if LILYGO_NFC_DEBUG_ENABLED
+#define LILYGO_NFC_LOG_PRINTF(...) do { lilygo_log_printf(__VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_E(...) do { lilygo_log_message("E", __func__, __VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_W(...) do { lilygo_log_message("W", __func__, __VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_I(...) do { lilygo_log_message("I", __func__, __VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_D(...) do { lilygo_log_message("D", __func__, __VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_V(...) do { lilygo_log_message("V", __func__, __VA_ARGS__); } while (0)
+#define LILYGO_NFC_LOG_ONLY(...) do { __VA_ARGS__; } while (0)
+#else
+#define LILYGO_NFC_LOG_PRINTF(...) do {} while (0)
+#define LILYGO_NFC_LOG_E(...) do {} while (0)
+#define LILYGO_NFC_LOG_W(...) do {} while (0)
+#define LILYGO_NFC_LOG_I(...) do {} while (0)
+#define LILYGO_NFC_LOG_D(...) do {} while (0)
+#define LILYGO_NFC_LOG_V(...) do {} while (0)
+#define LILYGO_NFC_LOG_ONLY(...) do {} while (0)
 #endif
 
 // Use for diagnostic-only helpers whose arguments or bodies do extra work.

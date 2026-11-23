@@ -5,8 +5,10 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-07-25
  *
+ * Implements the shared ST25R3916 reader and tag-emulation service.
  */
 #include "nfc/LilyGoNfcService.h"
+#include "LilyGoLog.h"
 
 #if defined(ARDUINO) && defined(USING_ST25R3916)
 
@@ -425,6 +427,87 @@ static bool preparePresencePolling(ReturnCode initErr)
     return rf->rfalFieldOnAndStartGT() == ST_ERR_NONE;
 }
 
+#if LILYGO_NFC_DEBUG_ENABLED
+static const char *rfalNfcStateName(rfalNfcState state)
+{
+    switch (state) {
+    case RFAL_NFC_STATE_NOTINIT: return "NOTINIT";
+    case RFAL_NFC_STATE_IDLE: return "IDLE";
+    case RFAL_NFC_STATE_START_DISCOVERY: return "START_DISCOVERY";
+    case RFAL_NFC_STATE_WAKEUP_MODE: return "WAKEUP_MODE";
+    case RFAL_NFC_STATE_POLL_TECHDETECT: return "POLL_TECHDETECT";
+    case RFAL_NFC_STATE_POLL_COLAVOIDANCE: return "POLL_COLAVOIDANCE";
+    case RFAL_NFC_STATE_POLL_SELECT: return "POLL_SELECT";
+    case RFAL_NFC_STATE_POLL_ACTIVATION: return "POLL_ACTIVATION";
+    case RFAL_NFC_STATE_LISTEN_TECHDETECT: return "LISTEN_TECHDETECT";
+    case RFAL_NFC_STATE_LISTEN_COLAVOIDANCE: return "LISTEN_COLAVOIDANCE";
+    case RFAL_NFC_STATE_LISTEN_ACTIVATION: return "LISTEN_ACTIVATION";
+    case RFAL_NFC_STATE_LISTEN_SLEEP: return "LISTEN_SLEEP";
+    case RFAL_NFC_STATE_ACTIVATED: return "ACTIVATED";
+    case RFAL_NFC_STATE_DATAEXCHANGE: return "DATAEXCHANGE";
+    case RFAL_NFC_STATE_DATAEXCHANGE_DONE: return "DATAEXCHANGE_DONE";
+    case RFAL_NFC_STATE_DEACTIVATION: return "DEACTIVATION";
+    default: return "UNKNOWN";
+    }
+}
+
+static void logReturnCode(const char *operation, ReturnCode err, const char *detail = nullptr)
+{
+    if (detail && detail[0]) {
+        LILYGO_NFC_LOG_D("[ST25][NFC] %s result=%u detail=%s", operation,
+                     static_cast<unsigned>(err), detail);
+    } else {
+        LILYGO_NFC_LOG_D("[ST25][NFC] %s result=%u", operation,
+                     static_cast<unsigned>(err));
+    }
+}
+
+static void logActiveDevice(const rfalNfcDevice &dev)
+{
+    char uidText[(RFAL_NFC_RF_BUF_LEN * 3U) + 1U];
+    bytesToHex(dev.nfcid, dev.nfcidLen, uidText, sizeof(uidText));
+    LILYGO_NFC_LOG_I("[ST25][NFC] active type=%s(%u) interface=%s(%u) uid_len=%u uid=%s",
+                 rfalDeviceTypeName(dev.type), static_cast<unsigned>(dev.type),
+                 rfalInterfaceName(dev.rfInterface), static_cast<unsigned>(dev.rfInterface),
+                 static_cast<unsigned>(dev.nfcidLen), uidText[0] ? uidText : "--");
+
+    switch (dev.type) {
+    case RFAL_NFC_LISTEN_TYPE_NFCA:
+    case RFAL_NFC_POLL_TYPE_NFCA:
+        LILYGO_NFC_LOG_I("[ST25][NFC] NFC-A ATQA=%02X %02X SAK=%02X UID1_len=%u type=0x%02X",
+                     dev.dev.nfca.sensRes.anticollisionInfo,
+                     dev.dev.nfca.sensRes.platformInfo,
+                     dev.dev.nfca.selRes.sak,
+                     static_cast<unsigned>(dev.dev.nfca.nfcId1Len),
+                     static_cast<unsigned>(dev.dev.nfca.type));
+        break;
+    case RFAL_NFC_LISTEN_TYPE_NFCB:
+    case RFAL_NFC_POLL_TYPE_NFCB:
+        LILYGO_NFC_LOG_I("[ST25][NFC] NFC-B SENSB_len=%u protocol=0x%02X FSCI=%u",
+                     static_cast<unsigned>(dev.dev.nfcb.sensbResLen),
+                     dev.dev.nfcb.sensbRes.protInfo.FsciProType,
+                     static_cast<unsigned>(rfalNfcbGetFSCI(&dev.dev.nfcb.sensbRes)));
+        break;
+    case RFAL_NFC_LISTEN_TYPE_NFCF:
+    case RFAL_NFC_POLL_TYPE_NFCF:
+        LILYGO_NFC_LOG_I("[ST25][NFC] NFC-F SENSF_len=%u NFCID2=%02X%02X%02X%02X%02X%02X%02X%02X",
+                     static_cast<unsigned>(dev.dev.nfcf.sensfResLen),
+                     dev.dev.nfcf.sensfRes.NFCID2[0], dev.dev.nfcf.sensfRes.NFCID2[1],
+                     dev.dev.nfcf.sensfRes.NFCID2[2], dev.dev.nfcf.sensfRes.NFCID2[3],
+                     dev.dev.nfcf.sensfRes.NFCID2[4], dev.dev.nfcf.sensfRes.NFCID2[5],
+                     dev.dev.nfcf.sensfRes.NFCID2[6], dev.dev.nfcf.sensfRes.NFCID2[7]);
+        break;
+    case RFAL_NFC_LISTEN_TYPE_NFCV:
+    case RFAL_NFC_POLL_TYPE_NFCV:
+        LILYGO_NFC_LOG_I("[ST25][NFC] NFC-V flags=%02X DSFID=%02X",
+                     dev.dev.nfcv.InvRes.RES_FLAG, dev.dev.nfcv.InvRes.DSFID);
+        break;
+    default:
+        break;
+    }
+}
+#endif
+
 static const char *ndefStateName(ndefState state)
 {
     switch (state) {
@@ -520,7 +603,9 @@ LilyGoNfcService::LilyGoNfcService() :
     _activeType(RFAL_NFC_LISTEN_TYPE_NFCA),
     _activeUidLen(0),
     _lastPresenceCheckMs(0),
-    _missingPresenceCount(0)
+    _missingPresenceCount(0),
+    _lastLoggedRfalState(RFAL_NFC_STATE_NOTINIT),
+    _rfalStateLogged(false)
 {
     memset(&_config, 0, sizeof(_config));
     memset(&_emulationConfig, 0, sizeof(_emulationConfig));
@@ -575,6 +660,11 @@ bool LilyGoNfcService::beginReader(const LilyGoNfcReaderConfig &config)
         _config.discoveryDurationMs = 1000U;
     }
 
+    LILYGO_NFC_LOG_I("[ST25][NFC] begin reader techs=0x%04X duration_ms=%u wakeup=%u",
+                 static_cast<unsigned>(_config.technologies),
+                 static_cast<unsigned>(_config.discoveryDurationMs),
+                 _config.wakeupEnabled ? 1U : 0U);
+
     activeService = this;
     _running = true;
     _activeHandled = false;
@@ -588,8 +678,11 @@ bool LilyGoNfcService::beginReader(const LilyGoNfcReaderConfig &config)
     _result.state = LILYGO_NFC_STATE_STARTING;
 
     ReturnCode err = NFCReader.rfalNfcInitialize();
+    LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcInitialize", err));
     if (err != ST_ERR_NONE) {
         setError(err, "rfalNfcInitialize failed");
+        LILYGO_NFC_LOG_E("[ST25][NFC] reader initialization failed code=%u text=%s",
+                     static_cast<unsigned>(err), _result.errorText);
         _running = false;
         _mode = LILYGO_NFC_MODE_IDLE;
         _result.state = LILYGO_NFC_STATE_ERROR;
@@ -599,6 +692,8 @@ bool LilyGoNfcService::beginReader(const LilyGoNfcReaderConfig &config)
     }
 
     if (!startDiscovery()) {
+        LILYGO_NFC_LOG_E("[ST25][NFC] reader discovery start failed code=%u text=%s",
+                     static_cast<unsigned>(_result.lastError), _result.errorText);
         _running = false;
         _mode = LILYGO_NFC_MODE_IDLE;
         _result.state = LILYGO_NFC_STATE_ERROR;
@@ -608,6 +703,7 @@ bool LilyGoNfcService::beginReader(const LilyGoNfcReaderConfig &config)
     }
 
     _result.state = LILYGO_NFC_STATE_POLLING;
+    LILYGO_NFC_LOG_I("[ST25][NFC] reader started");
     emit(LILYGO_NFC_EVENT_STARTED);
     return true;
 }
@@ -762,7 +858,16 @@ void LilyGoNfcService::loop()
 
     NFCReader.rfalNfcWorker();
 
-    if (_running && NFCReader.rfalNfcGetState() == RFAL_NFC_STATE_IDLE &&
+    const rfalNfcState rfalState = NFCReader.rfalNfcGetState();
+    if (!_rfalStateLogged || rfalState != _lastLoggedRfalState) {
+        LILYGO_NFC_LOG_D("[ST25][NFC] RFAL state=%s(%u) service=%s",
+                     rfalNfcStateName(rfalState), static_cast<unsigned>(rfalState),
+                     lilygoNfcStateName(_result.state));
+        _lastLoggedRfalState = rfalState;
+        _rfalStateLogged = true;
+    }
+
+    if (_running && rfalState == RFAL_NFC_STATE_IDLE &&
             _result.state == LILYGO_NFC_STATE_POLLING) {
         startDiscovery();
     }
@@ -773,7 +878,8 @@ void LilyGoNfcService::stop()
     if (!_running) return;
 
     const LilyGoNfcMode previousMode = _mode;
-    NFCReader.rfalNfcDeactivate(false);
+    const ReturnCode deactivateErr = NFCReader.rfalNfcDeactivate(false);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcDeactivate(stop)", deactivateErr));
     _running = false;
     _mode = LILYGO_NFC_MODE_IDLE;
     _activeHandled = false;
@@ -787,6 +893,7 @@ void LilyGoNfcService::stop()
     _emulationRxLen = nullptr;
     _activeUidLen = 0;
     _missingPresenceCount = 0;
+    _rfalStateLogged = false;
     _result.state = LILYGO_NFC_STATE_IDLE;
     _emulationStatus.state = LILYGO_NFC_STATE_IDLE;
     if (previousMode == LILYGO_NFC_MODE_EMULATION) {
@@ -843,9 +950,17 @@ bool LilyGoNfcService::startDiscovery()
     discover.wakeupEnabled = _config.wakeupEnabled;
     discover.wakeupConfigDefault = true;
 
+    LILYGO_NFC_LOG_I("[ST25][NFC] discovery start techs=0x%04X duration_ms=%u dev_limit=%u",
+                 static_cast<unsigned>(discover.techs2Find),
+                 static_cast<unsigned>(discover.totalDuration),
+                 static_cast<unsigned>(discover.devLimit));
+
     ReturnCode err = NFCReader.rfalNfcDiscover(&discover);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcDiscover", err));
     if (err != ST_ERR_NONE) {
         setError(err, "rfalNfcDiscover failed");
+        LILYGO_NFC_LOG_E("[ST25][NFC] discovery failed code=%u text=%s",
+                     static_cast<unsigned>(err), _result.errorText);
         return false;
     }
 
@@ -857,6 +972,7 @@ bool LilyGoNfcService::startDiscovery()
     _deactivateRequested = false;
     _activeUidLen = 0;
     _missingPresenceCount = 0;
+    _rfalStateLogged = false;
     return true;
 }
 
@@ -1115,6 +1231,9 @@ void LilyGoNfcService::handleNotify(rfalNfcState st)
 {
     if (!_running || _mode != LILYGO_NFC_MODE_READER) return;
 
+    LILYGO_NFC_LOG_D("[ST25][NFC] RFAL notify state=%s(%u)",
+                 rfalNfcStateName(st), static_cast<unsigned>(st));
+
     if (st == RFAL_NFC_STATE_ACTIVATED && !_activeHandled) {
         handleActivated();
     }
@@ -1127,8 +1246,11 @@ void LilyGoNfcService::handleActivated()
 
     rfalNfcDevice *dev = nullptr;
     ReturnCode err = NFCReader.rfalNfcGetActiveDevice(&dev);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcGetActiveDevice", err));
     if (err != ST_ERR_NONE || !dev) {
         setError(err, "No active NFC device");
+        LILYGO_NFC_LOG_E("[ST25][NFC] active device unavailable code=%u text=%s",
+                     static_cast<unsigned>(err), _result.errorText);
         emit(LILYGO_NFC_EVENT_NDEF_ERROR);
         NFCReader.rfalNfcDeactivate(true);
         _result.state = LILYGO_NFC_STATE_POLLING;
@@ -1160,14 +1282,21 @@ void LilyGoNfcService::handleActivated()
     safeCopy(_result.technology, sizeof(_result.technology), rfalDeviceTypeName(dev->type));
     safeCopy(_result.interfaceName, sizeof(_result.interfaceName), rfalInterfaceName(dev->rfInterface));
 
+    LILYGO_NFC_LOG_ONLY(logActiveDevice(*dev));
+
     rfalNfcDevice ndefDevice = *dev;
     const bool ndefCandidate = describeCard(dev, &ndefDevice);
+    LILYGO_NFC_LOG_I("[ST25][NFC] card described type=%s tag=%s ndef_candidate=%u mifare_classic=%u info=%s",
+                 _result.cardType, _result.tagType, ndefCandidate ? 1U : 0U,
+                 _result.mifareClassic ? 1U : 0U, _result.cardInfo);
     if (!ndefCandidate) {
         _result.ndefAttempted = false;
         _result.ndefSupported = false;
         _result.lastError = ST_ERR_NONE;
         safeCopy(_result.errorText, sizeof(_result.errorText), "");
         safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "UID only");
+        LILYGO_NFC_LOG_W("[ST25][NFC] card has no supported NDEF reader path; uid=%s type=%s",
+                     _result.uidText, _result.cardType);
         emit(LILYGO_NFC_EVENT_CARD_DETECTED);
         enterWaitRelease();
         return;
@@ -1189,6 +1318,9 @@ void LilyGoNfcService::handleWaitRelease()
         _missingPresenceCount = 0;
         return;
     }
+    LILYGO_NFC_LOG_D("[ST25][NFC] presence check failed count=%u/%u uid=%s",
+                 static_cast<unsigned>(_missingPresenceCount + 1U),
+                 static_cast<unsigned>(kReleaseMissingLimit), _result.uidText);
     if (++_missingPresenceCount < kReleaseMissingLimit) {
         return;
     }
@@ -1203,7 +1335,8 @@ void LilyGoNfcService::handleWaitRelease()
     emit(LILYGO_NFC_EVENT_CARD_RELEASED);
 
     if (!_deactivateRequested) {
-        NFCReader.rfalNfcDeactivate(true);
+        const ReturnCode err = NFCReader.rfalNfcDeactivate(true);
+        LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcDeactivate(restart)", err));
     }
     _deactivateRequested = false;
 }
@@ -1215,7 +1348,8 @@ void LilyGoNfcService::enterWaitRelease()
     _missingPresenceCount = 0;
 
     if (!_deactivateRequested) {
-        NFCReader.rfalNfcDeactivate(false);
+        const ReturnCode err = NFCReader.rfalNfcDeactivate(false);
+        LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcDeactivate(wait-release)", err));
         _deactivateRequested = true;
     }
 }
@@ -1344,6 +1478,8 @@ bool LilyGoNfcService::describeCard(rfalNfcDevice *dev, rfalNfcDevice *ndefDev)
                      "ISO14443A  ATQA %02X %02X  SAK 0x%02X  UID %uB",
                      nfca.sensRes.anticollisionInfo, nfca.sensRes.platformInfo,
                      sak, _result.uidLen);
+            LILYGO_NFC_LOG_W("[ST25][NFC] NFC-A SAK indicates MIFARE Classic; current NDEF path cannot read blocks SAK=0x%02X",
+                         sak);
             return false;
         }
 
@@ -1425,17 +1561,24 @@ bool LilyGoNfcService::describeCard(rfalNfcDevice *dev, rfalNfcDevice *ndefDev)
 void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
 {
     _result.ndefAttempted = true;
+    LILYGO_NFC_LOG_I("[ST25][NFC] NDEF context init card=%s tag=%s uid=%s",
+                 _result.cardType, _result.tagType, _result.uidText);
     ReturnCode err = _ndef.ndefPollerContextInitialization(dev);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("ndefPollerContextInitialization", err));
     if (err != ST_ERR_NONE) {
         _result.ndefSupported = false;
         if (isNdefNotAvailable(err)) {
             _result.lastError = ST_ERR_NONE;
             safeCopy(_result.errorText, sizeof(_result.errorText), "");
             safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "No NDEF");
+            LILYGO_NFC_LOG_W("[ST25][NFC] NDEF context unsupported code=%u card=%s",
+                         static_cast<unsigned>(err), _result.cardType);
             emit(LILYGO_NFC_EVENT_NDEF_UNSUPPORTED);
         } else {
             setError(err, "NDEF context failed");
             safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "Error");
+            LILYGO_NFC_LOG_E("[ST25][NFC] NDEF context failed code=%u text=%s",
+                         static_cast<unsigned>(err), _result.errorText);
             emit(LILYGO_NFC_EVENT_NDEF_ERROR);
         }
         enterWaitRelease();
@@ -1447,16 +1590,21 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
 
     ndefInfo info = {};
     err = _ndef.ndefPollerNdefDetect(&info);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("ndefPollerNdefDetect", err));
     if (err != ST_ERR_NONE) {
         _result.ndefSupported = false;
         if (isNdefNotAvailable(err)) {
             _result.lastError = ST_ERR_NONE;
             safeCopy(_result.errorText, sizeof(_result.errorText), "");
             safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "No NDEF");
+            LILYGO_NFC_LOG_W("[ST25][NFC] NDEF detect reports unsupported code=%u card=%s",
+                         static_cast<unsigned>(err), _result.cardType);
             emit(LILYGO_NFC_EVENT_NDEF_UNSUPPORTED);
         } else {
             setError(err, "NDEF detect failed");
             safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "Error");
+            LILYGO_NFC_LOG_E("[ST25][NFC] NDEF detect failed code=%u text=%s",
+                         static_cast<unsigned>(err), _result.errorText);
             emit(LILYGO_NFC_EVENT_NDEF_ERROR);
         }
         enterWaitRelease();
@@ -1472,7 +1620,17 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
     _result.ndefMessageLen = info.messageLen;
     safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), ndefStateName(info.state));
 
+    LILYGO_NFC_LOG_I("[ST25][NFC] NDEF info state=%s version=%u.%u area=%lu available=%lu message=%lu",
+                 _result.ndefStateText,
+                 static_cast<unsigned>(_result.ndefMajorVersion),
+                 static_cast<unsigned>(_result.ndefMinorVersion),
+                 static_cast<unsigned long>(_result.ndefAreaLen),
+                 static_cast<unsigned long>(_result.ndefAvailableLen),
+                 static_cast<unsigned long>(_result.ndefMessageLen));
+
     if (!_result.hasNdef || info.messageLen == 0) {
+        LILYGO_NFC_LOG_W("[ST25][NFC] NDEF container is empty or unavailable state=%s",
+                     _result.ndefStateText);
         emit(LILYGO_NFC_EVENT_NDEF_READ);
         enterWaitRelease();
         return;
@@ -1481,8 +1639,12 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
     uint32_t actualSize = 0;
     memset(_rawBuffer, 0, sizeof(_rawBuffer));
     err = _ndef.ndefPollerReadRawMessage(_rawBuffer, sizeof(_rawBuffer), &actualSize);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("ndefPollerReadRawMessage", err));
     if (err != ST_ERR_NONE) {
         setError(err, "NDEF read failed");
+        LILYGO_NFC_LOG_E("[ST25][NFC] NDEF raw read failed code=%u text=%s expected=%lu",
+                     static_cast<unsigned>(err), _result.errorText,
+                     static_cast<unsigned long>(info.messageLen));
         emit(LILYGO_NFC_EVENT_NDEF_ERROR);
         enterWaitRelease();
         return;
@@ -1490,6 +1652,9 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
 
     bytesToHex(_rawBuffer, actualSize, _result.rawHexPreview, sizeof(_result.rawHexPreview));
     _result.ndefMessageLen = actualSize;
+    LILYGO_NFC_LOG_I("[ST25][NFC] NDEF raw read length=%lu hex=%s",
+                 static_cast<unsigned long>(actualSize),
+                 _result.rawHexPreview[0] ? _result.rawHexPreview : "--");
 
     ndefMessage message = {};
     ndefConstBuffer ndefBuffer = {};
@@ -1497,8 +1662,12 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
     ndefBuffer.length = actualSize;
 
     err = _ndef.ndefMessageDecode(&ndefBuffer, &message);
+    LILYGO_NFC_LOG_ONLY(logReturnCode("ndefMessageDecode", err));
     if (err != ST_ERR_NONE) {
         setError(err, "NDEF decode failed");
+        LILYGO_NFC_LOG_E("[ST25][NFC] NDEF decode failed code=%u text=%s raw=%s",
+                     static_cast<unsigned>(err), _result.errorText,
+                     _result.rawHexPreview);
         emit(LILYGO_NFC_EVENT_NDEF_ERROR);
         enterWaitRelease();
         return;
@@ -1508,6 +1677,14 @@ void LilyGoNfcService::readNdef(rfalNfcDevice *dev)
     while (record && _result.recordCount < LILYGO_NFC_MAX_RECORDS) {
         appendRecord(record);
         record = ndefMessageGetNextRecord(record);
+    }
+
+    LILYGO_NFC_LOG_I("[ST25][NFC] NDEF decoded records=%u", static_cast<unsigned>(_result.recordCount));
+    for (uint8_t i = 0; i < _result.recordCount; ++i) {
+        const LilyGoNfcRecord &item = _result.records[i];
+        LILYGO_NFC_LOG_D("[ST25][NFC] record[%u] kind=%s title=%s value=%s detail=%s",
+                     static_cast<unsigned>(i), lilygoNfcRecordKindName(item.kind),
+                     item.title, item.value, item.detail);
     }
 
     emit(LILYGO_NFC_EVENT_NDEF_READ);
@@ -1689,6 +1866,12 @@ bool LilyGoNfcService::configureEmulationNdef(const LilyGoNfcEmulationConfig &co
 
 void LilyGoNfcService::emit(LilyGoNfcEvent event)
 {
+    LILYGO_NFC_LOG_D("[ST25][NFC] event=%s state=%s card=%s uid=%s ndef=%s error=%u records=%u",
+                 lilygoNfcEventName(event), lilygoNfcStateName(_result.state),
+                 _result.cardType[0] ? _result.cardType : "--", _result.uidText,
+                 _result.ndefStateText[0] ? _result.ndefStateText : "--",
+                 static_cast<unsigned>(_result.lastError),
+                 static_cast<unsigned>(_result.recordCount));
     if (_config.callback) {
         _config.callback(event, _result, _config.userData);
     }
@@ -1735,6 +1918,8 @@ void LilyGoNfcService::setError(ReturnCode err, const char *fallback)
     } else {
         safeCopy(_result.errorText, sizeof(_result.errorText), fallback ? fallback : "NFC error");
     }
+    LILYGO_NFC_LOG_D("[ST25][NFC] error code=%u text=%s fallback=%s",
+                 static_cast<unsigned>(err), _result.errorText, fallback ? fallback : "--");
 }
 
 void LilyGoNfcService::setEmulationError(ReturnCode err, const char *fallback)

@@ -133,8 +133,8 @@ int16_t hw_set_radio_params(radio_params_t &params)
     LILYGO_LOG_ONLY({
         const uint16_t rf_switch_state = instance.io.digitalReadPort();
         LILYGO_LOG_PRINTF("[CC1101][CFG] RF path SW1=%d SW0=%d\n",
-                          (rf_switch_state >> BOARD_XL9555_CC_SW1) & 1U,
-                          (rf_switch_state >> BOARD_XL9555_CC_SW0) & 1U);
+                          (rf_switch_state >> EXPANDS_CC_SW1) & 1U,
+                          (rf_switch_state >> EXPANDS_CC_SW0) & 1U);
     });
 #else
     LILYGO_LOG_PRINTF("[CC1101][CFG] RF path SW1=%d SW0=%d\n",
@@ -363,8 +363,8 @@ void hw_get_radio_rx(radio_rx_params_t &params)
             LILYGO_LOG_ONLY({
                 const uint16_t rf_switch_state = instance.io.digitalReadPort();
                 LILYGO_LOG_PRINTF(" SW1=%d SW0=%d",
-                                  (rf_switch_state >> BOARD_XL9555_CC_SW1) & 1U,
-                                  (rf_switch_state >> BOARD_XL9555_CC_SW0) & 1U);
+                                  (rf_switch_state >> EXPANDS_CC_SW1) & 1U,
+                                  (rf_switch_state >> EXPANDS_CC_SW0) & 1U);
             });
 #else
             LILYGO_LOG_PRINTF(" SW1=%d SW0=%d", digitalRead(BOARD_LORA_SW1),

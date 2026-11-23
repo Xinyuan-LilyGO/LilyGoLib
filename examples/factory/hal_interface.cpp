@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-08
  *
+ * Provides Factory hardware callbacks, including ST25R3916 NFC diagnostics.
  */
 #include <LilyGoLog.h>
 #include "hal_interface.h"
@@ -2096,13 +2097,26 @@ static void nfc_reader_event_callback(LilyGoNfcEvent event, const LilyGoNfcReade
     static wifi_conn_params_t params;
     (void)userData;
 
-    LILYGO_LOG_PRINTF("NFC event: %s  state:%s  card:%s  id:%s  ndef:%s  err:%u  records:%u\n",
-                  lilygoNfcEventName(event), lilygoNfcStateName(result.state),
-                  result.cardType[0] ? result.cardType : "--",
-                  result.uidText,
-                  result.ndefStateText[0] ? result.ndefStateText : "--",
-                  result.lastError,
-                  result.recordCount);
+    LILYGO_NFC_LOG_PRINTF("[ST25][NFC][factory] event:%s state:%s card:%s tech:%s "
+                      "interface:%s tag:%s id:%s info:%s ndef:%s "
+                      "attempted:%u supported:%u area:%lu available:%lu message:%lu "
+                      "err:%u records:%u raw:%s\n",
+                      lilygoNfcEventName(event), lilygoNfcStateName(result.state),
+                      result.cardType[0] ? result.cardType : "--",
+                      result.technology[0] ? result.technology : "--",
+                      result.interfaceName[0] ? result.interfaceName : "--",
+                      result.tagType[0] ? result.tagType : "--",
+                      result.uidText,
+                      result.cardInfo[0] ? result.cardInfo : "--",
+                      result.ndefStateText[0] ? result.ndefStateText : "--",
+                      result.ndefAttempted ? 1U : 0U,
+                      result.ndefSupported ? 1U : 0U,
+                      static_cast<unsigned long>(result.ndefAreaLen),
+                      static_cast<unsigned long>(result.ndefAvailableLen),
+                      static_cast<unsigned long>(result.ndefMessageLen),
+                      static_cast<unsigned>(result.lastError),
+                      static_cast<unsigned>(result.recordCount),
+                      result.rawHexPreview[0] ? result.rawHexPreview : "--");
 
     if (event == LILYGO_NFC_EVENT_CARD_DETECTED) {
         hw_feedback();
@@ -2115,7 +2129,7 @@ static void nfc_reader_event_callback(LilyGoNfcEvent event, const LilyGoNfcReade
 
             copy_cstr(params.ssid, sizeof(params.ssid), record.wifiSsid);
             copy_cstr(params.password, sizeof(params.password), record.wifiPassword);
-            LILYGO_LOG_PRINTF("NFC WiFi ssid:<%s> password:<%s>\n",
+            LILYGO_NFC_LOG_PRINTF("[ST25][NFC][factory] WiFi ssid:<%s> password:<%s>\n",
                           params.ssid, params.password);
             ui_nfc_pop_up(params);
             break;
