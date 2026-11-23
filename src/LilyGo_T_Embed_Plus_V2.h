@@ -179,6 +179,28 @@ public:
 #endif
 
     /**
+     * @brief Route the shared CE/CS lines to the ESP32-C5 UART.
+     * @return true if the XL9555 is online and the route was selected.
+     * @note This also enables both extension power rails and prepares the
+     *       shared S3 pins for UART ownership.
+     */
+    bool selectC5Path();
+
+    /**
+     * @brief Route the shared CE/CS lines to the on-board nRF24 radio.
+     * @return true if the XL9555 is online and the route was selected.
+     * @note This also enables both extension power rails, restores the shared
+     *       S3 pins as GPIOs, and sets nRF24 CS/CE to their idle levels.
+     */
+    bool selectNRF24Path();
+
+    /**
+     * @brief Reset the ESP32-C5 after selecting its shared-pin route.
+     * @return true if the XL9555 is online and the reset pulse was applied.
+     */
+    bool resetC5();
+
+    /**
      * @brief Initialize the on-board ST25R3916 NFC controller.
      * @return true if the controller was detected and configured.
      * @note The controller uses NFC_CS/NFC_INT on the display's shared SPI bus.

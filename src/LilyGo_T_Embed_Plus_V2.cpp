@@ -66,6 +66,23 @@ static constexpr uint32_t kGaugeConfigMagic = 0x47554346; // GUCF
 static constexpr uint8_t kGaugeConfigOk = 1;
 static constexpr uint8_t kGaugeConfigFailed = 2;
 
+static bool clearXL9555Polarity()
+{
+    // SensorLib's XL9555 driver intentionally leaves polarity registers at
+    // their power-on value. This board uses active-high power and mux signals,
+    // so clear both registers before configuring the outputs.
+    Wire.beginTransmission(EXPANDS_ADDR);
+    Wire.write(0x04);
+    Wire.write(0x00);
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
+    Wire.beginTransmission(EXPANDS_ADDR);
+    Wire.write(0x05);
+    Wire.write(0x00);
+    return Wire.endTransmission() == 0;
+}
+
 struct GaugeConfigRecord {
     uint32_t magic;
     uint16_t version;
@@ -250,7 +267,11 @@ void LilyGoTEmbedPlus::initSharedSpiPins()
 bool LilyGoTEmbedPlus::initIoExpander(const LilyGoDeviceInitOptions &options)
 {
     if (!io.begin(Wire, EXPANDS_ADDR)) {
-        LILYGO_LOG_E("XL9555 init failed");
+        LILYGO_LOG_E("[TEmbedPlusV2] XL9555 init failed");
+        return false;
+    }
+    if (!clearXL9555Polarity()) {
+        LILYGO_LOG_E("[TEmbedPlusV2] XL9555 polarity register setup failed");
         return false;
     }
 
@@ -273,6 +294,12 @@ bool LilyGoTEmbedPlus::initIoExpander(const LilyGoDeviceInitOptions &options)
     // LOW_PWR_3V3 supplies the radio, NFC, RGB, IR, microphone, and amplifier.
     io.digitalWrite(EXPANDS_LOW_PWR_EN, HIGH);
     io.digitalWrite(EXPANDS_AMP_EN, options.initAudio ? HIGH : LOW);
+    // P06 selects the shared GPIO47/GPIO48 pair. Keep nRF24 selected until
+    // the C5 application explicitly switches to the C5 side.
+    io.digitalWrite(EXPANDS_EX_PWR_EN1, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN2, HIGH);
+    io.digitalWrite(EXPANDS_MOD_SEL, LOW);
+    io.digitalWrite(EXPANDS_C5_RST, HIGH);
     devicesProbe |= HW_EXPAND_ONLINE;
     setRfSwitch(HIGH, LOW);
 
@@ -382,6 +409,12 @@ bool LilyGoTEmbedPlus::initLoRa()
 #ifndef RADIOLIB_EXCLUDE_NRF24
 bool LilyGoTEmbedPlus::initNRF24()
 {
+    if (!selectNRF24Path()) {
+        devicesProbe &= ~HW_NRF24_ONLINE;
+        LILYGO_LOG_E("[TEmbedPlusV2] nRF24 path select failed: XL9555 offline");
+        return false;
+    }
+    delay(10);
     const int state = nrf24.begin();
     if (state != RADIOLIB_ERR_NONE) {
         devicesProbe &= ~HW_NRF24_ONLINE;
@@ -392,6 +425,52 @@ bool LilyGoTEmbedPlus::initNRF24()
     return true;
 }
 #endif
+
+bool LilyGoTEmbedPlus::selectC5Path()
+{
+    if (!(devicesProbe & HW_EXPAND_ONLINE)) {
+        return false;
+    }
+    // Put the host pins in the UART idle state before connecting the C5 side
+    // of U6. HardwareSerial::begin() will attach the UART peripheral next.
+    pinMode(C5_UART_RX, INPUT);
+    pinMode(C5_UART_TX, OUTPUT);
+    digitalWrite(C5_UART_TX, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN1, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN2, HIGH);
+    io.digitalWrite(EXPANDS_MOD_SEL, HIGH);
+    return true;
+}
+
+bool LilyGoTEmbedPlus::selectNRF24Path()
+{
+    if (!(devicesProbe & HW_EXPAND_ONLINE)) {
+        return false;
+    }
+    // HardwareSerial::end() does not restore the GPIO matrix on every
+    // Arduino-ESP32 revision. Reattach both shared pins as GPIOs before U6 is
+    // switched to the nRF24 side; CS idles high and CE idles low.
+    pinMode(NRF24_CS, OUTPUT);
+    digitalWrite(NRF24_CS, HIGH);
+    pinMode(NRF24_CE, OUTPUT);
+    digitalWrite(NRF24_CE, LOW);
+    io.digitalWrite(EXPANDS_EX_PWR_EN1, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN2, HIGH);
+    io.digitalWrite(EXPANDS_MOD_SEL, LOW);
+    return true;
+}
+
+bool LilyGoTEmbedPlus::resetC5()
+{
+    if (!(devicesProbe & HW_EXPAND_ONLINE)) {
+        return false;
+    }
+    io.digitalWrite(EXPANDS_C5_RST, LOW);
+    delay(30);
+    io.digitalWrite(EXPANDS_C5_RST, HIGH);
+    delay(250);
+    return true;
+}
 
 int16_t LilyGoTEmbedPlus::setRFFrequencyBand(float frequency)
 {

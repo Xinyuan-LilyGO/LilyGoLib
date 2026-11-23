@@ -71,7 +71,9 @@ static constexpr size_t xiaomi_raw_packet_length = 12;
 static constexpr size_t xiaomi_decoded_packet_length = 9;
 static constexpr uint32_t xiaomi_channel_dwell_ms = 80;
 
-#if defined(BOARD_NRF24_CS)
+#if defined(NRF24_CS)
+static constexpr int xiaomi_nrf24_cs_pin = NRF24_CS;
+#elif defined(BOARD_NRF24_CS)
 static constexpr int xiaomi_nrf24_cs_pin = BOARD_NRF24_CS;
 #else
 static constexpr int xiaomi_nrf24_cs_pin = 44;
@@ -224,10 +226,19 @@ void hw_nrf24_begin()
 
 bool hw_has_nrf24()
 {
-    if (hw_get_device_online() & HW_NRF24_ONLINE) {
-        return true;
+    if (!(hw_get_device_online() & HW_NRF24_ONLINE)) {
+        return false;
     }
-    return false;
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+    // V2 shares the nRF24 CE/CS pins with the C5 UART. Keep this transition in
+    // the board adapter so every Factory nRF24 entry uses the correct GPIO
+    // matrix and XL9555 route without duplicating pin setup in each page.
+    if (!instance.selectNRF24Path()) {
+        LILYGO_LOG_E("[NRF24] failed to select V2 nRF24 path");
+        return false;
+    }
+#endif
+    return true;
 }
 
 int16_t hw_start_xiaomi_lightbar_remote_capture()

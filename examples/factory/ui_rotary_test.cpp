@@ -25,6 +25,11 @@ static lv_obj_t *scale_labels[ROTARY_SCALE_LABEL_COUNT];
 
 #if defined(ARDUINO_T_EMBED_PLUS) || defined(ARDUINO_T_EMBED_PLUS_V2)
 static constexpr uint32_t USER_BUTTON_DEBOUNCE_MS = 20;
+#if defined(ARDUINO_T_EMBED_PLUS_V2)
+static constexpr uint8_t USER_BUTTON_PIN = USER_KEY;
+#else
+static constexpr uint8_t USER_BUTTON_PIN = BOARD_USER_KEY;
+#endif
 static uint32_t user_button_clicks;
 static uint32_t user_button_changed_at;
 static bool user_button_raw_pressed;
@@ -32,8 +37,8 @@ static bool user_button_pressed;
 
 static void reset_user_button_diagnostics()
 {
-    pinMode(BOARD_USER_KEY, INPUT_PULLUP);
-    user_button_raw_pressed = digitalRead(BOARD_USER_KEY) == LOW;
+    pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
+    user_button_raw_pressed = digitalRead(USER_BUTTON_PIN) == LOW;
     user_button_pressed = user_button_raw_pressed;
     user_button_clicks = 0;
     user_button_changed_at = millis();
@@ -41,7 +46,7 @@ static void reset_user_button_diagnostics()
 
 static void update_user_button_diagnostics()
 {
-    const bool pressed = digitalRead(BOARD_USER_KEY) == LOW;
+    const bool pressed = digitalRead(USER_BUTTON_PIN) == LOW;
     const uint32_t now = millis();
     if (pressed != user_button_raw_pressed) {
         user_button_raw_pressed = pressed;

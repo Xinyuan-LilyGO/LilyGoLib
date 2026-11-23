@@ -14,6 +14,11 @@
 #if defined(WS2812_NUM_LEDS)
 #include <Adafruit_NeoPixel.h>
 #define TEMBED_LED_COUNT WS2812_NUM_LEDS
+#if defined(RGB_DATA)
+#define TEMBED_WS2812_DATA_PIN RGB_DATA
+#else
+#define TEMBED_WS2812_DATA_PIN WS2812_DATA_PIN
+#endif
 #else
 #define TEMBED_LED_COUNT APA102_NUM_LEDS
 #endif
@@ -53,7 +58,7 @@ const char *effectNames[EFFECT_COUNT] = {
 };
 
 #if defined(WS2812_NUM_LEDS)
-Adafruit_NeoPixel strip(TEMBED_LED_COUNT, WS2812_DATA_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(TEMBED_LED_COUNT, TEMBED_WS2812_DATA_PIN, NEO_GRB + NEO_KHZ800);
 #endif
 lv_obj_t *pageContainer = nullptr;
 lv_obj_t *statusLabel = nullptr;

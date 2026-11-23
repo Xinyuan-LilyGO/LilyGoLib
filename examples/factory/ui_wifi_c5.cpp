@@ -18,6 +18,8 @@ static lv_obj_t *c5_status = nullptr;
 static lv_obj_t *c5_keyboard = nullptr;
 static ui_soft_keyboard_lift_t c5_keyboard_lift = {nullptr, nullptr, -1};
 static bool c5_serial_started = false;
+static constexpr uint8_t kC5RxPin = C5_UART_RX;
+static constexpr uint8_t kC5TxPin = C5_UART_TX;
 
 static void c5_set_status(const char *text, lv_color_t color)
 {
@@ -31,27 +33,42 @@ static void c5_set_response(const char *text)
     if (c5_response) lv_label_set_text(c5_response, text && text[0] ? text : "No response");
 }
 
+static void c5_wait_ready_banner(void)
+{
+    delay(1200);
+    while (c5_at_serial.available()) c5_at_serial.read();
+}
+
 static void c5_start_serial(void)
 {
     if (c5_serial_started) return;
-    c5_at_serial.begin(115200, SERIAL_8N1, RX, TX);
+    if (!instance.selectC5Path() || !instance.resetC5()) {
+        c5_set_status("C5 path unavailable", lv_color_hex(0xFF4444));
+        LILYGO_LOG_E("[WiFiC5] failed to select C5 path");
+        return;
+    }
+    c5_at_serial.begin(115200, SERIAL_8N1, kC5RxPin, kC5TxPin);
+    // ESP-AT emits its ready banner after reset. Give UART1 time to finish
+    // booting before a user command is sent, then discard that banner.
+    c5_wait_ready_banner();
     c5_serial_started = true;
     c5_set_status("UART1 AT link ready", UI_COLOR_ACCENT);
     LILYGO_LOG_I("[WiFiC5] AT UART started at 115200 RX=%d TX=%d",
-                  RX, TX);
+                  kC5RxPin, kC5TxPin);
 }
 
 static void c5_send_command(const char *command)
 {
     if (!command || !command[0]) return;
     c5_start_serial();
+    if (!c5_serial_started) return;
     while (c5_at_serial.available()) c5_at_serial.read();
     c5_at_serial.print(command);
     c5_at_serial.print("\r\n");
 
     char response[768] = {0};
     size_t length = 0;
-    const uint32_t deadline = millis() + 900;
+    const uint32_t deadline = millis() + 2500;
     while (millis() < deadline && length + 1 < sizeof(response)) {
         while (c5_at_serial.available() && length + 1 < sizeof(response)) {
             response[length++] = static_cast<char>(c5_at_serial.read());
@@ -101,14 +118,17 @@ static void c5_command_input_event(lv_event_t *event)
 static void c5_reset_event(lv_event_t *event)
 {
     (void)event;
-    if (!instance.isDeviceOnline(HW_EXPAND_ONLINE)) {
+    if (c5_serial_started) {
+        c5_at_serial.end();
+        c5_serial_started = false;
+    }
+    if (!instance.selectC5Path() || !instance.resetC5()) {
         c5_set_status("XL9555 is offline", lv_color_hex(0xFF4444));
         return;
     }
-    instance.io.digitalWrite(EXPANDS_C5_RST, LOW);
-    delay(30);
-    instance.io.digitalWrite(EXPANDS_C5_RST, HIGH);
-    delay(120);
+    c5_at_serial.begin(115200, SERIAL_8N1, kC5RxPin, kC5TxPin);
+    c5_wait_ready_banner();
+    c5_serial_started = true;
     c5_set_status("C5 reset; AT link restarting", UI_COLOR_ACCENT);
     LILYGO_LOG_I("[WiFiC5] C5 reset asserted");
 }
@@ -124,6 +144,11 @@ static void c5_back_event(lv_event_t *event)
             c5_keyboard = nullptr;
         }
 #endif
+        if (c5_serial_started) {
+            c5_at_serial.end();
+            c5_serial_started = false;
+        }
+        instance.selectNRF24Path();
         disable_keyboard();
         ui_destroy_app_page(c5_page);
         c5_page = nullptr;
