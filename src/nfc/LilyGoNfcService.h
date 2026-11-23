@@ -21,6 +21,7 @@
 
 #include <Arduino.h>
 #include "nfc_include.h"
+#include "nfc/LilyGoMifareClassic.h"
 
 /** Maximum NFC UID length stored by the service. */
 #define LILYGO_NFC_MAX_UID_LEN        16
@@ -148,6 +149,12 @@ struct LilyGoNfcReaderResult {
     char cardType[32];                                         /**< Human-readable card type. */
     char cardInfo[96];                                         /**< Additional card details. */
     bool mifareClassic;                                        /**< true when the card is MIFARE Classic. */
+    bool mifareReadAttempted;                                   /**< true when authenticated MIFARE reading was attempted. */
+    bool mifareReadComplete;                                    /**< true when every detected block was read. */
+    uint8_t mifareSectorCount;                                  /**< Number of sectors selected from SAK. */
+    uint8_t mifareAuthenticatedSectors;                         /**< Number of sectors authenticated with built-in keys. */
+    uint16_t mifareTotalBlocks;                                 /**< Expected number of MIFARE blocks. */
+    uint16_t mifareBlocksRead;                                  /**< Number of MIFARE blocks read successfully. */
 
     bool hasNdef;                                              /**< true when an NDEF context was found. */
     bool ndefAttempted;                                        /**< true when NDEF detection/read was attempted. */
@@ -340,6 +347,12 @@ public:
      */
     const LilyGoNfcEmulationStatus &emulationStatus() const;
 
+    /**
+     * @brief Get the latest authenticated MIFARE Classic dump.
+     * @return Reference to the internal MIFARE Classic dump.
+     */
+    const LilyGoMifareClassicDump &mifareClassicDump() const;
+
 private:
     /**
      * @brief Static RFAL notification trampoline.
@@ -417,6 +430,12 @@ private:
     bool describeCard(rfalNfcDevice *dev, rfalNfcDevice *ndefDev);
 
     /**
+     * @brief Try the built-in MIFARE Classic key dictionary and read blocks.
+     * @return true when at least one block was read.
+     */
+    bool readMifareClassic();
+
+    /**
      * @brief Read and parse NDEF records from a detected card.
      * @param dev Activated device.
      */
@@ -490,6 +509,8 @@ private:
     LilyGoNfcReaderResult _result;
     /** Current emulation status snapshot. */
     LilyGoNfcEmulationStatus _emulationStatus;
+    /** Latest authenticated MIFARE Classic memory dump. */
+    LilyGoMifareClassicDump _mifareClassicDump;
     /** RFAL discovery parameters used for emulation. */
     rfalNfcDiscoverParam _emulationDiscover;
     /** Scratch buffer for raw NFC and NDEF data. */

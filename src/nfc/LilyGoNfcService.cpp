@@ -592,6 +592,7 @@ LilyGoNfcService::LilyGoNfcService() :
     _emulationRxData(nullptr),
     _emulationRxLen(nullptr),
     _emulationNdefFileLen(0),
+    _mifareClassicDump{},
     _running(false),
     _activeHandled(false),
     _hasNdefContext(false),
@@ -927,6 +928,11 @@ const LilyGoNfcReaderResult &LilyGoNfcService::lastResult() const
 const LilyGoNfcEmulationStatus &LilyGoNfcService::emulationStatus() const
 {
     return _emulationStatus;
+}
+
+const LilyGoMifareClassicDump &LilyGoNfcService::mifareClassicDump() const
+{
+    return _mifareClassicDump;
 }
 
 void LilyGoNfcService::notifyStatic(rfalNfcState st)
@@ -1289,6 +1295,16 @@ void LilyGoNfcService::handleActivated()
     LILYGO_NFC_LOG_I("[ST25][NFC] card described type=%s tag=%s ndef_candidate=%u mifare_classic=%u info=%s",
                  _result.cardType, _result.tagType, ndefCandidate ? 1U : 0U,
                  _result.mifareClassic ? 1U : 0U, _result.cardInfo);
+    if (_result.mifareClassic) {
+#if LILYGO_NFC_DEBUG_ENABLED
+        readMifareClassic();
+#else
+        safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "UID only");
+#endif
+        emit(LILYGO_NFC_EVENT_CARD_DETECTED);
+        enterWaitRelease();
+        return;
+    }
     if (!ndefCandidate) {
         _result.ndefAttempted = false;
         _result.ndefSupported = false;
@@ -1304,6 +1320,44 @@ void LilyGoNfcService::handleActivated()
 
     emit(LILYGO_NFC_EVENT_CARD_DETECTED);
     readNdef(&ndefDevice);
+}
+
+bool LilyGoNfcService::readMifareClassic()
+{
+#if !LILYGO_NFC_DEBUG_ENABLED
+    return false;
+#else
+    _result.mifareReadAttempted = true;
+    _result.mifareReadComplete = false;
+    _result.mifareSectorCount = 0U;
+    _result.mifareAuthenticatedSectors = 0U;
+    _result.mifareTotalBlocks = 0U;
+    _result.mifareBlocksRead = 0U;
+    safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "MFC reading");
+
+    if (!_activeNfcaValid || _activeUidLen < 4U) {
+        LILYGO_NFC_LOG_E("[ST25][MFC] active NFC-A data unavailable");
+        safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "MFC error");
+        return false;
+    }
+
+    const bool readOk = lilygoReadMifareClassic(
+        NFCReader, _activeUid, _activeUidLen, _activeNfca.selRes.sak, _mifareClassicDump);
+    _result.mifareSectorCount = _mifareClassicDump.sectors;
+    _result.mifareAuthenticatedSectors = _mifareClassicDump.authenticatedSectors;
+    _result.mifareTotalBlocks = _mifareClassicDump.totalBlocks;
+    _result.mifareBlocksRead = _mifareClassicDump.blocksRead;
+    _result.mifareReadComplete = _mifareClassicDump.complete;
+    safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText),
+             _mifareClassicDump.complete ? "MFC complete" :
+             (readOk ? "MFC partial" : "MFC auth fail"));
+    LILYGO_NFC_LOG_I("[ST25][MFC] result blocks=%u/%u authenticated_sectors=%u complete=%u",
+                     static_cast<unsigned>(_result.mifareBlocksRead),
+                     static_cast<unsigned>(_result.mifareTotalBlocks),
+                     static_cast<unsigned>(_result.mifareAuthenticatedSectors),
+                     _result.mifareReadComplete ? 1U : 0U);
+    return readOk;
+#endif
 }
 
 void LilyGoNfcService::handleWaitRelease()
@@ -1478,7 +1532,7 @@ bool LilyGoNfcService::describeCard(rfalNfcDevice *dev, rfalNfcDevice *ndefDev)
                      "ISO14443A  ATQA %02X %02X  SAK 0x%02X  UID %uB",
                      nfca.sensRes.anticollisionInfo, nfca.sensRes.platformInfo,
                      sak, _result.uidLen);
-            LILYGO_NFC_LOG_W("[ST25][NFC] NFC-A SAK indicates MIFARE Classic; current NDEF path cannot read blocks SAK=0x%02X",
+            LILYGO_NFC_LOG_I("[ST25][NFC] NFC-A SAK indicates MIFARE Classic; using authenticated block reader SAK=0x%02X",
                          sak);
             return false;
         }
@@ -1887,6 +1941,7 @@ void LilyGoNfcService::emitEmulation(LilyGoNfcEvent event)
 void LilyGoNfcService::resetResult()
 {
     memset(&_result, 0, sizeof(_result));
+    memset(&_mifareClassicDump, 0, sizeof(_mifareClassicDump));
     _result.state = LILYGO_NFC_STATE_IDLE;
     _result.lastError = ST_ERR_NONE;
     safeCopy(_result.uidText, sizeof(_result.uidText), "--");
