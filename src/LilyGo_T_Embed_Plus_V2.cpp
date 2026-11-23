@@ -363,6 +363,14 @@ uint32_t LilyGoTEmbedPlus::begin(const LilyGoDeviceInitOptions &options)
     if (options.initAudio) {
         const bool audioInputReady = audioInput.begin();
         const bool audioOutputReady = audioOutput.begin();
+        audioOutput.setMuteCallback([](bool enabled) {
+            instance.powerControl(POWER_SPEAK, enabled);
+        });
+        if (audioOutputReady) {
+            // Keep direct AudioOutputIf::write() users audible as well as
+            // streams that open the output and invoke the callback below.
+            powerControl(POWER_SPEAK, true);
+        }
         if (audioInputReady || audioOutputReady) {
             devicesProbe |= HW_CODEC_ONLINE;
         }
@@ -557,7 +565,7 @@ void LilyGoTEmbedPlus::powerControl(PowerCtrlChannel_t channel, bool enable)
         break;
     case POWER_SPEAK:
         if (devicesProbe & HW_EXPAND_ONLINE) {
-            // io.digitalWrite(EXPANDS_AMP_EN, enable ? HIGH : LOW);
+            io.digitalWrite(EXPANDS_AMP_EN, enable ? HIGH : LOW);
         }
         break;
     default: break;
