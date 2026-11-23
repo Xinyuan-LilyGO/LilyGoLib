@@ -61,9 +61,11 @@ static bool is_focus_control(lv_obj_t *obj)
 static bool focus_needs_contrast(lv_obj_t *obj)
 {
     if (!obj) return false;
-    if (lv_obj_check_type(obj, &lv_slider_class) ||
-            lv_obj_check_type(obj, &lv_switch_class)) {
+    if (lv_obj_check_type(obj, &lv_slider_class)) {
         return true;
+    }
+    if (lv_obj_check_type(obj, &lv_switch_class)) {
+        return lv_obj_has_state(obj, LV_STATE_CHECKED);
     }
     if (lv_obj_check_type(obj, &lv_button_class)) {
         const lv_color_t bg = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
@@ -127,7 +129,7 @@ static void clear_focus_outline(lv_obj_t *obj)
         focus_radius = 8;
     }
     const lv_color_t focus_border = focus_needs_contrast(obj) ?
-                                    UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_ACCENT;
+                                    UI_COLOR_FILLED_FOCUS : UI_COLOR_ACCENT;
 
     /* The default LVGL theme owns outline_primary at FOCUS_KEY.  A local
        width=0 style cannot reliably override that theme entry after a page
@@ -154,6 +156,20 @@ static void clear_focus_outline(lv_obj_t *obj)
     if (focus_needs_contrast(obj)) {
         lv_obj_set_style_border_color(obj, focus_border, LV_STATE_PRESSED);
         lv_obj_set_style_border_color(obj, focus_border, LV_STATE_CHECKED);
+    }
+    if (lv_obj_check_type(obj, &lv_switch_class)) {
+        const lv_style_selector_t checked_focus = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUSED);
+        const lv_style_selector_t checked_focus_key = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUS_KEY);
+        const lv_style_selector_t checked_focus_both = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
+        for (lv_style_selector_t selector : {checked_focus, checked_focus_key, checked_focus_both}) {
+            lv_obj_add_style(obj, &ui_styles.accent_focus_ring, selector);
+            lv_obj_set_style_border_color(obj, UI_COLOR_FILLED_FOCUS, selector);
+            lv_obj_set_style_border_width(obj, 2, selector);
+            lv_obj_set_style_border_opa(obj, LV_OPA_COVER, selector);
+        }
     }
     if (active_state & LV_STATE_FOCUSED) {
         lv_obj_set_style_radius(obj, focus_radius, focus);
@@ -304,6 +320,9 @@ static void update_style_colors(void)
     lv_style_set_shadow_color(&ui_styles.focus_glow, UI_COLOR_ACCENT);
     lv_style_set_bg_color(&ui_styles.slider_track, UI_COLOR_TRACK);
     lv_style_set_bg_color(&ui_styles.slider_knob, UI_COLOR_KNOB);
+    lv_style_set_bg_color(&ui_styles.slider_focus_knob, UI_COLOR_FILLED_FOCUS);
+    lv_style_set_border_color(&ui_styles.slider_focus_knob, UI_COLOR_ACCENT);
+    lv_style_set_outline_color(&ui_styles.slider_focus_knob, UI_COLOR_ACCENT);
     lv_style_set_bg_color(&ui_styles.divider, UI_COLOR_DIVIDER);
     lv_style_set_text_color(&ui_styles.accent_text, UI_COLOR_ACCENT);
     lv_style_set_shadow_color(&ui_styles.accent_text, UI_COLOR_ACCENT);
@@ -425,6 +444,20 @@ void ui_styles_refresh(void)
     lv_style_set_bg_opa(&ui_styles.slider_knob, LV_OPA_COVER);
     lv_style_set_radius(&ui_styles.slider_knob, LV_RADIUS_CIRCLE);
     lv_style_set_pad_all(&ui_styles.slider_knob, 4);
+
+    /* Focus marker stays visible even when the indicator fills the whole track. */
+    lv_style_init(&ui_styles.slider_focus_knob);
+    lv_style_set_bg_color(&ui_styles.slider_focus_knob, UI_COLOR_FILLED_FOCUS);
+    lv_style_set_bg_opa(&ui_styles.slider_focus_knob, LV_OPA_COVER);
+    lv_style_set_border_color(&ui_styles.slider_focus_knob, UI_COLOR_ACCENT);
+    lv_style_set_border_width(&ui_styles.slider_focus_knob, 2);
+    lv_style_set_border_opa(&ui_styles.slider_focus_knob, LV_OPA_COVER);
+    lv_style_set_outline_color(&ui_styles.slider_focus_knob, UI_COLOR_ACCENT);
+    lv_style_set_outline_width(&ui_styles.slider_focus_knob, 2);
+    lv_style_set_outline_opa(&ui_styles.slider_focus_knob, LV_OPA_COVER);
+    lv_style_set_outline_pad(&ui_styles.slider_focus_knob, 1);
+    lv_style_set_radius(&ui_styles.slider_focus_knob, LV_RADIUS_CIRCLE);
+    lv_style_set_pad_all(&ui_styles.slider_focus_knob, 6);
 
     /* Per-object-type styles */
     lv_style_init(&s_btn);
@@ -558,6 +591,19 @@ static void new_theme_apply_cb(lv_theme_t *th, lv_obj_t *obj)
         lv_obj_add_style(obj, &ui_styles.slider_knob, LV_PART_KNOB);
         lv_obj_add_style(obj, &ui_styles.focus_glow, LV_STATE_FOCUSED);
         lv_obj_add_style(obj, &ui_styles.focus_glow, LV_STATE_FOCUS_KEY);
+        const lv_style_selector_t knob_focus = static_cast<lv_style_selector_t>(
+            static_cast<lv_style_selector_t>(LV_PART_KNOB) |
+            static_cast<lv_style_selector_t>(LV_STATE_FOCUSED));
+        const lv_style_selector_t knob_focus_key = static_cast<lv_style_selector_t>(
+            static_cast<lv_style_selector_t>(LV_PART_KNOB) |
+            static_cast<lv_style_selector_t>(LV_STATE_FOCUS_KEY));
+        const lv_style_selector_t knob_focus_both = static_cast<lv_style_selector_t>(
+            static_cast<lv_style_selector_t>(LV_PART_KNOB) |
+            static_cast<lv_style_selector_t>(LV_STATE_FOCUSED) |
+            static_cast<lv_style_selector_t>(LV_STATE_FOCUS_KEY));
+        lv_obj_add_style(obj, &ui_styles.slider_focus_knob, knob_focus);
+        lv_obj_add_style(obj, &ui_styles.slider_focus_knob, knob_focus_key);
+        lv_obj_add_style(obj, &ui_styles.slider_focus_knob, knob_focus_both);
     }
 
     /* Switch */
@@ -569,6 +615,18 @@ static void new_theme_apply_cb(lv_theme_t *th, lv_obj_t *obj)
         lv_obj_add_style(obj, &s_switch_knob, LV_PART_KNOB);
         lv_obj_add_style(obj, &ui_styles.focus_glow, LV_STATE_FOCUSED);
         lv_obj_add_style(obj, &ui_styles.focus_glow, LV_STATE_FOCUS_KEY);
+        const lv_style_selector_t checked_focus = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUSED);
+        const lv_style_selector_t checked_focus_key = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUS_KEY);
+        const lv_style_selector_t checked_focus_both = static_cast<lv_style_selector_t>(
+            LV_STATE_CHECKED | LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
+        for (lv_style_selector_t selector : {checked_focus, checked_focus_key, checked_focus_both}) {
+            lv_obj_add_style(obj, &ui_styles.accent_focus_ring, selector);
+            lv_obj_set_style_border_color(obj, UI_COLOR_FILLED_FOCUS, selector);
+            lv_obj_set_style_border_width(obj, 2, selector);
+            lv_obj_set_style_border_opa(obj, LV_OPA_COVER, selector);
+        }
     }
 
     /* Dropdown button */

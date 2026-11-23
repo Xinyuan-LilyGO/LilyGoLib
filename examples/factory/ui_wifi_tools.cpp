@@ -219,6 +219,23 @@ static lv_obj_t *card_dropdown(lv_obj_t *card, const char *icon, const char *tit
     return dd;
 }
 
+static lv_obj_t *stacked_card_widget(lv_obj_t *card, const char *icon,
+                                     const char *title, lv_obj_t *widget)
+{
+    lv_obj_t *row = ui_create_card_item(card, icon, title, widget);
+    if (!row || !widget) return row;
+
+    /* Keep the caption on the first flex line and give the input its own full
+       width line, matching the Settings page on narrow layouts. */
+    lv_obj_add_flag(widget, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+    lv_obj_set_width(widget, LV_PCT(100));
+    lv_obj_set_flex_grow(widget, 0);
+    lv_obj_set_style_margin_left(widget, 0, 0);
+    lv_obj_set_style_margin_right(widget, 0, 0);
+    lv_obj_set_style_pad_row(row, 4, 0);
+    return row;
+}
+
 static void back_event_handler(lv_event_t *e)
 {
     hide_input_keyboard(target_ta);
@@ -290,10 +307,17 @@ void ui_wifi_tools_enter(lv_obj_t *parent)
     lv_obj_add_event_cb(target_ta, target_ta_cb, LV_EVENT_CANCEL, NULL);
     lv_obj_add_event_cb(target_ta, target_ta_cb, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(target_ta, target_ta_cb, LV_EVENT_DELETE, NULL);
-    ui_create_card_item(card, LV_SYMBOL_EDIT, "Host", target_ta);
+    stacked_card_widget(card, LV_SYMBOL_EDIT, "Host", target_ta);
 
     port_dd = card_dropdown(card, LV_SYMBOL_SETTINGS, "Port", "80\n443\n1883\n8080", 0);
     ui_disable_focus_shadow(port_dd);
+    lv_obj_t *port_row = lv_obj_get_parent(port_dd);
+    if (port_row) {
+        lv_obj_add_flag(port_dd, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+        lv_obj_set_width(port_dd, LV_PCT(100));
+        lv_obj_set_flex_grow(port_dd, 0);
+        lv_obj_set_style_pad_row(port_row, 4, 0);
+    }
     ui_create_card_button(card, LV_SYMBOL_WIFI, "DNS", "Lookup", dns_cb);
     ui_create_card_button(card, LV_SYMBOL_UPLOAD, "TCP", "Connect", tcp_cb);
 

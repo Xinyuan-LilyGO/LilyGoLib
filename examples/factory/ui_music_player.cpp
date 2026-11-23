@@ -13,7 +13,7 @@
 
 #if !defined(EXCLUDE_AUDIO_PLAYER)
 
-#ifdef USING_AUDIO_CODEC
+#if defined(USING_AUDIO_CODEC) || defined(USING_PCM_AMPLIFIER)
 #define HAS_VOLUME_SLIDER
 #endif
 
@@ -36,6 +36,7 @@ static lv_obj_t *track_meta_label = NULL;
 static lv_obj_t *player_state_label = NULL;
 static lv_obj_t *play_btn_label = NULL;
 static lv_obj_t *track_counter_label = NULL;
+static lv_obj_t *volume_value_label = NULL;
 static lv_obj_t *library_card = NULL;
 
 static int current_index = -1;
@@ -285,7 +286,11 @@ static void volume_slider_event(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
     lv_obj_t *obj = lv_event_get_target_obj(e);
-    hw_set_volume((uint8_t)lv_slider_get_value(obj));
+    uint8_t volume = (uint8_t)lv_slider_get_value(obj);
+    hw_set_volume(volume);
+    if (volume_value_label) {
+        lv_label_set_text_fmt(volume_value_label, "%u%%", volume);
+    }
 }
 
 static void player_status_timer_cb(lv_timer_t *t)
@@ -338,6 +343,14 @@ static lv_obj_t *create_control_button(lv_obj_t *parent, const char *symbol,
     lv_obj_set_style_transform_width(btn, 0, LV_STATE_PRESSED);
     lv_obj_set_style_transform_height(btn, 0, LV_STATE_PRESSED);
     ui_add_accent_focus_style(btn);
+    /* Keep the primary play control circular for every focus-state combination. */
+    const lv_style_selector_t focused = static_cast<lv_style_selector_t>(LV_STATE_FOCUSED);
+    const lv_style_selector_t focus_key = static_cast<lv_style_selector_t>(LV_STATE_FOCUS_KEY);
+    const lv_style_selector_t focused_both = static_cast<lv_style_selector_t>(
+        LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, focused);
+    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, focus_key);
+    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, focused_both);
     lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
 
@@ -496,6 +509,13 @@ static void create_controls(lv_obj_t *parent)
     lv_obj_set_style_size(slider, 18, 18, LV_PART_KNOB);
     lv_obj_set_style_radius(slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
 
+    volume_value_label = lv_label_create(volume_row);
+    lv_obj_set_width(volume_value_label, 32);
+    lv_obj_set_style_text_align(volume_value_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_style_text_color(volume_value_label, UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(volume_value_label, &lv_font_montserrat_12, 0);
+    lv_label_set_text_fmt(volume_value_label, "%u%%", (unsigned)hw_get_volume());
+
     lv_group_t *group = lv_group_get_default();
     if (group) {
         lv_group_add_obj(group, slider);
@@ -617,6 +637,7 @@ static void back_event_handler(lv_event_t *e)
     track_meta_label = NULL;
     player_state_label = NULL;
     play_btn_label = NULL;
+    volume_value_label = NULL;
     track_counter_label = NULL;
     library_card = NULL;
     current_index = -1;

@@ -140,6 +140,7 @@ extern uint32_t ui_previous_text_primary;
 #define UI_COLOR_ACCENT_DIM   lv_color_hex(ui_active_accent_dim)
 #define UI_COLOR_ACCENT_FOCUS_BORDER UI_COLOR_ACCENT
 #define UI_COLOR_ACCENT_FOCUS_OUTLINE UI_COLOR_ACCENT
+#define UI_COLOR_FILLED_FOCUS UI_COLOR_ACCENT_DIM
 #define UI_COLOR_WARNING      lv_color_hex(0xFF6B35)
 #define UI_COLOR_TEXT_PRIMARY  (ui_active_light_theme ? lv_color_hex(0x222222) : lv_color_white())
 #define UI_COLOR_TEXT_SECONDARY lv_color_hex(0x888888)
@@ -165,6 +166,7 @@ typedef struct {
     lv_style_t divider;
     lv_style_t slider_track;
     lv_style_t slider_knob;
+    lv_style_t slider_focus_knob;
     lv_style_t switch_on;
     lv_style_t switch_off;
 } ui_styles_t;

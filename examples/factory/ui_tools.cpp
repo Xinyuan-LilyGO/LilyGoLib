@@ -41,8 +41,14 @@ typedef struct {
 
 static lv_key_t ui_app_page_keyboard_remap_cb(lv_indev_t *indev, lv_key_t key)
 {
-    (void)indev;
-    if (hw_get_keyboard_navigation_enabled() && key == LV_KEY_BACKSPACE) {
+    bool editing_textarea = false;
+    if (indev && key == LV_KEY_BACKSPACE) {
+        lv_group_t *group = lv_indev_get_group(indev);
+        lv_obj_t *focused = group ? lv_group_get_focused(group) : NULL;
+        editing_textarea = focused && lv_obj_check_type(focused, &lv_textarea_class) &&
+                           lv_obj_has_state(focused, LV_STATE_EDITED);
+    }
+    if (hw_get_keyboard_navigation_enabled() && key == LV_KEY_BACKSPACE && !editing_textarea) {
         return LV_KEY_ESC;
     }
     return key;
@@ -1365,6 +1371,18 @@ void ui_add_accent_focus_style(lv_obj_t *obj)
     lv_obj_set_style_outline_width(obj, 0, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_outline_width(
         obj, 0, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
+
+    lv_color_t focus_color = UI_COLOR_ACCENT;
+    if (lv_obj_check_type(obj, &lv_button_class)) {
+        const lv_color_t bg = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
+        if (lv_color_eq(bg, UI_COLOR_ACCENT) || lv_color_eq(bg, UI_COLOR_ACCENT_DIM)) {
+            focus_color = UI_COLOR_FILLED_FOCUS;
+        }
+    }
+    lv_obj_set_style_border_color(obj, focus_color, LV_STATE_FOCUSED);
+    lv_obj_set_style_border_color(obj, focus_color, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_border_color(
+        obj, focus_color, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
 }
 
 void ui_disable_focus_shadow(lv_obj_t *obj)
@@ -1479,13 +1497,11 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
         if (use_small_font()) {
             lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
         }
-        /* Long card titles such as "Power management" must remain readable on
-         * narrow displays without overlapping the control column. */
+        /* Long titles scroll only when they exceed a responsive control-column
+         * allocation. This keeps wide Pager labels readable without hardcoding
+         * a pixel width for every display size. */
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        /* Fixed title width keeps controls aligned without forcing overflow on small screens. */
-        lv_obj_set_width(lbl, value_layout
-                              ? lv_display_get_horizontal_resolution(NULL) / 3
-                              : (use_small_font() ? (small_full_width_widget ? 58 : 70) : 100));
+        lv_obj_set_width(lbl, lv_pct(value_layout ? 34 : 32));
     }
 
     /* Reserve flexible space before the value label so slider values stay at
@@ -1534,15 +1550,33 @@ lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *titl
             ui_prepare_textarea_for_encoder(widget);
         }
         if (widget_owns_focus) {
-            lv_obj_add_flag(widget, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-            lv_group_t *row_group = (lv_group_t *)lv_obj_get_group(row);
-            if (row_group) {
+            /* The card row is only a layout container. Keep the control as the
+             * sole group member so Pager's encoder and keypad focus the slider,
+             * dropdown, switch, or textarea itself. */
+            if (lv_obj_get_group(row)) {
                 lv_group_remove_obj(row);
             }
+            lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);
+            const lv_style_selector_t row_focus = static_cast<lv_style_selector_t>(LV_STATE_FOCUSED);
+            const lv_style_selector_t row_focus_key = static_cast<lv_style_selector_t>(LV_STATE_FOCUS_KEY);
+            const lv_style_selector_t row_focus_both = static_cast<lv_style_selector_t>(
+                LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
+            for (lv_style_selector_t selector : {row_focus, row_focus_key, row_focus_both}) {
+                lv_obj_set_style_border_width(row, 0, selector);
+                lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, selector);
+                lv_obj_set_style_outline_width(row, 0, selector);
+                lv_obj_set_style_outline_opa(row, LV_OPA_TRANSP, selector);
+            }
+            lv_obj_add_flag(widget, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
             lv_group_t *widget_group = lv_group_get_default();
+            lv_group_t *current_widget_group = (lv_group_t *)lv_obj_get_group(widget);
+            if (current_widget_group && current_widget_group != widget_group) {
+                lv_group_remove_obj(widget);
+            }
             if (widget_group && lv_obj_get_group(widget) != widget_group) {
                 lv_group_add_obj(widget_group, widget);
             }
+            ui_add_accent_focus_style(widget);
         }
         if (old_parent && old_parent != card && old_parent != row) {
             lv_obj_delete(old_parent);
