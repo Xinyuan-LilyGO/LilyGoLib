@@ -67,10 +67,6 @@ static bool focus_needs_contrast(lv_obj_t *obj)
     if (lv_obj_check_type(obj, &lv_switch_class)) {
         return lv_obj_has_state(obj, LV_STATE_CHECKED);
     }
-    if (lv_obj_check_type(obj, &lv_button_class)) {
-        const lv_color_t bg = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
-        return lv_color_eq(bg, UI_COLOR_ACCENT) || lv_color_eq(bg, UI_COLOR_ACCENT_DIM);
-    }
     return false;
 }
 
@@ -190,6 +186,7 @@ static void clear_focus_outline(lv_obj_t *obj)
         lv_obj_set_style_radius(obj, 8, focus_key);
         lv_obj_set_style_radius(obj, 8, focus_both);
     }
+    if (lv_obj_check_type(obj, &lv_button_class)) ui_add_accent_focus_style(obj);
 }
 
 static void refresh_theme_object_colors(lv_obj_t *obj)
@@ -246,11 +243,8 @@ static void refresh_theme_object_colors(lv_obj_t *obj)
     }
 
     if (lv_obj_check_type(obj, &lv_list_button_class)) {
-        /* LVGL's default list button keeps a bottom separator. Keep the
-           separator visible, but derive its color from the active theme. */
+        /* Shared rounded list rows keep their border tied to the current theme. */
         lv_obj_set_style_border_color(obj, UI_COLOR_DIVIDER, LV_PART_MAIN);
-        lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_FOCUS_KEY);
-        lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_FOCUSED);
         lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_PRESSED);
     }
 
@@ -266,6 +260,10 @@ static void refresh_theme_object_colors(lv_obj_t *obj)
         } else if (lv_color_eq(current_bg, previous_card_focus)) {
             lv_obj_set_style_bg_color(obj, UI_COLOR_CARD_FOCUS, LV_PART_MAIN);
         }
+    }
+    if (lv_obj_check_type(obj, &lv_spinner_class)) {
+        lv_obj_set_style_arc_color(obj, UI_COLOR_TRACK, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(obj, UI_COLOR_ACCENT, LV_PART_INDICATOR);
     }
     /* Accent borders and focus glows belong to the focused control. Do not
        recolor a parent container's default part when themes are switched. */
@@ -316,6 +314,13 @@ static void update_style_colors(void)
     lv_style_set_text_color(&ui_styles.accent_btn, UI_COLOR_TEXT_ON_ACCENT);
     lv_style_set_border_color(&ui_styles.accent_focus_ring, UI_COLOR_ACCENT_FOCUS_BORDER);
     lv_style_set_outline_color(&ui_styles.accent_focus_ring, UI_COLOR_ACCENT_FOCUS_OUTLINE);
+    lv_style_set_bg_color(&ui_styles.button_focus, UI_COLOR_CARD_BG);
+    lv_style_set_text_color(&ui_styles.button_focus, UI_COLOR_ACCENT);
+    lv_style_set_border_color(&ui_styles.button_focus, UI_COLOR_ACCENT);
+    lv_style_set_bg_color(&ui_styles.button_focus_pressed, UI_COLOR_ACCENT_DIM);
+    lv_style_set_text_color(&ui_styles.button_focus_pressed, UI_COLOR_TEXT_ON_ACCENT);
+    lv_style_set_border_color(&ui_styles.button_focus_pressed, UI_COLOR_ACCENT);
+    lv_style_set_text_color(&ui_styles.button_focus_text, UI_COLOR_ACCENT);
     lv_style_set_border_color(&ui_styles.focus_glow, UI_COLOR_ACCENT);
     lv_style_set_shadow_color(&ui_styles.focus_glow, UI_COLOR_ACCENT);
     lv_style_set_bg_color(&ui_styles.slider_track, UI_COLOR_TRACK);
@@ -395,6 +400,24 @@ void ui_styles_refresh(void)
     lv_style_set_outline_width(&ui_styles.accent_focus_ring, 0);
     lv_style_set_outline_opa(&ui_styles.accent_focus_ring, LV_OPA_TRANSP);
     lv_style_set_outline_pad(&ui_styles.accent_focus_ring, 0);
+
+    /* Focus changes a filled button into an outlined surface. Its accent border
+       stays distinct from the fill across both light and dark themes. */
+    lv_style_init(&ui_styles.button_focus);
+    lv_style_set_bg_color(&ui_styles.button_focus, UI_COLOR_CARD_BG);
+    lv_style_set_bg_opa(&ui_styles.button_focus, LV_OPA_COVER);
+    lv_style_set_text_color(&ui_styles.button_focus, UI_COLOR_ACCENT);
+    lv_style_set_border_color(&ui_styles.button_focus, UI_COLOR_ACCENT);
+    lv_style_set_border_width(&ui_styles.button_focus, 3);
+    lv_style_set_border_opa(&ui_styles.button_focus, LV_OPA_COVER);
+    lv_style_set_shadow_width(&ui_styles.button_focus, 0);
+    lv_style_init(&ui_styles.button_focus_pressed);
+    lv_style_set_bg_color(&ui_styles.button_focus_pressed, UI_COLOR_ACCENT_DIM);
+    lv_style_set_text_color(&ui_styles.button_focus_pressed, UI_COLOR_TEXT_ON_ACCENT);
+    lv_style_set_border_color(&ui_styles.button_focus_pressed, UI_COLOR_ACCENT);
+    lv_style_set_border_width(&ui_styles.button_focus_pressed, 3);
+    lv_style_init(&ui_styles.button_focus_text);
+    lv_style_set_text_color(&ui_styles.button_focus_text, UI_COLOR_ACCENT);
 
     /* Remove the default LVGL outline from focus states. The theme border is
        the single visible focus ring and follows the active accent. */
@@ -569,6 +592,7 @@ void ui_theme_apply(void)
     /* Update page indicator dots (uses direct inline colors) */
     update_page_indicator();
 
+    ui_msgbox_refresh();
     lv_refr_now(NULL);
 }
 
@@ -666,9 +690,10 @@ static void new_theme_apply_cb(lv_theme_t *th, lv_obj_t *obj)
     if (lv_obj_check_type(obj, &lv_list_button_class)) {
         lv_obj_set_style_border_color(obj, UI_COLOR_DIVIDER, LV_PART_MAIN);
         lv_obj_set_style_border_width(obj, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-        lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_FOCUS_KEY);
-        lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_FOCUSED);
+        lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_FULL, LV_PART_MAIN);
+        lv_obj_set_style_radius(obj, 8, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(obj, 8, LV_PART_MAIN);
+        ui_add_accent_focus_style(obj);
         lv_obj_add_style(obj, &ui_styles.accent_btn, LV_STATE_PRESSED);
     }
 
@@ -708,6 +733,12 @@ static void new_theme_apply_cb(lv_theme_t *th, lv_obj_t *obj)
         lv_obj_add_style(obj, &s_focus_outline_clear,
                          static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
         clear_focus_outline(obj);
+    }
+
+    if (lv_obj_check_type(obj, &lv_label_class)) {
+        auto *parent = lv_obj_get_parent(obj);
+        if (parent && lv_obj_check_type(parent, &lv_button_class) && is_focus_control(parent))
+            ui_sync_button_focus_labels(parent);
     }
 
 }

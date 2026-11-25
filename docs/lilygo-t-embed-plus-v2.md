@@ -143,20 +143,32 @@ download/log port.
 
 GPIO47 and GPIO48 are shared with the on-board nRF24 CE and CS signals through
 the SN74LVC1G3157DTBR analog switches. XL9555 P06 selects the route: HIGH
-connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 and P10
-must be HIGH to power the extension module. Factory selects C5, pulses P05
-low then high to reset it, and restores P06 LOW when leaving the C5 page before
-nRF24 initialization.
+connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 (`EX_PWR_EN1`) enables C5 power; P10 (`EX_PWR_EN2`)
+enables nRF24L01 power. Both signals are active HIGH and control separate supplies. Applications must select the C5
+route before opening UART1, pulse P05 low then high to reset the module, and
+restore P06 LOW before using the nRF24 interface.
 
 The C5 firmware must be flashed separately. Uploading `t_embed_plus_v2` only
-programs the ESP32-S3. For a blank C5 flash, use the factory image from the
+programs the ESP32-S3. For a blank C5 flash, use the AT image from the
 downloaded archive at address `0x000000`; the archive's
 `build/flasher_args.json` lists the individual-image offsets when a split flash
 is required.
+
+The example applications can expose separate **C5 WiFi Scan** and **C5 BLE
+Scan** pages. Their result lists use the same focused-row layout as regular WiFi
+and BLE pages; C5 WiFi rows also label whether an access point is 2.4 GHz or
+5 GHz. These pages select the C5 side of the shared GPIO47/48 switch before
+opening UART1. Leaving either page closes UART1, turns off C5 power (P07 LOW),
+and restores the nRF24 side and its supply (P10 HIGH). Scanning starts automatically
+with asynchronous boot and AT command handling so the UI remains responsive.
+Each completed scan is followed by a five-second interval before the next scan;
+results stay visible and C5 remains powered until the page is closed.
 
 References:
 
 * [Espressif ESP-AT GitHub releases](https://github.com/espressif/esp-at/releases)
 * [ESP32-C5 AT firmware list](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/AT_Binary_Lists/esp_at_binaries.html)
+* [ESP32-C5 ESP-AT Wi-Fi scan commands](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/AT_Command_Set/Wi-Fi_AT_Commands.html#at-cwlap-list-available-aps)
+* [ESP32-C5 ESP-AT BLE scan commands](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/AT_Command_Set/BLE_AT_Commands.html#at-blescan-enable-bluetooth-le-scanning)
 * [ESP32-C5 AT port pins](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/Compile_and_Develop/How_to_set_AT_port_pin.html)
-* [Factory ESP32-C5 AT firmware](../firmware/esp-at/esp32c5-4MB-at-github-actions.zip)
+* [ESP32-C5 AT firmware archive](../firmware/esp-at/esp32c5-4MB-at-github-actions.zip)

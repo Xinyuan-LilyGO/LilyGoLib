@@ -5,38 +5,29 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
+ * Application notifications and Wi-Fi connection progress feedback.
  */
 #include <LilyGoLog.h>
 #include "ui_define.h"
 
 static lv_obj_t *msgbox = NULL;
 
-static void msgbox_event(lv_event_t *e)
+static void msgbox_deleted(lv_event_t *e)
 {
-    lv_obj_t *obj = (lv_obj_t *)lv_event_get_current_target(e);
-    LILYGO_LOG_PRINTF("msgbox event destroy\n");
-    destroy_msgbox(msgbox);
-    msgbox = NULL;
+    if (msgbox == lv_event_get_target_obj(e)) msgbox = nullptr;
     set_low_power_mode_flag(true);
+    LILYGO_LOG_D("[Message] closed");
 }
 
 void ui_msg_pop_up(const char *title_txt, const char *msg_txt)
 {
-
+    if (msgbox) return;
+    msgbox = create_msgbox(lv_screen_active(), title_txt, msg_txt, nullptr, nullptr, nullptr);
+    if (!msgbox) return;
     set_low_power_mode_flag(false);
-
-    static const char *btns[] = {"Close", ""};
-    if (msgbox) {
-        LILYGO_LOG_PRINTF("msg box has create!\n");
-        return;
-    }
-    LILYGO_LOG_PRINTF("create_msgbox..\n");
-    msgbox = create_msgbox(lv_scr_act(), title_txt,
-                           msg_txt, btns,
-                           msgbox_event, NULL);
+    lv_obj_add_event_cb(msgbox, msgbox_deleted, LV_EVENT_DELETE, nullptr);
+    LILYGO_LOG_D("[Message] opened");
 }
-
-
 
 static lv_timer_t *processBarTimer = NULL;
 static uint32_t prevTick = 0;

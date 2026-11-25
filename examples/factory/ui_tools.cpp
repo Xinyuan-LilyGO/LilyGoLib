@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
+ * Shared responsive page, theme and input helpers.
  */
 #include "ui_define.h"
 
@@ -13,8 +14,6 @@
 LV_FONT_DECLARE(font_alibaba_12);
 LV_FONT_DECLARE(font_alibaba_24);
 
-static lv_group_t *msg_group = NULL;
-static lv_group_t *prev_group;
 static bool ui_soft_keyboard_focus_in_progress = false;
 
 #define UI_NAV_AUTO_HIDE_HOT_ZONE_PX    28
@@ -189,6 +188,10 @@ static void ui_app_page_nav_auto_hide_timer_cb(lv_timer_t *timer)
         lv_timer_pause(timer);
         return;
     }
+    auto *group = lv_group_get_default();
+    for (auto *focused = group ? lv_group_get_focused(group) : nullptr; focused; focused = lv_obj_get_parent(focused)) {
+        if (focused == state->nav) { lv_timer_reset(timer); return; }
+    }
     ui_app_page_nav_set_hidden(state, true);
 }
 
@@ -222,7 +225,7 @@ static void ui_app_page_nav_activity_cb(lv_event_t *e)
                     should_show = vect.y < -UI_NAV_AUTO_HIDE_SWIPE_MIN_PX;
                 }
             }
-        } else if (code == LV_EVENT_KEY) {
+        } else if (code == LV_EVENT_KEY || code == LV_EVENT_FOCUSED) {
             should_show = true;
         }
     }
@@ -245,6 +248,9 @@ static void ui_app_page_nav_release(ui_nav_auto_hide_t *state)
     }
     if (state->content && lv_obj_is_valid(state->content)) {
         lv_obj_remove_event_cb_with_user_data(state->content, NULL, state);
+    }
+    if (state->nav && lv_obj_is_valid(state->nav)) {
+        lv_obj_remove_event_cb_with_user_data(state->nav, NULL, state);
     }
     if (state->root && lv_obj_is_valid(state->root)) {
         lv_obj_set_user_data(state->root, NULL);
@@ -744,115 +750,6 @@ lv_obj_t *ui_create_option(lv_obj_t *parent, const char *title, const char *symb
     return cont;
 }
 
-void destroy_msgbox(lv_obj_t *msgbox)
-{
-    lv_msgbox_close(msgbox);
-    set_default_group(prev_group);
-}
-
-static void ui_msgbox_keyboard_back_async_cb(void *user_data)
-{
-    lv_obj_t *button = (lv_obj_t *)user_data;
-    if (button && lv_obj_is_valid(button)) {
-        lv_obj_send_event(button, LV_EVENT_CLICKED, NULL);
-    }
-}
-
-static void ui_msgbox_keyboard_back_cb(lv_event_t *e)
-{
-    if (!hw_get_keyboard_navigation_enabled()) return;
-
-    uint32_t key = lv_event_get_key(e);
-    if (key != LV_KEY_BACKSPACE && key != LV_KEY_ESC) return;
-
-    lv_obj_t *cancel_button = (lv_obj_t *)lv_event_get_user_data(e);
-    if (!cancel_button || !lv_obj_is_valid(cancel_button)) return;
-
-    lv_event_stop_bubbling(e);
-    lv_event_stop_processing(e);
-    lv_indev_t *indev = lv_indev_active();
-    if (indev) {
-        lv_indev_wait_release(indev);
-    }
-    lv_async_call(ui_msgbox_keyboard_back_async_cb, cancel_button);
-}
-
-lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt,
-                        const char *msg_txt, const char **btns,
-                        lv_event_cb_t btns_event_cb, void *user_data)
-{
-
-    prev_group = lv_group_get_default();
-
-    if (!msg_group) {
-        msg_group = lv_group_create();
-    }
-    set_default_group(msg_group);
-
-    lv_obj_t *msgbox;
-
-    msgbox = lv_msgbox_create(NULL);
-    lv_obj_t *title_obj = lv_msgbox_add_title(msgbox, title_txt);
-    lv_obj_t *text_obj = lv_msgbox_add_text(msgbox, msg_txt);
-    /* Give multi-line notices enough room on small displays. */
-    lv_obj_set_size(msgbox, lv_pct(94), lv_pct(78));
-
-    if (text_obj) {
-        /* LVGL 9 does not enable wrapping in lv_msgbox_add_text(). */
-        lv_label_set_long_mode(text_obj, LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(text_obj, LV_PCT(100));
-    }
-
-    lv_obj_t *content_obj = lv_msgbox_get_content(msgbox);
-    if (content_obj) {
-        /* Keep unusually long notices readable instead of clipping them. */
-        lv_obj_add_flag(content_obj, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_scroll_dir(content_obj, LV_DIR_VER);
-    }
-
-    uint32_t btn_cnt = 0;
-    lv_obj_t *btn = NULL;
-    while (btns[btn_cnt] && btns[btn_cnt][0] != '\0') {
-        btn = lv_msgbox_add_footer_button(msgbox, btns[btn_cnt]);
-        lv_obj_add_event_cb(btn, btns_event_cb, LV_EVENT_CLICKED, user_data);
-        lv_group_add_obj(msg_group, btn);
-        btn_cnt++;
-    }
-    if (btn) {
-        lv_obj_t *footer = lv_msgbox_get_footer(msgbox);
-        uint32_t footer_child_count = footer ? lv_obj_get_child_count(footer) : 0;
-        for (uint32_t i = 0; i < footer_child_count; ++i) {
-            lv_obj_t *footer_button = lv_obj_get_child(footer, i);
-            lv_obj_add_event_cb(footer_button, ui_msgbox_keyboard_back_cb,
-                                (lv_event_code_t)(LV_EVENT_KEY | LV_EVENT_PREPROCESS), btn);
-        }
-        lv_group_focus_obj(btn);
-        lv_obj_add_state(btn, LV_STATE_FOCUS_KEY);
-    }
-
-    /* Msgbox container */
-    lv_obj_set_style_bg_color(msgbox, UI_COLOR_CARD_BG, 0);
-    lv_obj_set_style_bg_opa(msgbox, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(msgbox, 20, 0);
-    lv_obj_set_style_border_width(msgbox, 1, 0);
-    lv_obj_set_style_border_color(msgbox, UI_COLOR_DIVIDER, 0);
-
-    /* Title — accent color */
-    if (title_obj) {
-        lv_obj_set_style_text_color(title_obj, UI_COLOR_ACCENT, 0);
-        lv_obj_set_style_text_font(title_obj, &lv_font_montserrat_18, 0);
-    }
-
-    /* Message text — white */
-    if (text_obj) {
-        lv_obj_set_style_text_color(text_obj, UI_COLOR_TEXT_PRIMARY, 0);
-        lv_obj_set_style_text_font(text_obj, &lv_font_montserrat_14, 0);
-    }
-
-    return msgbox;
-
-}
-
 lv_obj_t *create_text(lv_obj_t *parent, const char *icon, const char *txt,
                       lv_menu_builder_variant_t builder_variant)
 {
@@ -1125,6 +1022,7 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
     lv_obj_set_style_border_width(nav, 0, 0);
     lv_obj_set_style_radius(nav, 0, 0);
     lv_obj_set_style_pad_hor(nav, 8, 0);
+    lv_obj_set_style_pad_ver(nav, 0, 0);
     lv_obj_remove_flag(nav, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(nav, LV_ALIGN_TOP_MID, 0, 0);
 
@@ -1163,7 +1061,7 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
     if (back_cb) {
         lv_obj_add_event_cb(back_btn, back_cb, LV_EVENT_CLICKED, NULL);
     }
-    lv_obj_add_flag(back_btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_flag(back_btn, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_EVENT_BUBBLE));
 
     /* Title */
     lv_obj_t *title_label = lv_label_create(nav);
@@ -1219,6 +1117,41 @@ lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t 
 #endif
 
     return content;
+}
+
+lv_obj_t *ui_app_page_add_header_button(lv_obj_t *content, const char *symbol,
+                                       lv_event_cb_t callback, void *user_data)
+{
+    if (!content) return nullptr;
+    auto *root = static_cast<lv_obj_t *>(lv_obj_get_user_data(content));
+    if (!root || lv_obj_get_parent(content) != root || lv_obj_get_child_count(root) < 3) return nullptr;
+    auto *nav = lv_obj_get_child(root, 0);
+    auto *title = lv_obj_get_child(nav, 1);
+    if (!title || !lv_obj_check_type(title, &lv_label_class)) return nullptr;
+
+    lv_obj_set_flex_flow(nav, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(nav, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_ver(nav, 0, 0); lv_obj_set_style_pad_column(nav, 8, 0);
+    lv_obj_set_width(title, 1); lv_obj_set_flex_grow(title, 1);
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_height(title, LV_SIZE_CONTENT);
+
+    auto *button = lv_button_create(nav);
+    lv_obj_set_size(button, 28, 28);
+    lv_obj_set_style_min_width(button, 28, 0); lv_obj_set_style_max_width(button, 28, 0);
+    lv_obj_set_style_min_height(button, 28, 0); lv_obj_set_style_max_height(button, 28, 0);
+    lv_obj_set_style_pad_all(button, 0, 0); lv_obj_set_style_radius(button, 14, 0);
+    lv_obj_set_style_bg_color(button, UI_COLOR_CARD_BG, 0);
+    lv_obj_set_style_border_width(button, 1, 0); lv_obj_set_style_border_color(button, UI_COLOR_DIVIDER, 0);
+    lv_obj_set_style_shadow_width(button, 0, 0);
+    ui_add_accent_focus_style(button);
+    lv_obj_add_flag(button, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_EVENT_BUBBLE));
+    auto *icon = lv_label_create(button); lv_label_set_text(icon, symbol ? symbol : "");
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(icon, UI_COLOR_ACCENT, 0); lv_obj_center(icon);
+    if (callback) lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
+    return button;
 }
 
 void ui_destroy_app_page(lv_obj_t *content)
@@ -1283,6 +1216,9 @@ void ui_app_page_enable_nav_auto_hide(lv_obj_t *content, uint32_t timeout_ms)
     lv_obj_add_event_cb(content, ui_app_page_nav_activity_cb, LV_EVENT_SCROLL, state);
     lv_obj_add_event_cb(content, ui_app_page_nav_activity_cb, LV_EVENT_GESTURE, state);
     lv_obj_add_event_cb(content, ui_app_page_nav_activity_cb, LV_EVENT_KEY, state);
+    lv_obj_add_event_cb(state->nav, ui_app_page_nav_activity_cb, LV_EVENT_FOCUSED, state);
+    lv_obj_add_event_cb(state->nav, ui_app_page_nav_activity_cb, LV_EVENT_PRESSED, state);
+    lv_obj_add_event_cb(state->nav, ui_app_page_nav_activity_cb, LV_EVENT_KEY, state);
     lv_obj_tree_walk(content, ui_app_page_nav_bubble_walk_cb, state);
     lv_timer_reset(state->timer);
 }
@@ -1361,6 +1297,29 @@ void ui_apply_theme_preset(uint8_t preset_idx)
     ui_active_light_theme = p->light;
 }
 
+void ui_sync_button_focus_labels(lv_obj_t *obj)
+{
+    // USER_4 is reserved here for inherited focus text on direct button labels;
+    // removing it restores any application-provided normal/selected color.
+    const bool focused = lv_obj_has_state(obj, LV_STATE_FOCUSED) || lv_obj_has_state(obj, LV_STATE_FOCUS_KEY);
+    const bool outline = focused && !lv_obj_has_state(obj, LV_STATE_PRESSED);
+    for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i) {
+        auto *child = lv_obj_get_child(obj, i);
+        if (!lv_obj_check_type(child, &lv_label_class)) continue;
+        lv_obj_add_style(child, &ui_styles.button_focus_text, LV_STATE_USER_4);
+        if (outline) lv_obj_add_state(child, LV_STATE_USER_4);
+        else lv_obj_remove_state(child, LV_STATE_USER_4);
+    }
+}
+
+static void button_focus_text_event(lv_event_t *e)
+{
+    const auto code = lv_event_get_code(e);
+    if (code == LV_EVENT_FOCUSED || code == LV_EVENT_DEFOCUSED || code == LV_EVENT_PRESSED ||
+        code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST || code == LV_EVENT_CHILD_CREATED)
+        ui_sync_button_focus_labels(lv_event_get_current_target_obj(e));
+}
+
 void ui_add_accent_focus_style(lv_obj_t *obj)
 {
     if (!obj) return;
@@ -1372,17 +1331,34 @@ void ui_add_accent_focus_style(lv_obj_t *obj)
     lv_obj_set_style_outline_width(
         obj, 0, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
 
-    lv_color_t focus_color = UI_COLOR_ACCENT;
-    if (lv_obj_check_type(obj, &lv_button_class)) {
-        const lv_color_t bg = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
-        if (lv_color_eq(bg, UI_COLOR_ACCENT) || lv_color_eq(bg, UI_COLOR_ACCENT_DIM)) {
-            focus_color = UI_COLOR_FILLED_FOCUS;
-        }
+    // Keep custom rows rounded in every encoder/key and pressed combination.
+    int32_t radius = lv_obj_get_style_radius(obj, LV_PART_MAIN);
+    if (radius == 0 && (lv_obj_check_type(obj, &lv_button_class) ||
+                       lv_obj_check_type(obj, &lv_obj_class))) radius = 8;
+    for (unsigned state : {unsigned(LV_STATE_FOCUSED), unsigned(LV_STATE_FOCUS_KEY),
+            unsigned(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY)}) {
+        for (unsigned extra : {0U, unsigned(LV_STATE_PRESSED), unsigned(LV_STATE_CHECKED),
+                unsigned(LV_STATE_CHECKED | LV_STATE_PRESSED)})
+            lv_obj_set_style_radius(obj, radius, static_cast<lv_style_selector_t>(state | extra));
     }
-    lv_obj_set_style_border_color(obj, focus_color, LV_STATE_FOCUSED);
-    lv_obj_set_style_border_color(obj, focus_color, LV_STATE_FOCUS_KEY);
+
+    if (lv_obj_check_type(obj, &lv_button_class)) {
+        for (unsigned state : {unsigned(LV_STATE_FOCUSED), unsigned(LV_STATE_FOCUS_KEY),
+                unsigned(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY)}) {
+            for (unsigned extra : {0U, unsigned(LV_STATE_CHECKED)}) {
+                const auto selector = static_cast<lv_style_selector_t>(state | extra);
+                lv_obj_add_style(obj, &ui_styles.button_focus, selector);
+                lv_obj_add_style(obj, &ui_styles.button_focus_pressed, selector | LV_STATE_PRESSED);
+            }
+        }
+        lv_obj_remove_event_cb(obj, button_focus_text_event);
+        lv_obj_add_event_cb(obj, button_focus_text_event, LV_EVENT_ALL, nullptr);
+        ui_sync_button_focus_labels(obj);
+    }
+    lv_obj_set_style_border_color(obj, UI_COLOR_ACCENT, LV_STATE_FOCUSED);
+    lv_obj_set_style_border_color(obj, UI_COLOR_ACCENT, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_border_color(
-        obj, focus_color, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
+        obj, UI_COLOR_ACCENT, static_cast<lv_style_selector_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY));
 }
 
 void ui_disable_focus_shadow(lv_obj_t *obj)
@@ -1403,6 +1379,7 @@ static uint8_t g_font_size_pref = 0;
 void ui_set_font_size_pref(uint8_t pref)
 {
     g_font_size_pref = pref;
+    ui_msgbox_refresh();
 }
 
 uint8_t ui_get_font_size_pref(void)

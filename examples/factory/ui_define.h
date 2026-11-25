@@ -8,6 +8,7 @@
  * Shared declarations, feature gates, and UI helpers used by the Factory
  * application pages.
  */
+#pragma once
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <LilyGoLib.h>
@@ -142,6 +143,9 @@ extern uint32_t ui_previous_text_primary;
 #define UI_COLOR_ACCENT_FOCUS_OUTLINE UI_COLOR_ACCENT
 #define UI_COLOR_FILLED_FOCUS UI_COLOR_ACCENT_DIM
 #define UI_COLOR_WARNING      lv_color_hex(0xFF6B35)
+#define UI_COLOR_SIGNAL_GOOD   (ui_active_light_theme ? lv_color_hex(0x18794E) : lv_color_hex(0x55CC88))
+#define UI_COLOR_SIGNAL_FAIR   (ui_active_light_theme ? lv_color_hex(0x986000) : lv_color_hex(0xE8B44A))
+#define UI_COLOR_SIGNAL_WEAK   (ui_active_light_theme ? lv_color_hex(0xC13B3B) : lv_color_hex(0xF47777))
 #define UI_COLOR_TEXT_PRIMARY  (ui_active_light_theme ? lv_color_hex(0x222222) : lv_color_white())
 #define UI_COLOR_TEXT_SECONDARY lv_color_hex(0x888888)
 #define UI_COLOR_CONTROL_TEXT (ui_active_light_theme ? lv_color_hex(0x222222) : lv_color_white())
@@ -159,6 +163,9 @@ typedef struct {
     lv_style_t app_btn;
     lv_style_t accent_btn;
     lv_style_t accent_focus_ring;
+    lv_style_t button_focus;
+    lv_style_t button_focus_pressed;
+    lv_style_t button_focus_text;
     lv_style_t focus_glow;
     lv_style_t text_secondary;
     lv_style_t accent_text;   /* Text + shadow color that follows theme accent */
@@ -210,10 +217,23 @@ lv_obj_t *create_switch(lv_obj_t *parent, const char *icon, const char *txt, boo
 lv_obj_t *create_button(lv_obj_t *parent, const char *icon, const char *txt, lv_event_cb_t cb);
 lv_obj_t *create_label(lv_obj_t *parent, const char *icon, const char *txt, const char *default_text);
 lv_obj_t *create_dropdown(lv_obj_t *parent, const char *icon, const char *txt, const char *options, uint8_t default_sel, lv_event_cb_t cb);
+/**
+ * @brief Create a themed modal with a focusable, scrollable content region.
+ * @param parent Owner whose deletion also closes the modal.
+ * @param title_txt Single-line title; long titles scroll.
+ * @param msg_txt Wrapped body text using the active theme font and size choice.
+ * @param btns Optional footer actions terminated by an empty string or nullptr.
+ * @param btns_event_cb Action callback; header close/Escape uses the final action
+ *        as cancellation. With no actions it closes the modal or calls this callback.
+ * @param user_data Data supplied to the action callback.
+ * @return Message box; its content accepts encoder click-to-scroll navigation.
+ */
 lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt,
                         const char *msg_txt, const char **btns,
                         lv_event_cb_t btns_event_cb, void *user_data);
+/** @brief Close a helper modal; nullptr and already closed helper boxes are ignored. */
 void destroy_msgbox(lv_obj_t *msgbox);
+void ui_msgbox_refresh();
 
 lv_indev_t *lv_get_encoder_indev();
 bool lv_consume_encoder_activity();
@@ -235,6 +255,7 @@ void ui_theme_apply(void);
 void ui_refresh_app_grid_theme(void);
 void ui_refresh_status_bar_theme(void);
 void ui_add_accent_focus_style(lv_obj_t *obj);
+void ui_sync_button_focus_labels(lv_obj_t *obj);
 void ui_disable_focus_shadow(lv_obj_t *obj);
 
 void disable_input_devices();
@@ -251,6 +272,17 @@ lv_obj_t *create_radius_button(lv_obj_t *parent, const void *image, lv_event_cb_
 
 /* ── New card-style UI components ── */
 lv_obj_t *ui_create_app_page(lv_obj_t *parent, const char *title, lv_event_cb_t back_cb);
+/**
+ * @brief Append a themed icon action to the right of an app page's navigation bar.
+ * @param content Content returned by ui_create_app_page().
+ * @param symbol Icon text, such as LV_SYMBOL_SETTINGS.
+ * @param callback Click callback; receives user_data.
+ * @param user_data Optional callback context.
+ * @return Focusable action button owned and deleted by the page, or nullptr.
+ * The title shrinks and scrolls to leave space for all header actions.
+ */
+lv_obj_t *ui_app_page_add_header_button(lv_obj_t *content, const char *symbol,
+                                       lv_event_cb_t callback, void *user_data = nullptr);
 void ui_enable_edge_swipe_back(lv_obj_t *root, lv_obj_t *back_target,
                                lv_event_code_t back_event = LV_EVENT_CLICKED);
 void ui_destroy_app_page(lv_obj_t *content);

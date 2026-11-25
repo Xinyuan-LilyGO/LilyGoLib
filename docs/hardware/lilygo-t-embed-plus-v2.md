@@ -159,10 +159,10 @@ GPIO11 (TX) and GPIO12 (RX) are reserved for download/log output.
 
 GPIO47 and GPIO48 are shared with the on-board nRF24 CE and CS signals through
 the SN74LVC1G3157DTBR analog switches. XL9555 P06 selects the route: HIGH
-connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 and P10
-must be HIGH to power the extension module. Factory selects C5, pulses P05
-low then high to reset it, and restores P06 LOW when leaving the C5 page before
-nRF24 initialization.
+connects the pair to C5 UART1 and LOW connects it to nRF24. XL9555 P07 (`EX_PWR_EN1`) enables C5 power; P10 (`EX_PWR_EN2`)
+enables nRF24L01 power. Both signals are active HIGH and control separate supplies. Applications must select the C5
+route before opening UART1, pulse P05 low then high to reset the module, and
+restore P06 LOW before using the nRF24 interface.
 
 | S3 signal / U6 pin 4 | U6 pin 1, P06=HIGH (C5) | U6 pin 3, P06=LOW (nRF24) |
 | -------------------- | ------------------------ | -------------------------- |
@@ -188,8 +188,8 @@ nRF24 initialization.
 | XL9555 GPIO4 (P04) | Speaker amplifier shutdown           |
 | XL9555 GPIO5 (P05) | ESP32-C5 reset                       |
 | XL9555 GPIO6 (P06) | Module select                        |
-| XL9555 GPIO7 (P07) | External power enable 1              |
-| XL9555 GPIO8 (P10) | External power enable 2              |
+| XL9555 GPIO7 (P07) | ESP32-C5 power enable (active HIGH)              |
+| XL9555 GPIO8 (P10) | nRF24L01 power enable (active HIGH)              |
 
 ### Power Notes
 

@@ -5,156 +5,87 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
- * I2C bus scanner — scans addresses 0x01-0x7F and lists found devices.
+ * Scans nonreserved I2C addresses with progress and possible device names.
  */
 #include "ui_define.h"
-
+#include "ui_scan_widgets.h"
 #ifdef ARDUINO
 #include <Wire.h>
 #endif
-
-#define I2C_SCAN_ADDR_MIN  0x01
-#define I2C_SCAN_ADDR_MAX  0x7F
-
-static lv_obj_t *page_container = NULL;
-static lv_obj_t *result_label = NULL;
-static lv_obj_t *count_label = NULL;
-static lv_obj_t *scan_btn = NULL;
-static lv_timer_t *scan_timer = NULL;
-static bool scanning = false;
-
-/* Scan state — kept outside the timer to avoid static-local issues */
-static uint8_t scan_addr = I2C_SCAN_ADDR_MIN;
-static uint8_t scan_found = 0;
-static char scan_buf[512];
-
-static void back_event_handler(lv_event_t *e)
-{
-    if (scan_timer) {
-        lv_timer_del(scan_timer);
-        scan_timer = NULL;
+namespace {
+static lv_obj_t *page, *list;
+static UIScanLoading loading;
+static lv_timer_t *timer;
+static uint8_t address, found;
+static const char *possible_device(uint8_t a) {
+    switch (a) {
+    case 0x18: case 0x19: return "Accelerometer / audio codec";
+    case 0x22: return "XL9555 / PCF8574 GPIO expander";
+    case 0x20: case 0x21: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: return "GPIO expander / light sensor";
+    case 0x34: case 0x35: return "AXP power controller";
+    case 0x38: return "Touch controller / AHT20";
+    case 0x3C: case 0x3D: return "OLED display";
+    case 0x40: return "INA219 / HTU21D";
+    case 0x44: case 0x45: return "SHT3x temperature/humidity";
+    case 0x48: case 0x49: return "ADS1115 / temperature sensor";
+    case 0x50: case 0x51: return "EEPROM / RTC";
+    case 0x55: return "BQ27220 fuel gauge";
+    case 0x57: return "MAX3010x / EEPROM";
+    case 0x68: return "RTC / IMU";
+    case 0x6A: return "IMU / charger";
+    case 0x6B: return "SY6970 / BQ25896 / IMU";
+    case 0x76: case 0x77: return "BMP/BME pressure sensor";
+    default: return "Unknown device";
     }
-    scanning = false;
-    if (page_container) {
-        ui_destroy_app_page(page_container);
-        page_container = NULL;
-    }
-    menu_show();
 }
-
-#ifdef ARDUINO
-static void scan_tick(lv_timer_t *t)
-{
-    if (scan_addr > I2C_SCAN_ADDR_MAX) {
-        /* Scan complete */
-        lv_timer_del(scan_timer);
-        scan_timer = NULL;
-        scanning = false;
-
-        if (scan_found == 0) {
-            lv_label_set_text(result_label, "No devices found");
-        } else {
-            lv_label_set_text(result_label, scan_buf);
-        }
-        lv_obj_clear_state(scan_btn, LV_STATE_DISABLED);
-        lv_label_set_text(lv_obj_get_child(scan_btn, 0), "Scan");
-        return;
-    }
-
-    Wire.beginTransmission(scan_addr);
-    uint8_t err = Wire.endTransmission();
-
-    if (err == 0) {
-        scan_found++;
-        /* Append address safely */
-        size_t len = strlen(scan_buf);
-        if (len + 10 < sizeof(scan_buf)) {
-            snprintf(scan_buf + len, sizeof(scan_buf) - len, "0x%02X  ", scan_addr);
-        }
-        /* Newline every 4 devices */
-        if (scan_found % 4 == 0) {
-            len = strlen(scan_buf);
-            if (len + 2 < sizeof(scan_buf)) {
-                scan_buf[len] = '\n';
-                scan_buf[len + 1] = '\0';
-            }
-        }
-        lv_label_set_text_fmt(count_label, "Found: %u", scan_found);
-    }
-
-    scan_addr++;
+static void focused(lv_event_t *e) { lv_obj_scroll_to_view_recursive(lv_event_get_target_obj(e), LV_ANIM_ON); }
+static void details(lv_event_t *e) {
+    const uint8_t a = (uintptr_t)lv_event_get_user_data(e); char text[160];
+    snprintf(text, sizeof(text), "7-bit address: 0x%02X\nPossible: %s\nAn address does not identify a chip uniquely.", a, possible_device(a));
+    ui_msg_pop_up("I2C device", text);
 }
-#endif
-
-static void scan_btn_cb(lv_event_t *e)
-{
-    if (scanning) return;
-
+static void stop() { if (timer) { lv_timer_delete(timer); timer = nullptr; } }
+static void tick(lv_timer_t *) {
 #ifdef ARDUINO
-    scanning = true;
-    scan_addr = I2C_SCAN_ADDR_MIN;
-    scan_found = 0;
-    memset(scan_buf, 0, sizeof(scan_buf));
-
-    lv_obj_add_state(scan_btn, LV_STATE_DISABLED);
-    lv_label_set_text(lv_obj_get_child(scan_btn, 0), "Scanning...");
-    lv_label_set_text(result_label, "");
-    lv_label_set_text_fmt(count_label, "Found: 0");
-
-    scan_timer = lv_timer_create(scan_tick, 10, NULL);
-#else
-    lv_label_set_text(result_label, "I2C scan not available in emulator");
+    if (address > 0x77) {
+        stop(); ui_scan_loading_update(loading, "No I2C devices found", false);
+        ui_scan_show_results(loading, list, found != 0); return;
+    }
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+        ++found; char text[96]; snprintf(text, sizeof(text), "0x%02X  %s", address, possible_device(address));
+        auto *row = lv_list_add_button(list, LV_SYMBOL_SETTINGS, text);
+        lv_obj_set_height(row, LV_SIZE_CONTENT); lv_obj_set_style_min_height(row, 32, 0);
+        lv_obj_set_style_pad_ver(row, 6, 0);
+        lv_obj_set_style_text_font(row, &lv_font_montserrat_12, 0);
+        auto *label = lv_obj_get_child(row, -1);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
+        // A fixed 14 px label is shorter than this font's 15 px line height,
+        // which makes circular scrolling move vertically instead of sideways.
+        lv_obj_set_height(label, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_add_event_cb(row, focused, LV_EVENT_FOCUSED, nullptr);
+        lv_obj_add_event_cb(row, details, LV_EVENT_CLICKED, (void *)(uintptr_t)address);
+    }
+    char text[64]; snprintf(text, sizeof(text), "Scanning 0x%02X  /  %u found", address, found);
+    ui_scan_loading_update(loading, text, true); ++address;
 #endif
 }
-
-void ui_i2c_scanner_enter(lv_obj_t *parent)
-{
-    scanning = false;
-    scan_addr = I2C_SCAN_ADDR_MIN;
-    scan_found = 0;
-    memset(scan_buf, 0, sizeof(scan_buf));
-
-    page_container = ui_create_app_page(parent, "I2C Scanner", back_event_handler);
-
-    /* Status card */
-    lv_obj_t *card = ui_create_card(page_container, "Bus Scan");
-
-    lv_obj_t *count_row = ui_create_card_info(card, LV_SYMBOL_REFRESH, "Devices", "0");
-    count_label = lv_obj_get_child(count_row, lv_obj_get_child_count(count_row) - 1);
-
-    /* Result display */
-    result_label = lv_label_create(card);
-    lv_label_set_text(result_label, "Tap Scan to start");
-    lv_obj_set_style_text_color(result_label, UI_COLOR_TEXT_PRIMARY, 0);
-    lv_obj_set_style_text_font(result_label, &lv_font_montserrat_12, 0);
-    lv_obj_set_width(result_label, LV_PCT(100));
-    lv_obj_set_style_text_line_space(result_label, 4, 0);
-
-    /* Scan button */
-    scan_btn = lv_btn_create(card);
-    lv_obj_set_size(scan_btn, LV_PCT(100), 36);
-    lv_obj_add_style(scan_btn, &ui_styles.accent_btn, 0);
-    ui_add_accent_focus_style(scan_btn);
-    lv_obj_set_style_radius(scan_btn, 8, 0);
-
-    lv_obj_t *btn_label = lv_label_create(scan_btn);
-    lv_label_set_text(btn_label, "Scan");
-    lv_obj_center(btn_label);
-
-    lv_obj_add_event_cb(scan_btn, scan_btn_cb, LV_EVENT_CLICKED, NULL);
-
-    /* Info card */
-    lv_obj_t *info_card = ui_create_card(page_container, "Info");
-    ui_create_card_info(info_card, LV_SYMBOL_SETTINGS, "Range", "0x01 - 0x7F");
-    ui_create_card_info(info_card, LV_SYMBOL_SETTINGS, "Bus", "I2C (Wire)");
+static void scan() {
+    if (timer) return;
+    address = 3; found = 0; lv_obj_clean(list);
+    ui_scan_show_results(loading, list, false);
+    ui_scan_loading_update(loading, "Scanning I2C...", true);
+    timer = lv_timer_create(tick, 10, nullptr);
 }
-
-void ui_i2c_scanner_exit(lv_obj_t *parent)
-{
+static void back(lv_event_t *) { stop(); if (page) ui_destroy_app_page(page); page = nullptr; menu_show(); }
 }
-
-app_t ui_i2c_scanner_main = {
-    .setup_func_cb = ui_i2c_scanner_enter,
-    .exit_func_cb  = ui_i2c_scanner_exit,
-    .user_data     = nullptr,
-};
+void ui_i2c_scanner_enter(lv_obj_t *parent) {
+    page = ui_create_app_page(parent, "I2C Scanner", back); lv_obj_remove_flag(page, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(page, [](lv_event_t *) { stop(); page = list = nullptr; loading = {}; }, LV_EVENT_DELETE, nullptr);
+    loading = ui_scan_loading_create(page, "Scanning I2C...");
+    list = lv_list_create(page); lv_obj_set_size(list, LV_PCT(100), 1); lv_obj_set_flex_grow(list, 1); lv_obj_set_style_pad_row(list, 5, 0);
+    scan();
+}
+void ui_i2c_scanner_exit(lv_obj_t *) { stop(); }
+app_t ui_i2c_scanner_main = { .setup_func_cb = ui_i2c_scanner_enter, .exit_func_cb = ui_i2c_scanner_exit, .user_data = nullptr };

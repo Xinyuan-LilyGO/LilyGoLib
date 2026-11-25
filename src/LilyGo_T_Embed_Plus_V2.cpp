@@ -317,7 +317,7 @@ bool LilyGoTEmbedPlus::initIoExpander(const LilyGoDeviceInitOptions &options)
     io.digitalWrite(EXPANDS_AMP_EN, options.initAudio ? HIGH : LOW);
     // P06 selects the shared GPIO47/GPIO48 pair. Keep nRF24 selected until
     // the C5 application explicitly switches to the C5 side.
-    io.digitalWrite(EXPANDS_EX_PWR_EN1, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN1, LOW);
     io.digitalWrite(EXPANDS_EX_PWR_EN2, HIGH);
     io.digitalWrite(EXPANDS_MOD_SEL, LOW);
     io.digitalWrite(EXPANDS_C5_RST, HIGH);
@@ -483,9 +483,16 @@ bool LilyGoTEmbedPlus::selectNRF24Path()
     digitalWrite(NRF24_CS, HIGH);
     pinMode(NRF24_CE, OUTPUT);
     digitalWrite(NRF24_CE, LOW);
-    io.digitalWrite(EXPANDS_EX_PWR_EN1, HIGH);
+    io.digitalWrite(EXPANDS_EX_PWR_EN1, LOW);
     io.digitalWrite(EXPANDS_EX_PWR_EN2, HIGH);
     io.digitalWrite(EXPANDS_MOD_SEL, LOW);
+    return true;
+}
+
+bool LilyGoTEmbedPlus::setC5Reset(bool asserted)
+{
+    if (!(devicesProbe & HW_EXPAND_ONLINE)) return false;
+    io.digitalWrite(EXPANDS_C5_RST, asserted ? LOW : HIGH);
     return true;
 }
 

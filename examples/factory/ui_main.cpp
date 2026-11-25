@@ -1989,7 +1989,8 @@ void setupGui()
     extern app_t ui_cc1101_scan_main;
 #endif
 #if defined(ARDUINO_T_EMBED_PLUS_V2)
-    extern app_t ui_wifi_c5_main;
+    extern app_t ui_wifi_c5_scan_main;
+    extern app_t ui_ble_c5_scan_main;
 #endif
 
 #if !defined(EXCLUDE_IR_REMOTE)
@@ -2126,7 +2127,8 @@ void setupGui()
     register_app("WiFi Tools", &img_wifi_tools, &ui_wifi_tools_main);
 #endif
 #if defined(ARDUINO_T_EMBED_PLUS_V2)
-    register_app("WiFi C5", &img_wifi_c5, &ui_wifi_c5_main);
+    register_app("C5 WiFi Scan", &img_wifi_c5, &ui_wifi_c5_scan_main);
+    register_app("C5 BLE Scan", &img_bluetooth, &ui_ble_c5_scan_main);
 #endif
 
 #if !defined(EXCLUDE_KEYBOARD)

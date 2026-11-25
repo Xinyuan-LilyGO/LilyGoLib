@@ -8,7 +8,9 @@
  */
 #include "ui_define.h"
 
-#if defined(ARDUINO_T_EMBED_PLUS_V2)
+/* The legacy command console is retained for reference but is intentionally
+   disabled. Use the dedicated Wi-Fi and BLE scan pages instead. */
+#if defined(ARDUINO_T_EMBED_PLUS_V2) && defined(ENABLE_LEGACY_WIFI_C5_APP)
 
 static HardwareSerial c5_at_serial(1);
 static lv_obj_t *c5_page = nullptr;
