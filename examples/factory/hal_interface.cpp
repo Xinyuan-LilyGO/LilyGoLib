@@ -3140,7 +3140,7 @@ static void listDir(vector < AudioParams_t > &list, fs::FS &fs, const char *dirn
             }
         } else {
             if (has_audio_file_ext(file_name)) {
-                appendAudioFile(list, source_type, file_name);
+                appendAudioFile(list, source_type, file.path());
             }
 
             LILYGO_LOG_PRINT("  FILE: ");
@@ -3163,7 +3163,8 @@ void hw_fat_list(vector < AudioParams_t > &list, const char *dirname, uint8_t le
 #endif
 }
 
-bool hw_sd_list(vector < AudioParams_t > &list, const char *dirname, uint8_t levels)
+bool hw_sd_list(vector < AudioParams_t > &list, const char *dirname, uint8_t levels,
+                const char *extra_dirname = nullptr)
 {
 #if defined(ARDUINO) && defined(HAS_SD_CARD_SOCKET)
     if (instance.installSD()) {
@@ -3177,6 +3178,9 @@ bool hw_sd_list(vector < AudioParams_t > &list, const char *dirname, uint8_t lev
         return false;
     }
     listDir(list, SD, dirname, levels, AUDIO_SOURCE_SDCARD);
+    if (extra_dirname) {
+        listDir(list, SD, extra_dirname, levels, AUDIO_SOURCE_SDCARD);
+    }
     instance.unlockSPI();
 #endif
     return true;
@@ -3330,7 +3334,7 @@ void hw_get_filesystem_music(vector < AudioParams_t > &list)
 
 #if defined(HAS_SD_CARD_SOCKET)
     LILYGO_LOG_PRINTLN("\n================== SD Music List ==================");
-    hw_sd_list(list, "/", 0);
+    hw_sd_list(list, "/", 0, "/music");
 #endif
 
     LILYGO_LOG_PRINTLN("\n================== FFat Music List ==================");
