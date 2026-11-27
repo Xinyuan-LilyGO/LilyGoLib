@@ -401,6 +401,9 @@ static void power_menu_action_cb(lv_event_t *e)
     }
 
     if (action == POWER_MENU_RESTART) {
+#if !defined(EXCLUDE_T_EMBED_LED)
+        ui_t_embed_ws2812_suspend();
+#endif
         power_action_screen("Restarting...");
         lv_delay_ms(300);
 #ifdef ARDUINO
@@ -1651,6 +1654,9 @@ static void ui_poll_timer_callback(lv_timer_t *t)
             if (disp_on) {
                 brightness_level = hw_get_disp_backlight();
                 hw_dec_brightness(0);
+#if !defined(EXCLUDE_T_EMBED_LED)
+                ui_t_embed_ws2812_suspend();
+#endif
                 hw_low_power_loop();
 #ifdef NO_ENTER_LIGHT_SLEEP
                 LILYGO_LOG_PRINTF("Enter sleep\n");
@@ -1659,6 +1665,9 @@ static void ui_poll_timer_callback(lv_timer_t *t)
                     delay(10);
                 }
                 LILYGO_LOG_PRINTF("Wakeup\n");
+#endif
+#if !defined(EXCLUDE_T_EMBED_LED)
+                ui_t_embed_ws2812_resume();
 #endif
                 /* Woke up — stay on clock page, reset display timer */
                 hw_set_cpu_freq(240);
@@ -1720,6 +1729,9 @@ static void ui_poll_timer_callback(lv_timer_t *t)
                 brightness_level = hw_get_disp_backlight();
                 hw_dec_brightness(0);
 
+#if !defined(EXCLUDE_T_EMBED_LED)
+                ui_t_embed_ws2812_suspend();
+#endif
                 hw_low_power_loop();
 #ifdef NO_ENTER_LIGHT_SLEEP
                 LILYGO_LOG_PRINTF("Enter sleep\n");
@@ -1728,6 +1740,9 @@ static void ui_poll_timer_callback(lv_timer_t *t)
                     delay(10);
                 }
                 LILYGO_LOG_PRINTF("Wakeup\n");
+#endif
+#if !defined(EXCLUDE_T_EMBED_LED)
+                ui_t_embed_ws2812_resume();
 #endif
                 /* Woke up — restore display but stay on clock page (require swipe-up) */
                 hw_set_cpu_freq(240);
@@ -2155,7 +2170,7 @@ void setupGui()
     LILYGO_LOG_D("[factory][ws2812] menu skipped: EXCLUDE_WS2812_STRIP is defined");
 #endif
 #if !defined(EXCLUDE_T_EMBED_LED)
-    register_app("LED Test", &img_led_test, &ui_t_embed_ws2812_main);
+    register_app("LED Strip", &img_led_test, &ui_t_embed_ws2812_main);
 #endif
 
 #if !defined(EXCLUDE_LORA)
@@ -2270,6 +2285,9 @@ void setupGui()
     /* Allow low power mode */
     set_low_power_mode_flag(true);
     lv_display_trigger_activity(NULL);
+#if !defined(EXCLUDE_T_EMBED_LED)
+    ui_t_embed_ws2812_resume();
+#endif
 #if FACTORY_HAS_TOUCH_INPUT
     show_touch_guide();
 #endif

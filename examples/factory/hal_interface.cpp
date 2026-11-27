@@ -20,6 +20,9 @@
 #include <sys/time.h>
 
 extern "C" void lilygo_power_menu_request(void);
+#if !defined(EXCLUDE_T_EMBED_LED)
+extern void ui_t_embed_ws2812_suspend(void);
+#endif
 #endif
 
 #define NVS_NAME    "pager"
@@ -3631,6 +3634,9 @@ bool hw_apply_mic_input_source()
 void hw_shutdown()
 {
 #ifdef ARDUINO
+#if !defined(EXCLUDE_T_EMBED_LED)
+    ui_t_embed_ws2812_suspend();
+#endif
     if (hw_get_power_off_mode() == HW_POWER_OFF_DEEP_SLEEP) {
         hw_sleep();
         return;
@@ -3699,6 +3705,9 @@ bool hw_adapter_is_connected()
 void hw_sleep()
 {
 #ifdef ARDUINO
+#if !defined(EXCLUDE_T_EMBED_LED)
+    ui_t_embed_ws2812_suspend();
+#endif
     if (playerTaskHandler) {
         vTaskDelete(playerTaskHandler);
         playerTaskHandler = NULL;

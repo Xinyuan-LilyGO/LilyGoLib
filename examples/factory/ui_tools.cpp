@@ -8,6 +8,7 @@
  * Shared responsive page, theme, input and power-transition helpers.
  */
 #include "ui_define.h"
+#include <math.h>
 
 #define UI_CARD_WIDGET_VALUE_LAYOUT LV_OBJ_FLAG_USER_2
 
@@ -1604,6 +1605,100 @@ lv_obj_t *ui_create_card_slider(lv_obj_t *card, const char *icon, const char *ti
     }
 
     return ui_create_card_item(card, icon, title, slider);
+}
+
+uint32_t ui_led_strip_hue_color(uint8_t hue)
+{
+    if (hue < 85) return ((uint32_t)(255 - hue * 3) << 16) | ((uint32_t)hue * 3 << 8);
+    if (hue < 170) {
+        hue -= 85;
+        return ((uint32_t)(255 - hue * 3) << 8) | (hue * 3);
+    }
+    hue -= 170;
+    return ((uint32_t)hue * 3 << 16) | (255 - hue * 3);
+}
+
+static void ui_hue_slider_draw_cb(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target_obj(e);
+    const lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_DRAW_TASK_ADDED) {
+        lv_draw_task_t *task = lv_event_get_draw_task(e);
+        if (!task) return;
+        auto *base = static_cast<lv_draw_dsc_base_t *>(lv_draw_task_get_draw_dsc(task));
+        if (!base || base->obj != slider) return;
+        lv_draw_fill_dsc_t *fill = lv_draw_task_get_fill_dsc(task);
+        if (fill && (base->part == LV_PART_MAIN || base->part == LV_PART_INDICATOR)) {
+            fill->opa = LV_OPA_TRANSP;
+        } else if (fill && base->part == LV_PART_KNOB) {
+            fill->color = lv_color_hex(ui_led_strip_hue_color((uint8_t)lv_slider_get_value(slider)));
+            fill->grad.dir = LV_GRAD_DIR_NONE;
+            fill->opa = LV_OPA_COVER;
+        }
+        lv_draw_border_dsc_t *border = lv_draw_task_get_border_dsc(task);
+        if (border && base->part == LV_PART_KNOB) {
+            const bool focused = (lv_obj_get_state(slider) & (LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY)) != 0;
+            border->color = focused ? UI_COLOR_ACCENT : UI_COLOR_TEXT_PRIMARY;
+        }
+        return;
+    }
+    if (code != LV_EVENT_DRAW_MAIN_BEGIN) return;
+
+    lv_area_t bounds;
+    lv_obj_get_coords(slider, &bounds);
+    // Leave space for the shared focus border. Round the color track itself,
+    // using only two-stop horizontal gradients supported by the common config.
+    lv_area_increase(&bounds, -2, -2);
+    const int32_t width = lv_area_get_width(&bounds);
+    const int32_t height = lv_area_get_height(&bounds);
+    if (width < 2 || height < 1) return;
+    const float radius = height * 0.5f;
+    lv_draw_rect_dsc_t rect;
+    lv_draw_rect_dsc_init(&rect);
+    rect.bg_opa = LV_OPA_COVER;
+    rect.bg_grad.dir = LV_GRAD_DIR_HOR;
+    rect.bg_grad.stops_count = 2;
+    rect.bg_grad.stops[0].frac = 0;
+    rect.bg_grad.stops[1].frac = 255;
+    rect.bg_grad.stops[0].opa = rect.bg_grad.stops[1].opa = LV_OPA_COVER;
+    for (int32_t y = 0; y < height; ++y) {
+        const float dy = y + 0.5f - radius;
+        const int32_t inset = (int32_t)ceilf(radius - sqrtf(radius * radius - dy * dy));
+        for (int32_t segment = 0; segment < 3; ++segment) {
+            lv_area_t part = {
+                bounds.x1 + (width - 1) * segment / 3, bounds.y1 + y,
+                bounds.x1 + (width - 1) * (segment + 1) / 3, bounds.y1 + y
+            };
+            if (part.x1 < bounds.x1 + inset) part.x1 = bounds.x1 + inset;
+            if (part.x2 > bounds.x2 - inset) part.x2 = bounds.x2 - inset;
+            if (part.x1 > part.x2) continue;
+            rect.bg_grad.stops[0].color = lv_color_hex(ui_led_strip_hue_color(
+                (uint8_t)((part.x1 - bounds.x1) * 255 / (width - 1))));
+            rect.bg_grad.stops[1].color = lv_color_hex(ui_led_strip_hue_color(
+                (uint8_t)((part.x2 - bounds.x1) * 255 / (width - 1))));
+            lv_draw_rect(lv_event_get_layer(e), &rect, &part);
+        }
+    }
+}
+
+lv_obj_t *ui_create_card_hue_slider(lv_obj_t *card, const char *icon, const char *title,
+                                   uint8_t hue, lv_event_cb_t cb)
+{
+    lv_obj_t *slider = lv_slider_create(lv_obj_create(card));
+    lv_obj_set_size(slider, LV_PCT(50), 12);
+    lv_slider_set_range(slider, 0, 255);
+    lv_slider_set_value(slider, hue, LV_ANIM_OFF);
+    lv_obj_set_flex_grow(slider, 1);
+    if (cb) lv_obj_add_event_cb(slider, cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_t *row = ui_create_card_item(card, icon, title, slider);
+    lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_set_style_pad_all(slider, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(slider, 1, LV_PART_KNOB);
+    lv_obj_set_style_border_opa(slider, LV_OPA_COVER, LV_PART_KNOB);
+    lv_obj_add_flag(slider, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(slider, ui_hue_slider_draw_cb, LV_EVENT_ALL, NULL);
+    return row;
 }
 
 static void ui_value_slider_value_cb(lv_event_t *e)

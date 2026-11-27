@@ -1937,16 +1937,7 @@ static uint32_t rgb_color(uint8_t r, uint8_t g, uint8_t b)
 
 static uint32_t color_wheel(uint8_t pos)
 {
-    pos = 255 - pos;
-    if (pos < 85) {
-        return rgb_color(255 - pos * 3, 0, pos * 3);
-    }
-    if (pos < 170) {
-        pos -= 85;
-        return rgb_color(0, pos * 3, 255 - pos * 3);
-    }
-    pos -= 170;
-    return rgb_color(pos * 3, 255 - pos * 3, 0);
+    return ui_led_strip_hue_color(pos);
 }
 
 static uint32_t scale_color(uint32_t color, uint8_t amount)
@@ -2398,7 +2389,7 @@ void ui_ws2812_enter(lv_obj_t *parent)
     ui_create_card_dropdown(card, LV_SYMBOL_SETTINGS, "Mode", effect_options, effect_mode, effect_cb);
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Brightness", 1, 255, brightness, brightness_cb);
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Speed", 1, 255, speed, speed_cb);
-    ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Hue", 0, 255, hue, hue_cb);
+    ui_create_card_hue_slider(card, LV_SYMBOL_SETTINGS, "Hue", hue, hue_cb);
 
     card = ui_create_card(page_container, "Output");
     ui_create_card_switch(card, LV_SYMBOL_SETTINGS, "Left", left_enabled, left_enable_cb);

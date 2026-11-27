@@ -5,9 +5,14 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-11-19
  *
- * T-Embed pixel effects, production tests, and shared status indications.
+ * Persistent T-Embed strip effects, background playback, and sleep-safe status LEDs.
  */
 #include "ui_define.h"
+#include <LilyGoLog.h>
+
+#ifdef ARDUINO
+#include <Preferences.h>
+#endif
 
 #if !defined(EXCLUDE_T_EMBED_LED)
 
@@ -26,6 +31,7 @@
 namespace {
 
 constexpr uint32_t kEffectIntervalMs = 40;
+constexpr uint32_t kSaveDelayMs = 600;
 constexpr uint8_t kBrightnessLevels = 32;
 
 enum Ws2812Effect : uint8_t {
@@ -63,6 +69,7 @@ Adafruit_NeoPixel strip(TEMBED_LED_COUNT, TEMBED_WS2812_DATA_PIN, NEO_GRB + NEO_
 lv_obj_t *pageContainer = nullptr;
 lv_obj_t *statusLabel = nullptr;
 lv_timer_t *effectTimer = nullptr;
+lv_timer_t *saveTimer = nullptr;
 uint32_t colors[TEMBED_LED_COUNT] = {};
 uint16_t phase = 0;
 uint8_t effectMode = EFFECT_RAINBOW;
@@ -70,6 +77,88 @@ uint8_t brightnessLevel = 4;
 uint8_t speed = 50;
 uint8_t hue = 0;
 bool stripInitialized = false;
+bool keepOnExit = false;
+bool suspended = true;
+bool statusOverride = false;
+uint32_t statusColor = 0;
+bool settingsLoaded = false;
+bool settingsDirty = false;
+
+struct StripSettings {
+    uint8_t version;
+    uint8_t effect;
+    uint8_t brightness;
+    uint8_t speed;
+    uint8_t hue;
+    uint8_t keepOnExit;
+};
+
+void loadSettingsOnce()
+{
+    if (settingsLoaded) return;
+    settingsLoaded = true;
+#ifdef ARDUINO
+    Preferences prefs;
+    if (!prefs.begin("led_strip", true)) return;
+    StripSettings saved = {};
+    const bool valid = prefs.getBytesLength("config") == sizeof(saved) &&
+                       prefs.getBytes("config", &saved, sizeof(saved)) == sizeof(saved) &&
+                       saved.version == 1 && saved.effect < EFFECT_COUNT &&
+                       saved.brightness >= 1 && saved.brightness <= kBrightnessLevels &&
+                       saved.speed >= 1 && saved.keepOnExit <= 1;
+    prefs.end();
+    if (!valid) {
+        LILYGO_LOG_W("[LEDStrip] Invalid saved settings; using defaults");
+        return;
+    }
+    effectMode = saved.effect;
+    brightnessLevel = saved.brightness;
+    speed = saved.speed;
+    hue = saved.hue;
+    keepOnExit = saved.keepOnExit != 0;
+#endif
+}
+
+void saveSettings()
+{
+    if (!settingsDirty) return;
+#ifdef ARDUINO
+    const StripSettings saved = {1, effectMode, brightnessLevel, speed, hue,
+                                 static_cast<uint8_t>(keepOnExit)};
+    Preferences prefs;
+    if (!prefs.begin("led_strip", false)) {
+        LILYGO_LOG_W("[LEDStrip] Cannot open settings for saving");
+        return;
+    }
+    const bool written = prefs.putBytes("config", &saved, sizeof(saved)) == sizeof(saved);
+    prefs.end();
+    if (!written) {
+        LILYGO_LOG_W("[LEDStrip] Cannot save strip settings");
+        return;
+    }
+#endif
+    settingsDirty = false;
+}
+
+void flushSettings()
+{
+    if (saveTimer) {
+        lv_timer_delete(saveTimer);
+        saveTimer = nullptr;
+    }
+    saveSettings();
+}
+
+void queueSettingsSave()
+{
+    settingsDirty = true;
+    if (saveTimer) {
+        lv_timer_reset(saveTimer);
+    } else {
+        saveTimer = lv_timer_create([](lv_timer_t *) { flushSettings(); }, kSaveDelayMs, nullptr);
+        if (!saveTimer) saveSettings();
+    }
+}
 
 void beginStripOnce()
 {
@@ -117,16 +206,7 @@ uint32_t rgbColor(uint8_t red, uint8_t green, uint8_t blue)
 
 uint32_t colorWheel(uint8_t position)
 {
-    position = 255 - position;
-    if (position < 85) {
-        return rgbColor(255 - position * 3, 0, position * 3);
-    }
-    if (position < 170) {
-        position -= 85;
-        return rgbColor(0, position * 3, 255 - position * 3);
-    }
-    position -= 170;
-    return rgbColor(position * 3, 255 - position * 3, 0);
+    return ui_led_strip_hue_color(position);
 }
 
 uint32_t scaleColor(uint32_t color, uint8_t amount)
@@ -212,17 +292,35 @@ void renderEffect()
     }
 }
 
+void clearOutput()
+{
+#if defined(WS2812_NUM_LEDS)
+    strip.clear();
+    strip.show();
+    // Keep the NeoPixel driver's cached RMT allocation attached to its GPIO.
+#else
+    clearColors();
+    apa102Show(1);
+#endif
+}
+
 void refreshOutput()
 {
-    renderEffect();
+    if (suspended || (!pageContainer && !keepOnExit && !statusOverride)) {
+        clearOutput();
+        return;
+    }
+    if (statusOverride) fillColors(statusColor);
+    else renderEffect();
+    const uint8_t level = statusOverride && brightnessLevel < 4 ? 4 : brightnessLevel;
 #if defined(WS2812_NUM_LEDS)
-    strip.setBrightness(brightnessLevel * 255 / kBrightnessLevels);
+    strip.setBrightness(level * 255 / kBrightnessLevels);
     for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
         strip.setPixelColor(i, colors[i]);
     }
     strip.show();
 #else
-    apa102Show(brightnessLevel);
+    apa102Show(level);
 #endif
     if (statusLabel) {
         lv_label_set_text_fmt(statusLabel, "%s  B:%u/32  S:%u",
@@ -238,56 +336,77 @@ void effectTimerCb(lv_timer_t *)
     refreshOutput();
 }
 
+void updateOutputState()
+{
+    const bool animate = !suspended && !statusOverride && (pageContainer || keepOnExit) &&
+                         effectMode != EFFECT_OFF && effectMode != EFFECT_SOLID;
+    if (animate && !effectTimer) {
+        effectTimer = lv_timer_create(effectTimerCb, kEffectIntervalMs, nullptr);
+    } else if (!animate && effectTimer) {
+        lv_timer_delete(effectTimer);
+        effectTimer = nullptr;
+    }
+    refreshOutput();
+}
+
 void effectCb(lv_event_t *event)
 {
     uint16_t selected = lv_dropdown_get_selected(lv_event_get_target_obj(event));
     effectMode = selected < EFFECT_COUNT ? selected : EFFECT_OFF;
     phase = 0;
-    refreshOutput();
+    updateOutputState();
+    queueSettingsSave();
 }
 
 void brightnessCb(lv_event_t *event)
 {
     brightnessLevel = (uint8_t)lv_slider_get_value(lv_event_get_target_obj(event));
     refreshOutput();
+    queueSettingsSave();
 }
 
 void speedCb(lv_event_t *event)
 {
     speed = (uint8_t)lv_slider_get_value(lv_event_get_target_obj(event));
+    refreshOutput();
+    queueSettingsSave();
 }
 
 void hueCb(lv_event_t *event)
 {
     hue = (uint8_t)lv_slider_get_value(lv_event_get_target_obj(event));
     refreshOutput();
+    queueSettingsSave();
 }
 
-void stopOutput()
+void keepOnExitCb(lv_event_t *event)
 {
-    if (effectTimer) {
-        lv_timer_delete(effectTimer);
-        effectTimer = nullptr;
-    }
-#if defined(WS2812_NUM_LEDS)
-    strip.clear();
-    strip.show();
-    // Keep GPIO14 attached to RMT. Reconfiguring it would invalidate the
-    // Adafruit NeoPixel driver's cached RMT allocation.
-#else
-    clearColors();
-    apa102Show(1);
-#endif
+    keepOnExit = lv_dropdown_get_selected(lv_event_get_target_obj(event)) != 0;
+    queueSettingsSave();
+}
+
+void pageDeleted(lv_event_t *event)
+{
+    if (lv_event_get_target_obj(event) != pageContainer) return;
+    pageContainer = nullptr;
+    statusLabel = nullptr;
+    flushSettings();
+    updateOutputState();
+}
+
+void leavePage()
+{
+    lv_obj_t *page = pageContainer;
+    pageContainer = nullptr;
+    statusLabel = nullptr;
+    flushSettings();
+    updateOutputState();
+    if (page) ui_destroy_app_page(page);
 }
 
 void backEventCb(lv_event_t *)
 {
-    stopOutput();
-    if (pageContainer) {
-        ui_destroy_app_page(pageContainer);
-        pageContainer = nullptr;
-    }
-    statusLabel = nullptr;
+    leavePage();
     menu_show();
 }
 
@@ -296,48 +415,48 @@ void backEventCb(lv_event_t *)
 void ui_t_embed_ws2812_init()
 {
     beginStripOnce();
-#if defined(WS2812_NUM_LEDS)
-    strip.clear();
-    strip.show();
-#else
-    clearColors();
-    apa102Show(1);
-#endif
+    loadSettingsOnce();
+    clearOutput();
 }
 
 void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue)
 {
     beginStripOnce();
-    const uint32_t color = rgbColor(red, green, blue);
-    fillColors(color);
-#if defined(WS2812_NUM_LEDS)
-    const uint8_t level = brightnessLevel < 4 ? 4 : brightnessLevel;
-    strip.setBrightness(level * 255 / kBrightnessLevels);
-    for (uint8_t i = 0; i < TEMBED_LED_COUNT; ++i) {
-        strip.setPixelColor(i, color);
-    }
-    strip.show();
-#else
-    apa102Show(brightnessLevel < 4 ? 4 : brightnessLevel);
-#endif
+    statusOverride = true;
+    statusColor = rgbColor(red, green, blue);
+    updateOutputState();
 }
 
 void ui_t_embed_ws2812_clear_status_color()
 {
-#if defined(WS2812_NUM_LEDS)
-    strip.clear();
-    strip.show();
-#else
-    clearColors();
-    apa102Show(1);
-#endif
+    statusOverride = false;
+    updateOutputState();
+}
+
+void ui_t_embed_ws2812_suspend()
+{
+    suspended = true;
+    flushSettings();
+    updateOutputState();
+}
+
+void ui_t_embed_ws2812_resume()
+{
+    beginStripOnce();
+    loadSettingsOnce();
+    suspended = false;
+    updateOutputState();
 }
 
 void ui_t_embed_ws2812_enter(lv_obj_t *parent)
 {
     beginStripOnce();
-    phase = 0;
+    loadSettingsOnce();
+    if (pageContainer) leavePage();
+    suspended = false;
+    statusOverride = false;
     pageContainer = ui_create_app_page(parent, "LED Strip", backEventCb);
+    lv_obj_add_event_cb(pageContainer, pageDeleted, LV_EVENT_DELETE, nullptr);
 
     lv_obj_t *card = ui_create_card(pageContainer, "Effect");
     lv_obj_t *statusRow = ui_create_card_info(card, LV_SYMBOL_EYE_OPEN, "Status", "Starting");
@@ -346,9 +465,11 @@ void ui_t_embed_ws2812_enter(lv_obj_t *parent)
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Brightness", 1, kBrightnessLevels,
                           brightnessLevel, brightnessCb);
     ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Speed", 1, 255, speed, speedCb);
-    ui_create_card_slider(card, LV_SYMBOL_SETTINGS, "Hue", 0, 255, hue, hueCb);
+    ui_create_card_hue_slider(card, LV_SYMBOL_SETTINGS, "Hue", hue, hueCb);
 
     card = ui_create_card(pageContainer, "Output");
+    ui_create_card_dropdown(card, LV_SYMBOL_SETTINGS, "On Exit", "Turn off\nKeep on",
+                            keepOnExit ? 1 : 0, keepOnExitCb);
 #if defined(WS2812_NUM_LEDS)
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Strip", "GPIO14 x 8");
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Format", "WS2812B GRB");
@@ -357,13 +478,12 @@ void ui_t_embed_ws2812_enter(lv_obj_t *parent)
     ui_create_card_info(card, LV_SYMBOL_SETTINGS, "Format", "APA102 BGR");
 #endif
 
-    refreshOutput();
-    effectTimer = lv_timer_create(effectTimerCb, kEffectIntervalMs, nullptr);
+    updateOutputState();
 }
 
 void ui_t_embed_ws2812_exit(lv_obj_t *)
 {
-    stopOutput();
+    leavePage();
 }
 
 app_t ui_t_embed_ws2812_main = {

@@ -305,6 +305,11 @@ lv_obj_t *ui_create_card(lv_obj_t *parent, const char *title);
 lv_obj_t *ui_create_card_item(lv_obj_t *card, const char *icon, const char *title, lv_obj_t *widget);
 lv_obj_t *ui_create_card_slider(lv_obj_t *card, const char *icon, const char *title,
                                  int32_t min, int32_t max, int32_t val, lv_event_cb_t cb);
+/** @brief Map a strip Hue value (0..255) to the same RGB color used by the LEDs. */
+uint32_t ui_led_strip_hue_color(uint8_t hue);
+/** @brief Create a rainbow Hue track with a knob filled by the selected LED color. */
+lv_obj_t *ui_create_card_hue_slider(lv_obj_t *card, const char *icon, const char *title,
+                                   uint8_t hue, lv_event_cb_t cb);
 lv_obj_t *ui_create_card_value_slider(lv_obj_t *card, const char *icon, const char *title,
                                       int32_t min, int32_t max, int32_t val,
                                       const char *value_suffix, lv_event_cb_t cb);
@@ -340,6 +345,10 @@ void ui_apply_theme_preset(uint8_t preset_idx);
 void update_page_indicator(void);
 
 #if !defined(EXCLUDE_T_EMBED_LED)
+/** @brief Pause strip effects and turn off LEDs without discarding saved settings. */
+void ui_t_embed_ws2812_suspend(void);
+/** @brief Restore the selected strip effect after sleep or GUI initialization. */
+void ui_t_embed_ws2812_resume(void);
 void ui_t_embed_ws2812_set_status_color(uint8_t red, uint8_t green, uint8_t blue);
 void ui_t_embed_ws2812_clear_status_color(void);
 #endif
