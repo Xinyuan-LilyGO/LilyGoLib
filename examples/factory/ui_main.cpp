@@ -2096,13 +2096,18 @@ void setupGui()
     register_app("QRCode", &img_qrcode, &ui_qrcode_main);
 #endif
 
+#if !defined(EXCLUDE_SD_MANAGER)
+#if defined(USING_FATFS)
+    register_app("File Manager", &img_file_manager, &ui_sd_manager_main);
+#else
+    if (device_has_sd_storage()) register_app("File Manager", &img_file_manager, &ui_sd_manager_main);
+#endif
+#endif
+
 #if !defined(EXCLUDE_SD_APPS)
     if (device_has_sd_storage()) {
         register_app("SD Info", &img_sdcard, &ui_sdcard_main);
 
-#if !defined(EXCLUDE_SD_MANAGER)
-        register_app("File Manager", &img_file_manager, &ui_sd_manager_main);
-#endif
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && !ARDUINO_USB_MODE && !defined(EXCLUDE_USB_DISK)
         register_app("USB Disk", &img_usb_disk, &ui_usb_disk_main);
