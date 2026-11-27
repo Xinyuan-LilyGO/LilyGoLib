@@ -3644,6 +3644,7 @@ hw_power_off_mode_t hw_get_power_off_mode()
     case PMIC_TYPE_AXP2101:
         return HW_POWER_OFF_SHUTDOWN;
     case PMIC_TYPE_BQ25896:
+    case PMIC_TYPE_SY6970:
         return HW_POWER_OFF_SHIP_MODE;
     default:
         return HW_POWER_OFF_DEEP_SLEEP;
@@ -3663,6 +3664,8 @@ const char *hw_get_power_controller_name()
         return "AXP2101";
     case PMIC_TYPE_BQ25896:
         return "BQ25896";
+    case PMIC_TYPE_SY6970:
+        return "SY6970";
     default:
         return "No PMIC";
     }

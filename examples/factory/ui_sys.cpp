@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
+ * Build the system settings page and apply user-selected device options.
  */
 #include "ui_define.h"
 
@@ -314,9 +315,9 @@ static void otg_output_cb(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
     if (code == LV_EVENT_VALUE_CHANGED) {
-        bool turnOn = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        bool turnOn = lv_dropdown_get_selected(obj) != 0;
         if (hw_set_otg(turnOn) == false) {
-            lv_obj_clear_state(obj, LV_STATE_CHECKED);
+            lv_dropdown_set_selected(obj, hw_get_otg_enable() ? 1 : 0);
         }
     }
 }
@@ -692,8 +693,8 @@ static bool run_sys_deferred_step()
     case UI_SYS_BUILD_POWER_OTG:
         if (hw_has_otg_function()) {
             bool enableOtg = hw_get_otg_enable();
-            ui_create_card_switch(sys_deferred_card, LV_SYMBOL_POWER, "OTG Output",
-                                  enableOtg, otg_output_cb);
+            ui_create_card_dropdown(sys_deferred_card, LV_SYMBOL_POWER, "OTG Output",
+                                    "Off\nOn", enableOtg ? 1 : 0, otg_output_cb);
         }
         sys_deferred_step = UI_SYS_BUILD_POWER_CHARGER;
         break;

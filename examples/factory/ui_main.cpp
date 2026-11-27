@@ -329,21 +329,8 @@ static void power_menu_close(void)
 static void power_action_screen(const char *text)
 {
     power_menu_close();
-    lv_obj_clean(lv_screen_active());
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_radius(lv_screen_active(), 0, 0);
-
     LV_IMG_DECLARE(img_poweroff);
-    lv_obj_t *image = lv_image_create(lv_screen_active());
-    lv_image_set_src(image, &img_poweroff);
-    lv_obj_center(image);
-
-    lv_obj_t *label = lv_label_create(lv_screen_active());
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_18, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -30);
-    lv_refr_now(NULL);
+    ui_show_power_transition(&img_poweroff, text);
 }
 
 static const char *power_menu_primary_label(bool compact)
@@ -1569,21 +1556,9 @@ static void hw_device_poll(lv_timer_t *t)
     hw_get_monitor_params(params);
     if (params.battery_voltage < 3300 && params.usb_voltage == 0) {
         LILYGO_LOG_PRINTF("Low battery voltage: %lu mV USB Voltage: %lu mV\n", params.battery_voltage, params.usb_voltage);
-        lv_obj_clean(lv_screen_active());
-        lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), LV_PART_MAIN);
-        lv_obj_set_style_radius(lv_screen_active(), 0, 0);
-
-        lv_obj_t *image = lv_image_create(lv_screen_active());
-        lv_image_set_src(image, &img_batter_low);
-        lv_obj_center(image);
-
-        lv_obj_t *label = lv_label_create(lv_screen_active());
-        lv_label_set_text_fmt(label, "Battery Low!\n%s", power_menu_transition_text());
-        lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
-        lv_obj_set_style_text_font(label, &lv_font_montserrat_18, LV_PART_MAIN);
-        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -30);
-
-        lv_refr_now(NULL);
+        char text[96];
+        snprintf(text, sizeof(text), "Battery Low!\n%s", power_menu_transition_text());
+        ui_show_power_transition(&img_batter_low, text);
         lv_delay_ms(3000);
         hw_shutdown();
     }

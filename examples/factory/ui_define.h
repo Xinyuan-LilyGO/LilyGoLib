@@ -267,6 +267,8 @@ void ui_refresh_app_grid_theme(void);
 void ui_refresh_status_bar_theme(void);
 void ui_add_accent_focus_style(lv_obj_t *obj);
 void ui_sync_button_focus_labels(lv_obj_t *obj);
+/** Render a themed shutdown/sleep notice with an aspect-preserving display-relative icon. */
+void ui_show_power_transition(const lv_image_dsc_t *source, const char *text);
 void ui_disable_focus_shadow(lv_obj_t *obj);
 
 void disable_input_devices();

@@ -5,7 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
- * Shared responsive page, theme and input helpers.
+ * Shared responsive page, theme, input and power-transition helpers.
  */
 #include "ui_define.h"
 
@@ -1817,4 +1817,27 @@ void ui_status_bar_update(void)
     bool wifi_on = hw_get_wifi_connected();
     lv_obj_set_style_text_color(status_bar.wifi_icon,
                                 wifi_on ? UI_COLOR_ACCENT : UI_COLOR_TEXT_SECONDARY, 0);
+}
+
+void ui_show_power_transition(const lv_image_dsc_t *source, const char *text)
+{
+    auto *screen = lv_screen_active();
+    lv_obj_clean(screen);
+    lv_obj_set_style_bg_color(screen, UI_COLOR_BG, 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(screen, 0, 0);
+    const int width = lv_display_get_horizontal_resolution(nullptr);
+    const int height = lv_display_get_vertical_resolution(nullptr);
+    const int target = LV_MIN(width * 45 / 100, height * 48 / 100);
+    auto *image = lv_image_create(screen); lv_image_set_src(image, source);
+    const int longest = LV_MAX(source->header.w, source->header.h);
+    if (longest) lv_image_set_scale(image, target * 256 / longest);
+    lv_obj_align(image, LV_ALIGN_CENTER, 0, -height * 12 / 100);
+    auto *label = lv_label_create(screen); lv_label_set_text(label, text);
+    lv_obj_set_width(label, LV_PCT(92)); lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(label, UI_COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_font(label, height <= 240 ? &lv_font_montserrat_14 : &lv_font_montserrat_18, 0);
+    lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -height * 6 / 100);
+    lv_refr_now(nullptr);
 }

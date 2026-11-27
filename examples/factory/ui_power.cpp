@@ -5,6 +5,7 @@
  * @copyright Copyright (c) 2025  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2025-01-05
  *
+ * Power actions and battery-isolation controls for supported devices.
  */
 #include "ui_define.h"
 
@@ -74,12 +75,12 @@ static lv_color_t power_mode_color(hw_power_off_mode_t mode)
 {
     switch (mode) {
     case HW_POWER_OFF_SHIP_MODE:
-        return lv_color_hex(0xFFB020);
+        return UI_COLOR_WARNING;
     case HW_POWER_OFF_DEEP_SLEEP:
-        return lv_color_hex(0x2B7DE9);
+        return UI_COLOR_ACCENT;
     case HW_POWER_OFF_SHUTDOWN:
     default:
-        return lv_color_hex(0xE05252);
+        return UI_COLOR_WARNING;
     }
 }
 
@@ -124,21 +125,8 @@ static void page_delete_cb(lv_event_t *e)
 
 static void show_power_transition(const char *text)
 {
-    lv_obj_clean(lv_screen_active());
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_radius(lv_screen_active(), 0, 0);
-
     LV_IMG_DECLARE(img_poweroff);
-    lv_obj_t *image = lv_image_create(lv_screen_active());
-    lv_image_set_src(image, &img_poweroff);
-    lv_obj_center(image);
-
-    lv_obj_t *label = lv_label_create(lv_screen_active());
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_18, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -30);
-    lv_refr_now(NULL);
+    ui_show_power_transition(&img_poweroff, text);
 }
 
 static void shutdown_event_cb(lv_event_t *e)
@@ -216,7 +204,7 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_obj_t *icon_label = lv_label_create(button);
     lv_label_set_text(icon_label, icon);
     lv_obj_set_style_text_font(icon_label, &lv_font_montserrat_22, 0);
-    lv_obj_set_style_text_color(icon_label, primary && !light_theme ? lv_color_white() : color, 0);
+    lv_obj_set_style_text_color(icon_label, primary && !light_theme ? UI_COLOR_TEXT_ON_ACCENT : color, 0);
 
     lv_obj_t *text_column = lv_obj_create(button);
     lv_obj_set_size(text_column, 1, LV_SIZE_CONTENT);
@@ -234,7 +222,7 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_obj_set_width(title_label, LV_PCT(100));
     lv_obj_set_style_text_font(title_label, small ? &lv_font_montserrat_14 : &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(title_label,
-                                primary && !light_theme ? lv_color_white() : UI_COLOR_TEXT_PRIMARY, 0);
+                                primary && !light_theme ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_PRIMARY, 0);
 
     lv_obj_t *detail_label = lv_label_create(text_column);
     lv_label_set_text(detail_label, detail);
@@ -242,11 +230,11 @@ static lv_obj_t *create_action_button(lv_obj_t *parent, const char *icon, const 
     lv_obj_set_width(detail_label, LV_PCT(100));
     lv_obj_set_style_text_font(detail_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(detail_label,
-                                primary && !light_theme ? lv_color_hex(0xF4F4F4) : UI_COLOR_TEXT_SECONDARY, 0);
+                                primary && !light_theme ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_SECONDARY, 0);
 
     lv_obj_t *arrow = lv_label_create(button);
     lv_label_set_text(arrow, LV_SYMBOL_RIGHT);
-    lv_obj_set_style_text_color(arrow, primary ? lv_color_white() : UI_COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_color(arrow, primary ? UI_COLOR_TEXT_ON_ACCENT : UI_COLOR_TEXT_SECONDARY, 0);
 
     if (primary) primary_detail_label = detail_label;
     return button;
@@ -258,7 +246,7 @@ static void create_power_overview(lv_obj_t *parent, hw_power_off_mode_t mode)
     const lv_color_t mode_color = power_mode_color(mode);
 
     lv_obj_t *overview = lv_obj_create(parent);
-    const lv_color_t overview_bg = ui_active_light_theme ? UI_COLOR_BG : lv_color_hex(0x111418);
+    const lv_color_t overview_bg = ui_active_light_theme ? UI_COLOR_BG : UI_COLOR_CARD_BG;
     lv_obj_set_size(overview, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(overview, overview_bg, 0);
     lv_obj_set_style_bg_opa(overview, LV_OPA_COVER, 0);
@@ -329,7 +317,7 @@ void ui_power_enter(lv_obj_t *parent)
 
     if (mode != HW_POWER_OFF_DEEP_SLEEP) {
         create_action_button(page_container, LV_SYMBOL_PAUSE, "Sleep",
-                             sleep_action_detail(mode), lv_color_hex(0x2B7DE9), false,
+                             sleep_action_detail(mode), UI_COLOR_ACCENT, false,
                              sleep_event_cb);
     }
 
