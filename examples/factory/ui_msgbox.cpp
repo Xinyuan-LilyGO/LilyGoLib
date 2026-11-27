@@ -4,7 +4,7 @@
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-11-25
  *
- * Responsive themed message boxes with isolated input and scrollable content.
+ * Themed message boxes and full-screen settings with shared input isolation.
  */
 #include "ui_define.h"
 
@@ -14,11 +14,11 @@ LV_FONT_DECLARE(font_alibaba_24);
 namespace {
 struct InputBinding { lv_indev_t *input; lv_group_t *group; };
 struct MessageBox {
-    lv_obj_t *box = nullptr, *owner = nullptr, *screen = nullptr;
+    lv_obj_t *box = nullptr, *content = nullptr, *owner = nullptr, *screen = nullptr;
     lv_obj_t *title = nullptr, *text = nullptr, *close = nullptr, *cancel = nullptr;
     lv_group_t *group = nullptr, *previous_group = nullptr;
     lv_obj_t *previous_focus = nullptr;
-    bool previous_editing = false, queued = false, owner_deleting = false;
+    bool previous_editing = false, queued = false, owner_deleting = false, fullscreen = false;
     std::vector<InputBinding> inputs;
 };
 static std::vector<MessageBox *> dialogs;
@@ -106,6 +106,16 @@ static void style_box(MessageBox *dialog)
     const auto *font = message_font(box);
     const int line = lv_font_get_line_height(font);
     const int pad = lv_display_get_vertical_resolution(nullptr) <= 240 ? 6 : 10;
+    if (dialog->fullscreen) {
+        lv_obj_set_style_bg_color(box, UI_COLOR_BG, 0);
+        lv_obj_set_style_text_color(box, UI_COLOR_TEXT_PRIMARY, 0);
+        lv_obj_set_style_text_font(dialog->content, font, 0);
+        lv_obj_set_style_text_font(dialog->title, font, 0);
+        lv_obj_set_style_text_color(dialog->title, UI_COLOR_TEXT_PRIMARY, 0);
+        lv_obj_set_style_bg_color(dialog->close, UI_COLOR_CARD_BG, 0);
+        lv_obj_set_style_text_color(dialog->close, UI_COLOR_ACCENT, 0);
+        return;
+    }
     lv_obj_set_style_bg_color(box, UI_COLOR_CARD_BG, 0);
     lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
     lv_obj_set_style_text_font(box, font, 0);
@@ -144,12 +154,18 @@ static void style_box(MessageBox *dialog)
     }
 }
 
+static void close_layer(MessageBox *dialog)
+{
+    if (dialog->fullscreen) lv_obj_delete(dialog->box);
+    else lv_msgbox_close(dialog->box);
+}
+
 static void close_clicked(lv_event_t *event)
 {
     auto *dialog = static_cast<MessageBox *>(lv_event_get_user_data(event));
     if (dialog->cancel != dialog->close) {
         lv_obj_send_event(dialog->cancel, LV_EVENT_CLICKED, nullptr);
-    } else destroy_msgbox(dialog->box);
+    } else close_layer(dialog);
 }
 
 static void close_async(void *data)
@@ -165,7 +181,7 @@ static void key_event(lv_event_t *event)
     const auto key = lv_event_get_key(event);
     auto *focused = lv_group_get_focused(dialog->group);
     lv_event_stop_bubbling(event);
-    if (focused == lv_msgbox_get_content(dialog->box) && key == LV_KEY_ENTER && lv_group_get_editing(dialog->group)) {
+    if (focused == dialog->content && key == LV_KEY_ENTER && lv_group_get_editing(dialog->group)) {
         lv_group_set_editing(dialog->group, false);
         lv_event_stop_processing(event);
     } else if (key == LV_KEY_ESC || (key == LV_KEY_BACKSPACE && hw_get_keyboard_navigation_enabled() &&
@@ -180,7 +196,7 @@ static void owner_deleted(lv_event_t *event)
 {
     auto *dialog = static_cast<MessageBox *>(lv_event_get_user_data(event));
     dialog->owner_deleting = true;
-    destroy_msgbox(dialog->box);
+    close_layer(dialog);
 }
 
 static void deleted(lv_event_t *event)
@@ -234,11 +250,11 @@ static void deleted(lv_event_t *event)
 void destroy_msgbox(lv_obj_t *box)
 {
     // Never dereference an already closed box retained by a page's cleanup.
-    for (auto *dialog : dialogs) if (dialog->box == box) { lv_msgbox_close(box); return; }
+    for (auto *dialog : dialogs) if (!dialog->fullscreen && dialog->box == box) { lv_msgbox_close(box); return; }
 }
 
-lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg_txt,
-                        const char **buttons, lv_event_cb_t callback, void *user_data)
+namespace {
+static MessageBox *begin_layer(lv_obj_t *parent)
 {
     auto *dialog = new MessageBox;
     dialog->previous_group = lv_group_get_default();
@@ -262,7 +278,11 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg
         }
     }
     lv_group_set_default(dialog->group);
-    dialog->box = lv_msgbox_create(nullptr);
+    return dialog;
+}
+
+static void attach_layer(MessageBox *dialog)
+{
     if (dialogs.empty()) {
         observed_screen = dialog->screen; observed_top = lv_layer_top();
         lv_obj_add_event_cb(observed_screen, child_created, LV_EVENT_CHILD_CREATED, nullptr);
@@ -275,6 +295,15 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg
     lv_obj_add_event_cb(dialog->owner, owner_deleted, LV_EVENT_DELETE, dialog);
     lv_obj_add_event_cb(dialog->box, key_event, LV_EVENT_KEY, dialog);
     lv_obj_remove_flag(dialog->box, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_EVENT_BUBBLE | LV_OBJ_FLAG_SCROLLABLE));
+}
+} // namespace
+
+lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg_txt,
+                        const char **buttons, lv_event_cb_t callback, void *user_data)
+{
+    auto *dialog = begin_layer(parent);
+    dialog->box = lv_msgbox_create(nullptr);
+    attach_layer(dialog);
     lv_obj_set_size(dialog->box, LV_PCT(96), LV_PCT(94));
     dialog->title = lv_msgbox_add_title(dialog->box, title_txt ? title_txt : "");
     lv_obj_set_width(dialog->title, 1); lv_obj_set_flex_grow(dialog->title, 1);
@@ -290,6 +319,7 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg
     lv_label_set_long_mode(dialog->text, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(dialog->text, LV_PCT(100));
     auto *content = lv_msgbox_get_content(dialog->box);
+    dialog->content = content;
     lv_obj_set_style_radius(content, 8, 0);
     lv_obj_add_flag(content, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLL_WITH_ARROW | LV_OBJ_FLAG_EVENT_BUBBLE));
     lv_obj_remove_flag(content, LV_OBJ_FLAG_SCROLL_CHAIN);
@@ -311,6 +341,73 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg
     lv_obj_update_layout(dialog->box);
     lv_group_focus_obj(content); lv_group_set_editing(dialog->group, false);
     return dialog->box;
+}
+
+lv_obj_t *ui_create_settings_page(lv_obj_t *owner, const char *title)
+{
+    auto *dialog = begin_layer(owner);
+    dialog->fullscreen = true;
+    // A regular opaque page covers the app, with no popup backdrop or margins.
+    dialog->box = lv_obj_create(lv_layer_top());
+    attach_layer(dialog);
+    auto *root = dialog->box;
+    lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_pos(root, 0, 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(root, 0, 0);
+    lv_obj_set_style_radius(root, 0, 0);
+    lv_obj_set_style_pad_all(root, 0, 0);
+    lv_obj_set_style_pad_row(root, 0, 0);
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+
+    auto *header = lv_obj_create(root);
+    lv_obj_set_size(header, LV_PCT(100), 32);
+    lv_obj_set_style_bg_opa(header, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(header, 0, 0);
+    lv_obj_set_style_pad_ver(header, 0, 0);
+    lv_obj_set_style_pad_hor(header, 6, 0);
+    lv_obj_set_style_pad_column(header, 8, 0);
+    lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(header, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    dialog->close = lv_button_create(header);
+    lv_obj_set_size(dialog->close, 28, 28);
+    lv_obj_set_style_pad_all(dialog->close, 0, 0);
+    lv_obj_set_style_radius(dialog->close, LV_RADIUS_CIRCLE, 0);
+    ui_add_accent_focus_style(dialog->close);
+    auto *icon = lv_label_create(dialog->close);
+    lv_label_set_text(icon, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_center(icon);
+    dialog->cancel = dialog->close;
+    lv_obj_add_event_cb(dialog->close, close_clicked, LV_EVENT_CLICKED, dialog);
+    dialog->title = lv_label_create(header);
+    lv_label_set_text(dialog->title, title ? title : "Settings");
+    lv_obj_set_width(dialog->title, 0); lv_obj_set_flex_grow(dialog->title, 1);
+    lv_label_set_long_mode(dialog->title, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+    auto *content = lv_obj_create(root);
+    dialog->content = content;
+    lv_obj_set_user_data(content, root);
+    lv_obj_set_size(content, LV_PCT(100), 0); lv_obj_set_flex_grow(content, 1);
+    lv_obj_set_style_pad_all(content, 6, 0);
+    lv_obj_set_style_pad_row(content, 8, 0);
+    lv_obj_set_style_bg_opa(content, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(content, 0, 0);
+    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(content, LV_DIR_VER);
+    lv_obj_remove_flag(content, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE | LV_OBJ_FLAG_SCROLL_CHAIN));
+    style_box(dialog);
+    lv_obj_update_layout(root);
+    lv_group_focus_obj(dialog->close);
+    return content;
+}
+
+void ui_destroy_settings_page(lv_obj_t *content)
+{
+    for (auto *dialog : dialogs) {
+        if (dialog->fullscreen && dialog->content == content) { close_layer(dialog); return; }
+    }
 }
 
 void ui_msgbox_refresh()

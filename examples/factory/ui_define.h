@@ -234,6 +234,17 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt,
 /** @brief Close a helper modal; nullptr and already closed helper boxes are ignored. */
 void destroy_msgbox(lv_obj_t *msgbox);
 void ui_msgbox_refresh();
+/**
+ * @brief Open an opaque full-screen settings page with its own input group.
+ * @param owner App object whose deletion also closes this settings page.
+ * @param title Single-line page title, following the active theme font.
+ * @return Scrollable form content; only its child controls enter the input group.
+ * Back/Escape closes the page and restores the app focus. Attach a DELETE
+ * callback to the returned content to finish edits and release page resources.
+ */
+lv_obj_t *ui_create_settings_page(lv_obj_t *owner, const char *title);
+/** @brief Close a settings page; nullptr and already closed pages are ignored. */
+void ui_destroy_settings_page(lv_obj_t *content);
 
 lv_indev_t *lv_get_encoder_indev();
 bool lv_consume_encoder_activity();

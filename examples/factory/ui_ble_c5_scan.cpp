@@ -278,12 +278,13 @@ static void keyboard_event(lv_event_t *)
 
 static void search_event(lv_event_t *event)
 {
-    if (settings_closing || keyboard_transition) return;
+    if (settings_closing || keyboard_transition || ui_soft_keyboard_focus_transition_active()) return;
     const auto code = lv_event_get_code(event);
     if (code == LV_EVENT_VALUE_CHANGED) {
         snprintf(filter.name, sizeof(filter.name), "%s", lv_textarea_get_text(search_input));
         dirty = true;
-    } else if (code == LV_EVENT_CLICKED) {
+    } else if (code == LV_EVENT_CLICKED ||
+               (code == LV_EVENT_FOCUSED && lv_obj_has_state(search_input, LV_STATE_EDITED))) {
         enable_keyboard();
         if (search_keyboard) {
             // Keep the inherited modal face while raised onto the top layer;
@@ -347,13 +348,12 @@ static lv_obj_t *settings_label(lv_obj_t *parent, const char *text, bool grow = 
 static void open_settings(lv_event_t *)
 {
     if (settings_box) return;
-    settings_box = create_msgbox(page, "BLE Filters", "", nullptr, nullptr, nullptr);
-    auto *body = lv_msgbox_get_content(settings_box);
+    settings_box = ui_create_settings_page(page, "BLE Filters");
+    auto *body = settings_box;
     // This dialog contains form controls; its layout must not be an extra
     // encoder stop like the scrollable body of a text-only information dialog.
     if (lv_obj_get_group(body)) lv_group_remove_obj(body);
     lv_obj_remove_flag(body, LV_OBJ_FLAG_CLICK_FOCUSABLE);
-    lv_obj_add_flag(lv_obj_get_child(body, 0), LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_pad_row(body, 8, 0);
     lv_obj_add_event_cb(settings_box, settings_deleted, LV_EVENT_DELETE, nullptr);
     auto *card = ui_create_card(body, nullptr);
@@ -396,7 +396,7 @@ static void open_settings(lv_event_t *)
 }
 
 static void cleanup() {
-    if (settings_box) destroy_msgbox(settings_box);
+    if (settings_box) ui_destroy_settings_page(settings_box);
     if (timer) { lv_timer_delete(timer); timer = nullptr; }
     transport.close();
 }

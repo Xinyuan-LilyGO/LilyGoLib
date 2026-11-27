@@ -293,9 +293,28 @@ static uint8_t ui_slider_scroll_lock_count = 0;
 
 static lv_indev_type_t ui_event_indev_type(lv_event_t *e)
 {
-    lv_indev_t *indev = lv_event_get_indev(e);
+    lv_indev_t *indev = lv_indev_active();
     if (!indev) {
-        indev = lv_indev_active();
+        // KEY carries a key code, and VALUE_CHANGED may carry widget data.
+        // Only input/focus events below can carry an input-device pointer.
+        switch (lv_event_get_code(e)) {
+        case LV_EVENT_PRESSED:
+        case LV_EVENT_PRESSING:
+        case LV_EVENT_PRESS_LOST:
+        case LV_EVENT_CLICKED:
+        case LV_EVENT_RELEASED:
+        case LV_EVENT_FOCUSED:
+        case LV_EVENT_DEFOCUSED:
+        case LV_EVENT_LEAVE: {
+            auto *candidate = lv_event_get_indev(e);
+            for (auto *input = lv_indev_get_next(NULL); input; input = lv_indev_get_next(input)) {
+                if (input == candidate) { indev = input; break; }
+            }
+            break;
+        }
+        default:
+            break;
+        }
     }
     return indev ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
 }
