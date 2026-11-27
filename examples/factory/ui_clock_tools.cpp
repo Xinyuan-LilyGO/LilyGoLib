@@ -1,11 +1,11 @@
- /**
+/**
  * @file      ui_clock_tools.cpp
  * @author    Lewis He (lewishe@outlook.com)
  * @license   MIT
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
  * @date      2026-05-29
- * 
- * Timezone, manual clock setting, and NTP sync tools.
+ *
+ * Responsive timezone selection and manual date/time editing.
  */
 #include "ui_define.h"
 
@@ -127,13 +127,34 @@ static void build_options(void)
     }
 }
 
-static lv_obj_t *card_dropdown(lv_obj_t *card, const char *icon, const char *title,
-                               const char *options, uint8_t sel)
+static lv_obj_t *clock_dropdown(lv_obj_t *parent, const char *title, const char *options)
 {
-    lv_obj_t *row = ui_create_card_dropdown(card, icon, title, options, sel, NULL);
-    lv_obj_t *dd = lv_obj_get_child(row, lv_obj_get_child_count(row) - 1);
-    lv_obj_set_width(dd, 118);
+    auto *column = lv_obj_create(parent);
+    lv_obj_set_size(column, 1, LV_SIZE_CONTENT); lv_obj_set_flex_grow(column, 1);
+    lv_obj_set_style_pad_all(column, 0, 0); lv_obj_set_style_border_width(column, 0, 0);
+    lv_obj_set_style_bg_opa(column, LV_OPA_TRANSP, 0); lv_obj_set_flex_flow(column, LV_FLEX_FLOW_COLUMN);
+    lv_obj_remove_flag(column, LV_OBJ_FLAG_SCROLLABLE);
+    auto *label = lv_label_create(column); lv_label_set_text(label, title);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
+    auto *dd = lv_dropdown_create(column); lv_obj_set_width(dd, LV_PCT(100));
+    lv_dropdown_set_options(dd, options); ui_add_accent_focus_style(dd);
+    lv_obj_set_style_text_font(dd, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_pad_hor(dd, 4, 0);
+    lv_obj_add_flag(dd, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     return dd;
+}
+static lv_obj_t *time_row(lv_obj_t *parent)
+{
+    auto *row = lv_obj_create(parent); lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(row, 0, 0); lv_obj_set_style_pad_column(row, 4, 0);
+    lv_obj_set_style_border_width(row, 0, 0); lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW); lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    return row;
+}
+static void dropdown_open(lv_event_t *event)
+{
+    auto *dd = lv_event_get_target_obj(event);
+    if (auto *list = lv_dropdown_get_list(dd)) lv_obj_set_width(list, lv_obj_get_width(dd));
 }
 
 static void set_status(const char *text, lv_color_t color)
@@ -223,45 +244,17 @@ static void apply_time_cb(lv_event_t *e)
     if (hw_set_date_time(next)) {
         set_status("Time applied.", UI_COLOR_ACCENT);
     } else {
-        set_status("Set time failed.", lv_color_hex(0xFF4444));
+        set_status("Set time failed.", UI_COLOR_WARNING);
     }
     update_current_time_label();
 }
 
-static void load_now_cb(lv_event_t *e)
+static void save_timezone()
 {
-    load_now_to_dropdowns();
-    set_status("Loaded current clock.", UI_COLOR_TEXT_SECONDARY);
-}
-
-static void apply_timezone_cb(lv_event_t *e)
-{
-    uint8_t tz = lv_dropdown_get_selected(timezone_dd);
-    if (tz >= sizeof(tz_entries) / sizeof(tz_entries[0])) {
-        return;
-    }
-    hw_set_timezone_offset(tz_entries[tz].offset_sec, 0);
-    set_status("Timezone saved.", UI_COLOR_ACCENT);
-    update_current_time_label();
-}
-
-static void ntp_sync_cb(lv_event_t *e)
-{
-    uint8_t tz = lv_dropdown_get_selected(timezone_dd);
-    if (tz >= sizeof(tz_entries) / sizeof(tz_entries[0])) {
-        tz = tz_index_from_offset(GMT_OFFSET_SECOND);
-    }
-
-    set_status("Syncing NTP...", UI_COLOR_TEXT_SECONDARY);
-    bool ok = hw_sync_time_from_ntp(tz_entries[tz].offset_sec, 0,
-                                    "pool.ntp.org", "time.nist.gov", 5000);
-    if (ok) {
-        load_now_to_dropdowns();
-        set_status("NTP sync OK.", UI_COLOR_ACCENT);
-    } else {
-        set_status("NTP sync failed. Check WiFi.", lv_color_hex(0xFF4444));
-    }
-    update_current_time_label();
+    if (!timezone_dd) return;
+    const unsigned tz = lv_dropdown_get_selected(timezone_dd);
+    if (tz < sizeof(tz_entries) / sizeof(tz_entries[0]) && hw_get_timezone_offset() != tz_entries[tz].offset_sec)
+        hw_set_timezone_offset(tz_entries[tz].offset_sec, 0);
 }
 
 static lv_obj_t *add_info_row(lv_obj_t *card, const char *icon, const char *title,
@@ -274,6 +267,7 @@ static lv_obj_t *add_info_row(lv_obj_t *card, const char *icon, const char *titl
 
 static void back_event_handler(lv_event_t *e)
 {
+    save_timezone();
     if (clock_timer) {
         lv_timer_delete(clock_timer);
         clock_timer = NULL;
@@ -299,6 +293,12 @@ void ui_clock_tools_enter(lv_obj_t *parent)
 {
     build_options();
     page_container = ui_create_app_page(parent, "Clock Tools", back_event_handler);
+    lv_obj_add_event_cb(page_container, [](lv_event_t *) {
+        save_timezone();
+        if (clock_timer) { lv_timer_delete(clock_timer); clock_timer = nullptr; }
+        page_container = current_time_label = timezone_label = status_label = timezone_dd = nullptr;
+        year_dd = month_dd = day_dd = hour_dd = minute_dd = second_dd = nullptr;
+    }, LV_EVENT_DELETE, nullptr);
 
     lv_obj_t *card = ui_create_card(page_container, "Clock");
     add_info_row(card, LV_SYMBOL_BELL, "Current", "--", &current_time_label);
@@ -309,22 +309,26 @@ void ui_clock_tools_enter(lv_obj_t *parent)
     lv_obj_set_style_text_font(status_label, &lv_font_montserrat_12, 0);
 
     card = ui_create_card(page_container, "Timezone");
-    timezone_dd = card_dropdown(card, LV_SYMBOL_SETTINGS, "Zone", timezone_options,
-                                tz_index_from_offset(hw_get_timezone_offset()));
-    ui_create_card_button(card, LV_SYMBOL_SAVE, "Save Zone", "Apply", apply_timezone_cb);
-    ui_create_card_button(card, LV_SYMBOL_WIFI, "Network Time", "NTP Sync", ntp_sync_cb);
+    timezone_dd = lv_dropdown_create(card);
+    lv_obj_set_width(timezone_dd, LV_PCT(100)); lv_dropdown_set_options(timezone_dd, timezone_options);
+    lv_dropdown_set_selected(timezone_dd, tz_index_from_offset(hw_get_timezone_offset()));
+    ui_add_accent_focus_style(timezone_dd);
+    lv_obj_add_event_cb(timezone_dd, dropdown_open, LV_EVENT_READY, nullptr);
+    lv_obj_add_event_cb(timezone_dd, dropdown_open, LV_EVENT_CLICKED, nullptr);
 
     card = ui_create_card(page_container, "Manual Time");
-    year_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Year", year_options, 0);
-    month_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Month",
-                             "01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12", 0);
-    day_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Day",
-                           "01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31", 0);
-    hour_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Hour", hour_options, 0);
-    minute_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Minute", minute_options, 0);
-    second_dd = card_dropdown(card, LV_SYMBOL_EDIT, "Second", minute_options, 0);
-    ui_create_card_button(card, LV_SYMBOL_REFRESH, "Read Clock", "Load Now", load_now_cb);
-    ui_create_card_button(card, LV_SYMBOL_SAVE, "Set Clock", "Apply", apply_time_cb);
+    auto *row = time_row(card);
+    year_dd = clock_dropdown(row, "Year", year_options);
+    month_dd = clock_dropdown(row, "Month", "01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12");
+    day_dd = clock_dropdown(row, "Day", "01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31");
+    row = time_row(card);
+    hour_dd = clock_dropdown(row, "Hour", hour_options);
+    minute_dd = clock_dropdown(row, "Min", minute_options);
+    second_dd = clock_dropdown(row, "Sec", minute_options);
+    auto *save = lv_button_create(card); lv_obj_set_size(save, LV_PCT(100), 34);
+    lv_obj_add_style(save, &ui_styles.accent_btn, 0); ui_add_accent_focus_style(save);
+    lv_obj_add_event_cb(save, apply_time_cb, LV_EVENT_CLICKED, nullptr);
+    auto *label = lv_label_create(save); lv_label_set_text(label, "Set Clock"); lv_obj_center(label);
 
     load_now_to_dropdowns();
     update_current_time_label();
@@ -333,6 +337,9 @@ void ui_clock_tools_enter(lv_obj_t *parent)
 
 void ui_clock_tools_exit(lv_obj_t *parent)
 {
+    LV_UNUSED(parent);
+    save_timezone();
+    if (clock_timer) { lv_timer_delete(clock_timer); clock_timer = nullptr; }
 }
 
 app_t ui_clock_tools_main = {
