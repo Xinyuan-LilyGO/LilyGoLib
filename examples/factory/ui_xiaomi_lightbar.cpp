@@ -1,7 +1,10 @@
 /**
  * @file      ui_xiaomi_lightbar.cpp
  * @license   MIT
- * @brief     MJGJD01YL light bar controller for supported boards with NRF24.
+ * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-10-02
+ *
+ * MJGJD01YL light controls with header settings for remote identity and pairing.
  */
 #include <LilyGoLog.h>
 #include "ui_define.h"
@@ -25,6 +28,12 @@ constexpr uint16_t COMMAND_DIMMER = 0x0500;
 constexpr uint16_t COMMAND_RESET = 0x0600;
 
 lv_obj_t *page_container = nullptr;
+lv_obj_t *settings_button = nullptr;
+lv_obj_t *settings_msgbox = nullptr;
+lv_obj_t *id_card = nullptr;
+lv_obj_t *capture_label = nullptr;
+bool id_keyboard_transition = false;
+bool settings_closing = false;
 lv_obj_t *id_textarea = nullptr;
 lv_obj_t *id_keyboard = nullptr;
 ui_soft_keyboard_lift_t id_keyboard_lift = {nullptr, nullptr, -1};
@@ -100,6 +109,7 @@ void stop_remote_capture()
     capture_candidate_id = 0;
     capture_candidate_hits = 0;
     if (capture_timer) lv_timer_pause(capture_timer);
+    if (capture_label) lv_label_set_text(capture_label, "Scan original remote");
 }
 
 void capture_timer_cb(lv_timer_t *timer)
@@ -155,6 +165,7 @@ void capture_button_cb(lv_event_t *event)
     }
 
     capture_active = true;
+    if (capture_label) lv_label_set_text(capture_label, "Stop scanning");
     capture_candidate_id = 0;
     capture_candidate_hits = 0;
     if (capture_timer) {
@@ -168,6 +179,7 @@ void commit_remote_id()
 {
     if (!id_textarea) return;
 
+    const uint32_t previous_id = remote_id;
     const char *text = lv_textarea_get_text(id_textarea);
     if (!text || text[0] == '\0') {
         remote_id = generated_remote_id();
@@ -178,7 +190,7 @@ void commit_remote_id()
     char formatted[7];
     snprintf(formatted, sizeof(formatted), "%06lX", (unsigned long)remote_id);
     lv_textarea_set_text(id_textarea, formatted);
-    save_remote_id();
+    if (remote_id != previous_id) save_remote_id();
 
     char status[40];
     snprintf(status, sizeof(status), "Remote %s saved", formatted);
@@ -194,6 +206,7 @@ int16_t send_command(uint16_t command)
         char message[40];
         snprintf(message, sizeof(message), "Send failed (%d)", state);
         set_status(message);
+        if (!status_label) ui_msg_pop_up("Mi Light Bar", message);
     }
     return state;
 }
@@ -264,53 +277,37 @@ void temperature_send_timer_cb(lv_timer_t *timer)
     }
 }
 
+void finish_id_edit()
+{
+    if (id_keyboard_transition) return;
+    id_keyboard_transition = true;
+    commit_remote_id();
+    ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
+    if (id_card) lv_obj_remove_local_style_prop(id_card, LV_STYLE_TEXT_FONT, 0);
+    if (id_textarea) {
+        lv_obj_remove_state(id_textarea, LV_STATE_EDITED);
+        if (auto *group = lv_obj_get_group(id_textarea)) lv_group_set_editing(group, false);
+    }
+    disable_keyboard();
+    id_keyboard_transition = false;
+}
+
 void id_event_cb(lv_event_t *event)
 {
-    const lv_event_code_t code = lv_event_get_code(event);
-    lv_obj_t *textarea = (lv_obj_t *)lv_event_get_target(event);
-    lv_group_t *group = lv_obj_get_group(textarea);
-
-    if (code == LV_EVENT_KEY) {
-        const lv_key_t key = *(lv_key_t *)lv_event_get_param(event);
-        if (key == LV_KEY_ENTER) {
-            commit_remote_id();
-            if (group) lv_group_set_editing(group, false);
-            disable_keyboard();
-            lv_event_stop_processing(event);
-            return;
-        }
-    }
-
-    if (code == LV_EVENT_READY ||
-            (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
-        commit_remote_id();
-        if (group) lv_group_set_editing(group, false);
-        if (id_keyboard) ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
-        disable_keyboard();
-        return;
-    }
-
-    lv_indev_t *indev = lv_indev_active();
-    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER) {
-        const bool edited = lv_obj_has_state(textarea, LV_STATE_EDITED);
-        if (code == LV_EVENT_CLICKED && edited) {
-            commit_remote_id();
-            if (group) lv_group_set_editing(group, false);
-            if (id_keyboard) ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
-            disable_keyboard();
-        } else if (code == LV_EVENT_CLICKED && !edited) {
-            if (group) lv_group_set_editing(group, true);
-            enable_keyboard();
-            ui_soft_keyboard_show(id_keyboard, textarea, lv_obj_get_parent(textarea),
-                                  &id_keyboard_lift);
-        } else if (code == LV_EVENT_FOCUSED && edited) {
-            enable_keyboard();
-        }
-    } else if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER &&
-               code == LV_EVENT_CLICKED) {
+    if (settings_closing || id_keyboard_transition || ui_soft_keyboard_focus_transition_active()) return;
+    const auto code = lv_event_get_code(event);
+    if (code == LV_EVENT_CLICKED ||
+            (code == LV_EVENT_FOCUSED && lv_obj_has_state(id_textarea, LV_STATE_EDITED))) {
         enable_keyboard();
-        ui_soft_keyboard_show(id_keyboard, textarea, lv_obj_get_parent(textarea),
-                              &id_keyboard_lift);
+        if (id_keyboard) {
+            if (!id_keyboard_lift.lifted_obj) {
+                lv_obj_set_style_text_font(id_card, lv_obj_get_style_text_font(id_card, LV_PART_MAIN), 0);
+            }
+            ui_soft_keyboard_show(id_keyboard, id_textarea, id_card, &id_keyboard_lift);
+        }
+    } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL ||
+               (code == LV_EVENT_DEFOCUSED && !ui_soft_keyboard_focus_transition_active())) {
+        finish_id_edit();
     }
 }
 
@@ -332,49 +329,91 @@ void temperature_event_cb(lv_event_t *event)
     }
 }
 
-void create_level_control(lv_obj_t *card, bool brightness)
+lv_obj_t *layout_panel(lv_obj_t *parent)
 {
-    lv_obj_t *row = lv_obj_create(card);
-    lv_obj_set_size(row, LV_PCT(100), 42);
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(row, 0, 0);
-    lv_obj_set_style_pad_all(row, 4, 0);
-    lv_obj_set_style_pad_column(row, 8, 0);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    auto *panel = lv_obj_create(parent);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(panel, 0, 0);
+    lv_obj_set_style_pad_all(panel, 0, 0);
+    lv_obj_remove_flag(panel, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLLABLE |
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    return panel;
+}
 
-    lv_obj_t *slider = lv_slider_create(row);
+lv_obj_t *text_label(lv_obj_t *parent, const char *text)
+{
+    auto *label = lv_label_create(parent);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, UI_COLOR_TEXT_PRIMARY, 0);
+    return label;
+}
+
+void focus_control(lv_event_t *event)
+{
+    lv_obj_scroll_to_view_recursive(lv_event_get_target_obj(event), LV_ANIM_ON);
+}
+
+void create_level_control(lv_obj_t *parent, bool brightness)
+{
+    auto *card = layout_panel(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 6, 0);
+    lv_obj_set_style_pad_row(card, 10, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    auto *heading = layout_panel(card);
+    lv_obj_set_size(heading, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(heading, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(heading, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(heading, 6, 0);
+    auto *title = text_label(heading, brightness ? "Brightness" : "Color temperature");
+    lv_obj_set_width(title, 0);
+    lv_obj_set_flex_grow(title, 1);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    auto *value = text_label(heading, "");
+    lv_obj_add_style(value, &ui_styles.accent_text, 0);
+    lv_obj_remove_local_style_prop(value, LV_STYLE_TEXT_COLOR, 0);
+
+    auto *slider = lv_slider_create(card);
+    lv_obj_set_size(slider, LV_PCT(100), 8);
     lv_slider_set_range(slider, 0, 15);
     lv_slider_set_value(slider, 8, LV_ANIM_OFF);
-    lv_obj_set_flex_grow(slider, 1);
-    lv_obj_set_height(slider, 8);
     lv_obj_add_style(slider, &ui_styles.slider_track, LV_PART_MAIN);
     lv_obj_add_style(slider, &ui_styles.slider_knob, LV_PART_KNOB);
     lv_obj_add_flag(slider, LV_OBJ_FLAG_PRESS_LOCK);
-    lv_obj_remove_flag(slider, LV_OBJ_FLAG_SCROLL_CHAIN);
-    lv_obj_remove_flag(slider, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_remove_flag(slider, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLL_CHAIN | LV_OBJ_FLAG_GESTURE_BUBBLE));
+    lv_obj_set_style_margin_bottom(slider, 6, 0);
     ui_add_accent_focus_style(slider);
     ui_prepare_slider_for_encoder(slider);
-
-    lv_obj_t *value = lv_label_create(row);
-    lv_obj_set_width(value, brightness ? 46 : 58);
-    lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_color(value, UI_COLOR_TEXT_PRIMARY, 0);
-    lv_obj_set_style_text_font(value, &lv_font_montserrat_12, 0);
-
     if (brightness) {
         brightness_slider = slider;
         brightness_value = value;
-        lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_ALL, nullptr);
+        lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_VALUE_CHANGED, nullptr);
         update_brightness_value();
     } else {
         temperature_slider = slider;
         temperature_value = value;
-        lv_obj_add_event_cb(slider, temperature_event_cb, LV_EVENT_ALL, nullptr);
+        lv_obj_add_event_cb(slider, temperature_event_cb, LV_EVENT_VALUE_CHANGED, nullptr);
         update_temperature_value();
     }
+}
+
+lv_obj_t *action_button(lv_obj_t *parent, const char *text, lv_event_cb_t callback)
+{
+    auto *button = lv_button_create(parent);
+    lv_obj_set_size(button, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_add_style(button, &ui_styles.card, 0);
+    lv_obj_set_style_pad_all(button, 8, 0);
+    lv_obj_set_style_radius(button, 8, 0);
+    ui_add_accent_focus_style(button);
+    lv_obj_add_flag(button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(button, focus_control, LV_EVENT_FOCUSED, nullptr);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, nullptr);
+    auto *label = text_label(button, text);
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    return button;
 }
 
 void toggle_cb(lv_event_t *event)
@@ -397,38 +436,102 @@ void reset_cb(lv_event_t *event)
     }
 }
 
-void back_event_handler(lv_event_t *event)
+void settings_deleted(lv_event_t *)
 {
-    (void)event;
-    if (id_keyboard) {
-        ui_soft_keyboard_hide(id_keyboard, &id_keyboard_lift);
-        lv_obj_delete(id_keyboard);
-        id_keyboard = nullptr;
+    settings_closing = true;
+    finish_id_edit();
+    stop_remote_capture();
+    if (id_keyboard) lv_obj_delete(id_keyboard);
+    id_keyboard = id_textarea = id_card = capture_label = status_label = settings_msgbox = nullptr;
+    id_keyboard_lift = {nullptr, nullptr, -1};
+    settings_closing = false;
+}
+
+void open_settings(lv_event_t *)
+{
+    if (settings_msgbox) return;
+    // Finish deferred control changes before capture can take over the radio.
+    if (brightness_send_timer && !lv_timer_get_paused(brightness_send_timer)) brightness_send_timer_cb(brightness_send_timer);
+    if (temperature_send_timer && !lv_timer_get_paused(temperature_send_timer)) temperature_send_timer_cb(temperature_send_timer);
+    settings_msgbox = ui_create_settings_page(page_container, "Light bar settings");
+    lv_obj_add_event_cb(settings_msgbox, settings_deleted, LV_EVENT_DELETE, nullptr);
+    auto *body = settings_msgbox;
+    if (lv_obj_get_group(body)) lv_group_remove_obj(body);
+    lv_obj_remove_flag(body, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_set_style_pad_row(body, 8, 0);
+
+    id_card = layout_panel(body);
+    lv_obj_set_size(id_card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(id_card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(id_card, 4, 0);
+    lv_obj_set_style_pad_row(id_card, 4, 0);
+    lv_obj_add_style(id_card, &ui_styles.card, 0);
+    lv_obj_set_style_bg_opa(id_card, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(id_card, 8, 0);
+    text_label(id_card, "Remote ID (hex)");
+    id_textarea = lv_textarea_create(id_card);
+    lv_obj_set_width(id_textarea, LV_PCT(100));
+    lv_textarea_set_one_line(id_textarea, true);
+    lv_textarea_set_accepted_chars(id_textarea, "0123456789ABCDEFabcdef");
+    lv_textarea_set_max_length(id_textarea, 6);
+    char id_text[7];
+    snprintf(id_text, sizeof(id_text), "%06lX", (unsigned long)remote_id);
+    lv_textarea_set_text(id_textarea, id_text);
+    ui_prepare_textarea_for_encoder(id_textarea);
+    ui_add_accent_focus_style(id_textarea);
+    lv_obj_add_event_cb(id_textarea, id_event_cb, LV_EVENT_ALL, nullptr);
+
+    auto *capture_button = action_button(body, "Scan original remote", capture_button_cb);
+    capture_label = lv_obj_get_child(capture_button, 0);
+    status_label = text_label(body, "Turn or press the original remote while scanning.");
+    lv_obj_set_width(status_label, LV_PCT(100));
+    lv_label_set_long_mode(status_label, LV_LABEL_LONG_WRAP);
+    // Let the encoder reveal the complete status text in a short viewport.
+    lv_obj_set_style_radius(status_label, 8, 0);
+    lv_obj_add_flag(status_label, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_SCROLL_ON_FOCUS |
+                    LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    ui_add_accent_focus_style(status_label);
+    if (auto *group = lv_group_get_default()) lv_group_add_obj(group, status_label);
+    lv_obj_add_event_cb(status_label, focus_control, LV_EVENT_FOCUSED, nullptr);
+    action_button(body, "Pair / reset", reset_cb);
+    if (ui_soft_keyboard_should_open()) {
+        id_keyboard = lv_keyboard_create(lv_layer_top());
+        lv_obj_add_flag(id_keyboard, LV_OBJ_FLAG_HIDDEN);
+        if (lv_obj_get_group(id_keyboard)) lv_group_remove_obj(id_keyboard);
+        auto ready = [](lv_event_t *) {
+            finish_id_edit();
+            if (id_textarea) lv_group_focus_obj(id_textarea);
+        };
+        lv_obj_add_event_cb(id_keyboard, ready, LV_EVENT_READY, nullptr);
+        lv_obj_add_event_cb(id_keyboard, ready, LV_EVENT_CANCEL, nullptr);
+    }
+    lv_group_focus_obj(id_textarea);
+}
+
+void cleanup()
+{
+    if (settings_msgbox) ui_destroy_settings_page(settings_msgbox);
+    if (unavailable_msgbox) {
+        destroy_msgbox(unavailable_msgbox);
+        unavailable_msgbox = nullptr;
     }
     disable_keyboard();
     stop_remote_capture();
-    if (capture_timer) {
-        lv_timer_delete(capture_timer);
-        capture_timer = nullptr;
-    }
-    if (brightness_send_timer) {
-        lv_timer_delete(brightness_send_timer);
-        brightness_send_timer = nullptr;
-    }
-    if (temperature_send_timer) {
-        lv_timer_delete(temperature_send_timer);
-        temperature_send_timer = nullptr;
+    for (auto **timer : {&capture_timer, &brightness_send_timer, &temperature_send_timer}) {
+        if (*timer) lv_timer_delete(*timer);
+        *timer = nullptr;
     }
     if (page_container) {
         ui_destroy_app_page(page_container);
         page_container = nullptr;
     }
-    id_textarea = nullptr;
-    status_label = nullptr;
-    brightness_slider = nullptr;
-    brightness_value = nullptr;
-    temperature_slider = nullptr;
-    temperature_value = nullptr;
+    settings_button = nullptr;
+    brightness_slider = brightness_value = temperature_slider = temperature_value = nullptr;
+}
+
+void back_event_handler(lv_event_t *)
+{
+    cleanup();
     menu_show();
 }
 
@@ -458,48 +561,32 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     packet_sequence = (uint8_t)(millis() & 0xFF);
     page_container = ui_create_app_page(parent, "Mi Light Bar", back_event_handler);
 
-    lv_obj_t *card = ui_create_card(page_container, "MJGJD01YL");
-    id_textarea = lv_textarea_create(card);
-    lv_obj_set_width(id_textarea, 110);
-    lv_textarea_set_one_line(id_textarea, true);
-    lv_textarea_set_accepted_chars(id_textarea, "0123456789ABCDEFabcdef");
-    lv_textarea_set_max_length(id_textarea, 6);
-    lv_textarea_set_text_selection(id_textarea, false);
-    lv_obj_set_style_bg_color(id_textarea, UI_COLOR_CARD_BG, 0);
-    lv_obj_set_style_text_color(id_textarea, UI_COLOR_TEXT_PRIMARY, 0);
-    lv_obj_set_style_border_color(id_textarea, UI_COLOR_DIVIDER, 0);
-    lv_obj_set_style_border_width(id_textarea, 1, 0);
-    lv_obj_set_style_radius(id_textarea, 6, 0);
-    lv_obj_set_style_pad_all(id_textarea, 5, 0);
-    char id_text[7];
-    snprintf(id_text, sizeof(id_text), "%06lX", (unsigned long)remote_id);
-    lv_textarea_set_text(id_textarea, id_text);
-    lv_obj_add_event_cb(id_textarea, id_event_cb, LV_EVENT_ALL, nullptr);
-    ui_create_card_item(card, LV_SYMBOL_EDIT, "Remote ID", id_textarea);
+    settings_button = ui_app_page_add_header_button(page_container, LV_SYMBOL_SETTINGS, open_settings);
+    const int width = lv_display_get_horizontal_resolution(nullptr);
+    const int height = lv_display_get_vertical_resolution(nullptr);
+    const bool horizontal = width >= 300 && width > height;
+    lv_obj_set_style_pad_all(page_container, 4, 0);
+    lv_obj_set_style_pad_gap(page_container, 8, 0);
+    lv_obj_set_flex_flow(page_container, horizontal ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(page_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-#if FACTORY_HAS_SOFT_KEYBOARD
-    id_keyboard = lv_keyboard_create(lv_layer_top());
-    lv_obj_set_style_bg_color(id_keyboard, UI_COLOR_CARD_BG, 0);
-    lv_obj_set_style_bg_opa(id_keyboard, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(id_keyboard, UI_COLOR_TEXT_PRIMARY, 0);
-    lv_obj_add_flag(id_keyboard, LV_OBJ_FLAG_HIDDEN);
-#endif
+    auto *power_panel = layout_panel(page_container);
+    lv_obj_set_size(power_panel, horizontal ? LV_PCT(25) : LV_PCT(100),
+                    horizontal ? LV_PCT(100) : LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(power_panel, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(power_panel, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    auto *power = action_button(power_panel, LV_SYMBOL_POWER "  Power", toggle_cb);
+    lv_obj_set_size(power, horizontal ? LV_PCT(100) : LV_PCT(65), LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(power, 36, 0);
+    lv_obj_align(power, LV_ALIGN_CENTER, 0, 0);
 
-    status_label = lv_label_create(card);
-    lv_label_set_text(status_label, "Ready");
-    lv_label_set_long_mode(status_label, LV_LABEL_LONG_DOT);
-    lv_obj_set_flex_grow(status_label, 1);
-    lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_color(status_label, UI_COLOR_TEXT_SECONDARY, 0);
-    ui_create_card_item(card, LV_SYMBOL_WIFI, "Status", status_label);
-    ui_create_card_button(card, LV_SYMBOL_REFRESH, "Original ID", "Scan",
-                          capture_button_cb);
-
-    card = ui_create_card(page_container, "Brightness");
-    create_level_control(card, true);
-
-    card = ui_create_card(page_container, "Color temperature");
-    create_level_control(card, false);
+    auto *controls = layout_panel(page_container);
+    lv_obj_set_size(controls, horizontal ? 0 : LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(controls, horizontal ? 1 : 0);
+    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(controls, 8, 0);
+    create_level_control(controls, true);
+    create_level_control(controls, false);
 
     brightness_send_timer = lv_timer_create(brightness_send_timer_cb,
                                             SLIDER_SEND_DELAY_MS, nullptr);
@@ -509,16 +596,12 @@ void ui_xiaomi_lightbar_enter(lv_obj_t *parent)
     lv_timer_pause(brightness_send_timer);
     lv_timer_pause(temperature_send_timer);
     lv_timer_pause(capture_timer);
-
-    card = ui_create_card(page_container, "Commands");
-    ui_create_card_button(card, LV_SYMBOL_POWER, "Power", "Toggle", toggle_cb);
-    ui_create_card_button(card, LV_SYMBOL_REFRESH, "Pair / reset", "Send", reset_cb);
 }
 
 void ui_xiaomi_lightbar_exit(lv_obj_t *parent)
 {
     (void)parent;
-    stop_remote_capture();
+    cleanup();
 }
 
 app_t ui_xiaomi_lightbar_main = {
