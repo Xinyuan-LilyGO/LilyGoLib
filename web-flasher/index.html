@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d1211" />
+    <meta
+      name="description" data-i18n-content="meta.description"
+      content="LilyGoLib firmware lab"
+    />
+    <title>LilyGo Flash Lab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+
+    <header class="topbar shell">
+      <a class="brand" href="./" aria-label="LilyGo Flash Lab 首页" data-i18n-aria-label="brand.home">
+        <span class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+        <span class="brand-copy">
+          <strong>LILYGO</strong>
+          <small>FLASH LAB</small>
+        </span>
+      </a>
+      <div class="topbar-meta">
+        <span class="browser-pill" id="browser-pill">
+          <span class="status-dot"></span>
+          <span id="browser-status" data-i18n="browser.checking">正在检测浏览器</span>
+        </span>
+        <label class="language-picker" for="language-select">
+          <span class="sr-only" id="language-label" data-i18n="language.label">语言</span>
+          <select id="language-select" aria-labelledby="language-label">
+            <option value="zh-CN" lang="zh-CN">中文</option>
+            <option value="en" lang="en">English</option>
+            <option value="ja" lang="ja">日本語</option>
+          </select>
+        </label>
+        <a class="text-link" href="https://github.com/Xinyuan-LilyGO/LilyGoLib" target="_blank" rel="noreferrer">
+          LilyGoLib <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="shell page-content" aria-labelledby="page-title">
+      <nav class="stepper" aria-label="烧录步骤" data-i18n-aria-label="steps.label">
+        <div class="step is-active" data-step="1"><span>01</span><strong data-i18n="steps.device">选择设备</strong></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="2"><span>02</span><strong data-i18n="steps.connect">连接 USB</strong></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="3"><span>03</span><strong data-i18n="steps.flash">开始写入</strong></div>
+      </nav>
+
+      <section class="workspace" aria-label="固件写入工作区" data-i18n-aria-label="workspace.label">
+        <div class="device-panel panel-card">
+          <div class="panel-heading">
+            <div>
+              <span class="section-kicker" data-i18n="catalog.step">步骤 01</span>
+              <h1 id="page-title" data-i18n="catalog.title">选择设备</h1>
+            </div>
+            <span class="count-label" data-i18n="catalog.label">设备列表</span>
+          </div>
+          <p class="panel-description" data-i18n="catalog.description">按硬件系列选择，然后选择与你的射频模块对应的固件版本。</p>
+          <div class="device-grid" id="device-grid" aria-label="LilyGo 支持设备" data-i18n-aria-label="catalog.devices"></div>
+        </div>
+
+        <aside class="flash-panel panel-card" aria-labelledby="flash-panel-title">
+          <div class="panel-heading compact">
+            <div>
+              <span class="section-kicker" data-i18n="flash.step">步骤 02 / 03</span>
+              <h2 id="flash-panel-title" data-i18n="flash.title">连接并写入</h2>
+            </div>
+            <span class="connection-state" id="connection-state"><span class="status-dot"></span>未连接</span>
+          </div>
+
+          <div class="selected-device" id="selected-device-summary"></div>
+          <p class="environment-note" id="environment-note"></p>
+
+          <label class="field-label" for="firmware-select" data-i18n="firmware.label">选择固件</label>
+          <div class="select-wrap">
+            <select id="firmware-select" aria-describedby="firmware-meta"></select>
+            <span class="select-arrow" aria-hidden="true"></span>
+          </div>
+          <div class="firmware-meta" id="firmware-meta"></div>
+
+          <div class="or-divider"><span data-i18n="firmware.or">或者</span></div>
+          <label class="dropzone" for="custom-firmware">
+            <input id="custom-firmware" type="file" accept=".bin,application/octet-stream" />
+            <span class="drop-icon" aria-hidden="true">↑</span>
+            <span><strong data-i18n="firmware.upload">选择或拖入 .bin 文件</strong><small data-i18n="firmware.uploadHelp">仅支持含引导程序与分区表的合并镜像</small></span>
+          </label>
+          <div class="custom-file" id="custom-file" hidden></div>
+          <button class="clear-custom" id="clear-custom" type="button" data-i18n="firmware.clear" hidden>取消自定义镜像</button>
+
+          <a class="device-guide" id="device-guide" target="_blank" rel="noreferrer"><span data-i18n="guide.device">下载模式操作指南</span> ↗</a>
+          <a class="device-guide" id="s3-plus-guide" href="https://github.com/Xinyuan-LilyGO/LilyGoLib/blob/master/docs/lilygo-t-watch-s3-plus.md#entering-download-mode-on-the-t-watch-s3-plus" target="_blank" rel="noreferrer" hidden><span data-i18n="guide.plus">S3 Plus 操作指南</span> ↗</a>
+          <div class="action-stack">
+            <button class="button button-primary" id="connect-button" type="button">
+              <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V3m-3 3 3-3 3 3M12 17l-6-4V9m6 5 6-4V7"/><circle cx="6" cy="8" r="1.5"/><path d="M16.5 4h3v3h-3z"/></svg>
+              <span id="connect-label">连接设备</span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+            <button class="button button-quiet" id="flash-button" type="button" disabled>
+              <span class="button-icon" aria-hidden="true">◈</span>
+              <span data-i18n="action.flash">开始写入固件</span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <div class="safety-note"><span aria-hidden="true">i</span><span data-i18n="safety">合并镜像会覆盖对应区域的数据。请先备份，并保持 USB 连接。</span></div>
+        </aside>
+      </section>
+
+      <section class="progress-card panel-card" id="progress-card" aria-live="polite">
+        <div class="progress-topline">
+          <div>
+            <span class="section-kicker" data-i18n="progress.label">传输状态</span>
+            <h2 id="progress-title">准备就绪</h2>
+          </div>
+          <span class="progress-percent" id="progress-percent">0%</span>
+        </div>
+        <div class="progress-track" id="transfer-progress" role="progressbar" aria-label="固件传输进度" data-i18n-aria-label="progress.aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="progress-details"><span id="progress-detail">选择设备后连接 USB</span><span id="progress-size">—</span></div>
+      </section>
+
+      <section class="log-card" aria-labelledby="log-title">
+        <div class="log-heading">
+          <div><span class="section-kicker" data-i18n="log.label">设备控制台</span><h2 id="log-title" data-i18n="log.title">操作日志</h2></div>
+          <button class="clear-log" id="clear-log" type="button" data-i18n="log.clear">清空日志</button>
+        </div>
+        <div class="log-output" id="log-output" role="log" aria-live="polite"></div>
+      </section>
+
+      <section class="help-strip">
+        <div class="help-icon" aria-hidden="true">?</div>
+        <div><strong data-i18n="help.title">第一次使用？</strong><span data-i18n="help.text">使用桌面版 Chrome 或 Edge，按设备专属指南进入下载模式。写入完成后重启设备。</span></div>
+        <a href="https://github.com/Xinyuan-LilyGO/LilyGoLib/blob/master/firmware/README_CN.MD" target="_blank" rel="noreferrer" id="full-guide"><span data-i18n="help.link">查看完整说明</span> <span aria-hidden="true">↗</span></a>
+      </section>
+    </main>
+
+    <footer class="shell footer"><span>LilyGo Flash Lab</span><span data-i18n="footer.privacy">本地处理 · 无需上传固件</span></footer>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

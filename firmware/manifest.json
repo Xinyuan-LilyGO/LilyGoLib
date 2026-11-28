@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "devices": {
+    "lora-pager": [
+      {
+        "file": "tlora-pager-sx1262-factory-20261007-0x0.bin",
+        "date": "2026-10-07",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1262"
+      },
+      {
+        "file": "tlora-pager-lr1121-factory-20261007-0x0.bin",
+        "date": "2026-10-07",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "LR1121"
+      }
+    ],
+    "vibe-pager": [
+      {
+        "file": "tvibe-pager-factory-20261117-0x0.bin",
+        "date": "2026-11-17",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0
+      }
+    ],
+    "watch-ultra": [
+      {
+        "file": "twatch-ultra-sx1280-factory-20261007-0x0.bin",
+        "date": "2026-10-07",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1280"
+      },
+      {
+        "file": "twatch-ultra-sx1262-factory-20261007-0x0.bin",
+        "date": "2026-10-07",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1262"
+      }
+    ],
+    "watch-s3": [
+      {
+        "file": "twatchs3-sx1262-factory-20260919-0x0.bin",
+        "date": "2026-09-19",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1262"
+      },
+      {
+        "file": "twatchs3-sx1280-factory-20260919-0x0.bin",
+        "date": "2026-09-19",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1280"
+      },
+      {
+        "file": "twatchs3-cc1101-factory-20260919-0x0.bin",
+        "date": "2026-09-19",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "CC1101"
+      }
+    ],
+    "t-deck": [
+      {
+        "file": "tdeck-sx1262-factory-20260919-0x0.bin",
+        "date": "2026-09-19",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0,
+        "variant": "SX1262",
+        "factory": true
+      }
+    ],
+    "vibe-dev": [
+      {
+        "file": "tvibe-dev-factory-20261117-0x0.bin",
+        "date": "2026-11-17",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0
+      }
+    ],
+    "watch-2020": [
+      {
+        "file": "q307-twatch2020v3-factory-20260929-0x0.bin",
+        "date": "2026-09-29",
+        "size": 16711680,
+        "chip": "ESP32",
+        "offset": 0
+      }
+    ],
+    "watch-2019": [
+      {
+        "file": "twatch-2019-factory-20261014-0x0.bin",
+        "date": "2026-10-14",
+        "size": 2184032,
+        "chip": "ESP32",
+        "offset": 0
+      }
+    ],
+    "t-embed-plus": [
+      {
+        "file": "tembed-plus-factory-20261120-0x0.bin",
+        "date": "2026-11-20",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0
+      }
+    ],
+    "t-embed-plus-v2": [
+      {
+        "file": "tembed-plus-v2-factory-20261128-0x0.bin",
+        "date": "2026-11-28",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0
+      }
+    ],
+    "t-embed": [
+      {
+        "file": "tembed-factory-20261120-0x0.bin",
+        "date": "2026-11-20",
+        "size": 16711680,
+        "chip": "ESP32-S3",
+        "offset": 0
+      }
+    ]
+  }
+}

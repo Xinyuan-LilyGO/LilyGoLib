@@ -1,0 +1,75 @@
+name: Deploy LilyGo Flash Lab
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'web-flasher/**'
+      - 'firmware/**'
+      - 'scripts/generate_firmware_manifest.py'
+      - '.github/workflows/web-flasher-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Generate catalog and prepare site
+        run: |
+          python3 scripts/generate_firmware_manifest.py
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          firmware = Path('firmware')
+          manifest = json.loads((firmware / 'manifest.json').read_text(encoding='utf-8'))
+          site = Path(os.environ['RUNNER_TEMP']) / 'lilygo-flash-site'
+          site.mkdir()
+          shutil.copytree('web-flasher', site / 'web-flasher')
+          (site / 'firmware').mkdir()
+          shutil.copy2(firmware / 'manifest.json', site / 'firmware' / 'manifest.json')
+          filenames = {entry['file'] for entries in manifest['devices'].values() for entry in entries}
+          for filename in sorted(filenames):
+              shutil.copy2(firmware / filename, site / 'firmware' / filename)
+          (site / '.nojekyll').touch()
+          (site / 'index.html').write_text(
+              '<!doctype html><html lang="en"><meta charset="utf-8">'
+              '<meta http-equiv="refresh" content="0;url=web-flasher/">'
+              '<title>LilyGo Flash Lab</title>'
+              '<a href="web-flasher/">Open LilyGo Flash Lab</a></html>\n',
+              encoding='utf-8',
+          )
+          size = sum(path.stat().st_size for path in site.rglob('*') if path.is_file())
+          if size > 1_000_000_000:
+              raise SystemExit('The published site exceeds the GitHub Pages 1 GB limit')
+          print(f'Prepared {len(filenames)} firmware images; site size: {size / 1024**2:.1f} MiB')
+          PY
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/lilygo-flash-site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
