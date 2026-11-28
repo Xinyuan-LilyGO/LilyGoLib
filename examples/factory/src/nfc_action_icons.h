@@ -5,7 +5,7 @@
  * @date      2026-11-24
  *
  * Transparent outline images for the NFC operation carousel.
- * Icon attribution and source mapping: docs/nfc-icons-license.md.
+ * Icon license notice: LICENSE.icons.
  */
 #pragma once
 
