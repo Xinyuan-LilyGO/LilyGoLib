@@ -10,7 +10,7 @@
 #include "nfc/LilyGoMifareClassic.h"
 #include "LilyGoLog.h"
 
-#if defined(ARDUINO) && defined(USING_ST25R3916) && LILYGO_NFC_DEBUG_ENABLED
+#if defined(ARDUINO) && defined(USING_ST25R3916)
 
 #include <Arduino.h>
 #include <esp_system.h>
@@ -156,30 +156,34 @@ static uint8_t blockCountForSector(uint8_t sector)
     return sector < 32U ? 4U : 16U;
 }
 
-static bool reselectCard(RfalNfcClass &reader, const uint8_t *uid, uint8_t uidLen)
+static bool reselectCard(RfalNfcClass &reader, const uint8_t *uid, uint8_t uidLen, uint8_t expectedSak)
 {
     if (!uid || uidLen == 0U || uidLen > RFAL_NFCA_CASCADE_3_UID_LEN) return false;
-
-    (void)reader.rfalNfcDeactivate(false);
-    delay(3);
-
-    if (reader.rfalNfcaPollerInitialize() != ST_ERR_NONE) return false;
     RfalRfClass *rf = reader.getRfalRf();
-    if (!rf || rf->rfalFieldOnAndStartGT() != ST_ERR_NONE) return false;
-
-    rfalNfcaSensRes sensRes = {};
-    const ReturnCode presence = reader.rfalNfcaPollerCheckPresence(
-        RFAL_14443A_SHORTFRAME_CMD_WUPA, &sensRes);
-    if (!isPresenceErrorUsable(presence)) return false;
-
-    rfalNfcaSelRes selRes = {};
-    const ReturnCode selected = reader.rfalNfcaPollerSelect(uid, uidLen, &selRes);
-    if (selected != ST_ERR_NONE) {
-        LILYGO_NFC_LOG_W("[ST25][MFC] reselect failed code=%u",
-                         static_cast<unsigned>(selected));
-        return false;
+    if (!rf) return false;
+    // Keep the NFC discovery state intact. Repeated high-level deactivate()
+    // calls become no-ops once RFAL is IDLE and leave the card encrypted.
+    for (unsigned attempt = 1; attempt <= 3; ++attempt) {
+#if LILYGO_NFC_DEBUG_ENABLED
+        const char *stage = "field_off";
+#endif
+        ReturnCode error = rf->rfalFieldOff();
+        delay(5);
+        if (error == ST_ERR_NONE) { LILYGO_NFC_LOG_ONLY(stage = "poll_init"); error = reader.rfalNfcaPollerInitialize(); }
+        if (error == ST_ERR_NONE) { LILYGO_NFC_LOG_ONLY(stage = "field_on"); error = rf->rfalFieldOnAndStartGT(); }
+        rfalNfcaSensRes sensRes = {};
+        if (error == ST_ERR_NONE) {
+            LILYGO_NFC_LOG_ONLY(stage = "presence");
+            error = reader.rfalNfcaPollerCheckPresence(RFAL_14443A_SHORTFRAME_CMD_WUPA, &sensRes);
+            if (isPresenceErrorUsable(error)) error = ST_ERR_NONE;
+        }
+        rfalNfcaSelRes selRes = {};
+        if (error == ST_ERR_NONE) { LILYGO_NFC_LOG_ONLY(stage = "select"); error = reader.rfalNfcaPollerSelect(uid, uidLen, &selRes); }
+        if (error == ST_ERR_NONE && selRes.sak != expectedSak) { LILYGO_NFC_LOG_ONLY(stage = "sak"); error = ST_ERR_PROTO; }
+        if (error == ST_ERR_NONE) return true;
+        LILYGO_NFC_LOG_W("[ST25][MFC] reselect attempt=%u stage=%s code=%u", attempt, stage, error);
     }
-    return true;
+    return false;
 }
 
 static bool transceiveRaw(RfalNfcClass &reader,
@@ -427,9 +431,9 @@ static bool readBlock(RfalNfcClass &reader,
     return true;
 }
 
-static bool resetAndReselect(RfalNfcClass &reader, const uint8_t *uid, uint8_t uidLen)
+static bool resetAndReselect(RfalNfcClass &reader, const uint8_t *uid, uint8_t uidLen, uint8_t sak)
 {
-    return reselectCard(reader, uid, uidLen);
+    return reselectCard(reader, uid, uidLen, sak);
 }
 
 static void logBlock(uint8_t block, const uint8_t data[LILYGO_MIFARE_CLASSIC_BLOCK_SIZE])
@@ -456,11 +460,18 @@ bool lilygoReadMifareClassic(RfalNfcClass &reader,
                              const uint8_t *uid,
                              uint8_t uidLen,
                              uint8_t sak,
+                             const uint8_t atqa[2],
                              LilyGoMifareClassicDump &dump)
 {
     memset(&dump, 0, sizeof(dump));
     dump.attempted = true;
     dump.sak = sak;
+    if (!atqa) return false;
+    memcpy(dump.atqa, atqa, sizeof(dump.atqa));
+    dump.uidLen = uidLen > LILYGO_NFC_MAX_UID_LEN ? LILYGO_NFC_MAX_UID_LEN : uidLen;
+    if (uid && dump.uidLen > 0U) {
+        memcpy(dump.uid, uid, dump.uidLen);
+    }
 
     if (sak == 0x18U || sak == 0x38U) {
         dump.sectors = 40U;
@@ -505,7 +516,7 @@ bool lilygoReadMifareClassic(RfalNfcClass &reader,
                     usedKeyIndex = keyIndex;
                     break;
                 }
-                if (!resetAndReselect(reader, uid, uidLen)) {
+                if (!resetAndReselect(reader, uid, uidLen, sak)) {
                     LILYGO_NFC_LOG_W("[ST25][MFC] sector=%u cannot reselect after auth failure",
                                      static_cast<unsigned>(sector));
                     return dump.blocksRead > 0U;
@@ -540,10 +551,13 @@ bool lilygoReadMifareClassic(RfalNfcClass &reader,
             } else {
                 LILYGO_NFC_LOG_W("[ST25][MFC] sector=%u block=%u read failed",
                                  static_cast<unsigned>(sector), static_cast<unsigned>(block));
+                // A missing reply leaves the stream position uncertain. Do
+                // not issue further encrypted reads with the stale state.
+                break;
             }
         }
 
-        if (sector + 1U < dump.sectors && !resetAndReselect(reader, uid, uidLen)) {
+        if (sector + 1U < dump.sectors && !resetAndReselect(reader, uid, uidLen, sak)) {
             LILYGO_NFC_LOG_W("[ST25][MFC] cannot reselect before sector=%u",
                              static_cast<unsigned>(sector + 1U));
             break;

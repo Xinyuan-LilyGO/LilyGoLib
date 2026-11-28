@@ -2196,6 +2196,12 @@ bool hw_start_nfc_discovery();
  * @return True if NFC emulation is successfully started, false otherwise.
  */
 bool hw_start_nfc_emulation(const LilyGoNfcEmulationConfig &config);
+/** @brief Power NFC and start restoring a Type 2 image to a compatible target. */
+bool hw_start_nfc_type2_write(const LilyGoNfcType2Dump &source);
+/** @brief Power NFC and start a raw NDEF message write. */
+bool hw_start_nfc_ndef_write(const uint8_t *data, uint32_t length);
+/** @brief Power NFC and start clearing a supported NDEF message. */
+bool hw_start_nfc_ndef_erase();
 #endif
 
 /**

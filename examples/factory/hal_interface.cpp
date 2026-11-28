@@ -2161,6 +2161,24 @@ bool hw_start_nfc_emulation(const LilyGoNfcEmulationConfig &config)
     instance.powerControl(POWER_NFC, true);
     return LilyGoNfc.beginEmulation(config);
 }
+
+bool hw_start_nfc_type2_write(const LilyGoNfcType2Dump &source)
+{
+    instance.powerControl(POWER_NFC, true);
+    return LilyGoNfc.beginType2Write(source);
+}
+
+bool hw_start_nfc_ndef_write(const uint8_t *data, uint32_t length)
+{
+    instance.powerControl(POWER_NFC, true);
+    return LilyGoNfc.beginNdefWrite(data, length);
+}
+
+bool hw_start_nfc_ndef_erase()
+{
+    instance.powerControl(POWER_NFC, true);
+    return LilyGoNfc.beginNdefErase();
+}
 #endif
 
 void hw_loop_nfc()
@@ -3637,6 +3655,7 @@ void hw_shutdown()
 #if !defined(EXCLUDE_T_EMBED_LED)
     ui_t_embed_ws2812_suspend();
 #endif
+    hw_stop_nfc();
     if (hw_get_power_off_mode() == HW_POWER_OFF_DEEP_SLEEP) {
         hw_sleep();
         return;
@@ -3708,6 +3727,7 @@ void hw_sleep()
 #if !defined(EXCLUDE_T_EMBED_LED)
     ui_t_embed_ws2812_suspend();
 #endif
+    hw_stop_nfc();
     if (playerTaskHandler) {
         vTaskDelete(playerTaskHandler);
         playerTaskHandler = NULL;
@@ -4405,6 +4425,8 @@ bool hw_set_haptic_effect(uint8_t effect)
 void hw_low_power_loop()
 {
 #ifdef ARDUINO
+    // Join the NFC listener before board sleep changes shared SPI pins or power.
+    hw_stop_nfc();
     // 测试深度睡眠
     // instance.sleep();
     instance.lightSleep();

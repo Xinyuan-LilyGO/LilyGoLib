@@ -593,11 +593,18 @@ LilyGoNfcService::LilyGoNfcService() :
     _emulationRxLen(nullptr),
     _emulationNdefFileLen(0),
     _mifareClassicDump{},
+    _type2Dump{},
+    _type2LastStatus{},
+    _classicLastStatus{},
     _running(false),
     _activeHandled(false),
     _hasNdefContext(false),
     _activeCardValid(false),
     _activeNfcaValid(false),
+    _pendingOperation(0),
+    _pendingType2Dump{},
+    _pendingNdefLength(0),
+    _preservePendingOperation(false),
     _deactivateRequested(false),
     _emulationExchangePrimed(false),
     _emulationReaderActive(false),
@@ -617,7 +624,9 @@ LilyGoNfcService::LilyGoNfcService() :
     memset(&_activeNfca, 0, sizeof(_activeNfca));
     memset(_rawBuffer, 0, sizeof(_rawBuffer));
     memset(_emulationNdefFile, 0, sizeof(_emulationNdefFile));
+    memset(_emulationRawNdef, 0, sizeof(_emulationRawNdef));
     memset(_emulationTxBuf, 0, sizeof(_emulationTxBuf));
+    memset(_pendingNdefBuffer, 0, sizeof(_pendingNdefBuffer));
     _emulationNfcfNfcid2[0] = 0x02;
     _emulationNfcfNfcid2[1] = 0xFE;
     _emulationNfcfNfcid2[2] = 0x11;
@@ -648,8 +657,61 @@ bool LilyGoNfcService::beginReader(LilyGoNfcEventCallback callback, void *userDa
     return beginReader(config);
 }
 
+bool LilyGoNfcService::beginNdefWrite(const uint8_t *data, uint32_t length,
+                                      LilyGoNfcEventCallback callback,
+                                      void *userData)
+{
+    if (!data || length == 0U || length > sizeof(_pendingNdefBuffer)) {
+        return false;
+    }
+    memcpy(_pendingNdefBuffer, data, length);
+    _pendingNdefLength = length;
+    _pendingOperation = 1U;
+    _preservePendingOperation = true;
+    const bool started = beginReader(callback, userData);
+    _preservePendingOperation = false;
+    if (!started) {
+        _pendingOperation = 0U;
+        _pendingNdefLength = 0U;
+    }
+    return started;
+}
+
+bool LilyGoNfcService::beginNdefErase(LilyGoNfcEventCallback callback,
+                                      void *userData)
+{
+    _pendingNdefLength = 0U;
+    _pendingOperation = 2U;
+    _preservePendingOperation = true;
+    const bool started = beginReader(callback, userData);
+    _preservePendingOperation = false;
+    if (!started) {
+        _pendingOperation = 0U;
+    }
+    return started;
+}
+
+bool LilyGoNfcService::beginType2Write(const LilyGoNfcType2Dump &source,
+        LilyGoNfcEventCallback callback, void *userData)
+{
+    if (lilygoNfcType2CheckWriteSource(source) != LILYGO_NFC_TYPE2_WRITE_READY) return false;
+    _pendingType2Dump = source;
+    _pendingNdefLength = 0;
+    _pendingOperation = 3U;
+    _preservePendingOperation = true;
+    const bool started = beginReader(callback, userData);
+    _preservePendingOperation = false;
+    if (!started) { _pendingOperation = 0; _pendingType2Dump = {}; }
+    return started;
+}
+
 bool LilyGoNfcService::beginReader(const LilyGoNfcReaderConfig &config)
 {
+    if (!_preservePendingOperation) {
+        _pendingOperation = 0U;
+        _pendingNdefLength = 0U;
+        _pendingType2Dump = {};
+    }
     stop();
 
     _mode = LILYGO_NFC_MODE_READER;
@@ -761,6 +823,29 @@ bool LilyGoNfcService::beginEmulationWifi(const char *ssid,
     return beginEmulation(config);
 }
 
+bool LilyGoNfcService::beginEmulationRawNdef(const uint8_t *data,
+        uint32_t length,
+        LilyGoNfcEmulationTech tech,
+        LilyGoNfcEmulationCallback callback,
+        void *userData)
+{
+    if (!data || length == 0U || length > LILYGO_NFC_MAX_EMULATION_NDEF_LEN) {
+        return false;
+    }
+
+    memcpy(_emulationRawNdef, data, length);
+    LilyGoNfcEmulationConfig config = {};
+    config.kind = LILYGO_NFC_EMULATION_TEXT;
+    config.tech = tech;
+    config.templateName = "Raw NDEF";
+    config.rawNdef = _emulationRawNdef;
+    config.rawNdefLen = length;
+    config.discoveryDurationMs = kDefaultEmulationDiscoveryMs;
+    config.callback = callback;
+    config.userData = userData;
+    return beginEmulation(config);
+}
+
 bool LilyGoNfcService::beginEmulation(const LilyGoNfcEmulationConfig &config)
 {
     stop();
@@ -784,7 +869,9 @@ bool LilyGoNfcService::beginEmulation(const LilyGoNfcEmulationConfig &config)
     _emulationStatus.kind = _emulationConfig.kind;
     _emulationStatus.tech = _emulationConfig.tech;
     _emulationStatus.experimental =
-        (_emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_NFCA_T4T);
+        (_emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_NFCA_T4T ||
+         _emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_NFCA_T2T ||
+         _emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_MIFARE_CLASSIC);
     safeCopy(_emulationStatus.templateName, sizeof(_emulationStatus.templateName),
              _emulationConfig.templateName ? _emulationConfig.templateName :
              lilygoNfcEmulationKindName(_emulationConfig.kind));
@@ -795,6 +882,55 @@ bool LilyGoNfcService::beginEmulation(const LilyGoNfcEmulationConfig &config)
     _emulationReaderActive = false;
     _emulationRxData = nullptr;
     _emulationRxLen = nullptr;
+
+    if (config.tech == LILYGO_NFC_EMULATION_TECH_MIFARE_CLASSIC) {
+        _classicLastStatus = {};
+        const ReturnCode init = NFCReader.rfalNfcInitialize();
+        LILYGO_NFC_LOG_I("[ST25][MFC][EMUL][START] stage=rfal_initialize code=%u image_present=%u",
+                        init, config.classicDump != nullptr);
+        if (init != ST_ERR_NONE || !config.classicDump ||
+                !_classicListener.begin(NFCReader.getRfalRf(), *config.classicDump)) {
+            const ReturnCode startError = init != ST_ERR_NONE ? init : !config.classicDump ? ST_ERR_PARAM :
+                _classicListener.status().lastError;
+            setEmulationError(startError != ST_ERR_NONE ? startError : ST_ERR_IO, "Classic listener start failed");
+            LILYGO_NFC_LOG_E("[ST25][MFC][EMUL][START] stage=failed code=%u", _emulationStatus.lastError);
+            _emulationStatus.state = LILYGO_NFC_STATE_ERROR;
+            _running = false; _mode = LILYGO_NFC_MODE_IDLE;
+            if (activeService == this) activeService = nullptr;
+            emitEmulation(LILYGO_NFC_EVENT_START_FAILED);
+            return false;
+        }
+        _emulationStatus.state = LILYGO_NFC_STATE_EMULATING;
+        safeCopy(_emulationStatus.payloadPreview, sizeof(_emulationStatus.payloadPreview), "Classic read-only image");
+        LILYGO_NFC_LOG_I("[ST25][MFC][EMUL] start blocks=%u/%u known_sectors=%u uid_len=%u read_only=1 experimental=1",
+                         config.classicDump->blocksRead, config.classicDump->totalBlocks,
+                         config.classicDump->authenticatedSectors, config.classicDump->uidLen);
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_STARTED);
+        return true;
+    }
+    if (config.tech == LILYGO_NFC_EMULATION_TECH_NFCA_T2T) {
+        _type2LastStatus = {};
+        const ReturnCode init = NFCReader.rfalNfcInitialize();
+        if (init != ST_ERR_NONE || !config.type2Dump ||
+                !_type2Listener.begin(NFCReader.getRfalRf(), *config.type2Dump, config.type2AllowUserWrites)) {
+            const ReturnCode startError = init != ST_ERR_NONE ? init : !config.type2Dump ? ST_ERR_PARAM :
+                _type2Listener.status().lastError;
+            setEmulationError(startError != ST_ERR_NONE ? startError : ST_ERR_PARAM, "Invalid Type 2 image or listener unavailable");
+            _emulationStatus.state = LILYGO_NFC_STATE_ERROR;
+            _running = false; _mode = LILYGO_NFC_MODE_IDLE;
+            if (activeService == this) activeService = nullptr;
+            emitEmulation(LILYGO_NFC_EVENT_START_FAILED);
+            return false;
+        }
+        _emulationStatus.state = LILYGO_NFC_STATE_EMULATING;
+        safeCopy(_emulationStatus.payloadPreview, sizeof(_emulationStatus.payloadPreview),
+                 lilygoNfcType2ModelName(config.type2Dump->model));
+        LILYGO_NFC_LOG_I("[ST25][T2][EMUL] start pages=%u/%u uid_len=%u ram_writes=%u experimental=1",
+                         config.type2Dump->pagesRead, config.type2Dump->pageCount,
+                         config.type2Dump->uidLen, config.type2AllowUserWrites);
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_STARTED);
+        return true;
+    }
 
     if (!configureEmulationNdef(_emulationConfig)) {
         setEmulationError(ST_ERR_PARAM, "Invalid NDEF template");
@@ -876,9 +1012,16 @@ void LilyGoNfcService::loop()
 
 void LilyGoNfcService::stop()
 {
+    if (!_preservePendingOperation) {
+        _pendingOperation = 0;
+        _pendingNdefLength = 0;
+        _pendingType2Dump = {};
+    }
     if (!_running) return;
 
     const LilyGoNfcMode previousMode = _mode;
+    _type2Listener.stop();
+    _classicListener.stop();
     const ReturnCode deactivateErr = NFCReader.rfalNfcDeactivate(false);
     LILYGO_NFC_LOG_ONLY(logReturnCode("rfalNfcDeactivate(stop)", deactivateErr));
     _running = false;
@@ -925,6 +1068,12 @@ const LilyGoNfcReaderResult &LilyGoNfcService::lastResult() const
     return _result;
 }
 
+const uint8_t *LilyGoNfcService::ndefRawMessage(uint32_t *length) const
+{
+    if (length) *length = _result.ndefMessageLen;
+    return _result.ndefMessageLen ? _rawBuffer : nullptr;
+}
+
 const LilyGoNfcEmulationStatus &LilyGoNfcService::emulationStatus() const
 {
     return _emulationStatus;
@@ -933,6 +1082,11 @@ const LilyGoNfcEmulationStatus &LilyGoNfcService::emulationStatus() const
 const LilyGoMifareClassicDump &LilyGoNfcService::mifareClassicDump() const
 {
     return _mifareClassicDump;
+}
+
+const LilyGoNfcType2Dump &LilyGoNfcService::type2Dump() const
+{
+    return _type2Dump;
 }
 
 void LilyGoNfcService::notifyStatic(rfalNfcState st)
@@ -1038,6 +1192,14 @@ bool LilyGoNfcService::startEmulationDiscovery()
 
 void LilyGoNfcService::handleEmulationLoop()
 {
+    if (_emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_MIFARE_CLASSIC) {
+        handleClassicEmulationLoop();
+        return;
+    }
+    if (_emulationConfig.tech == LILYGO_NFC_EMULATION_TECH_NFCA_T2T) {
+        handleType2EmulationLoop();
+        return;
+    }
     NFCReader.rfalNfcWorker();
 
     switch (NFCReader.rfalNfcGetState()) {
@@ -1109,6 +1271,123 @@ void LilyGoNfcService::handleEmulationLoop()
     default:
         break;
     }
+}
+
+void LilyGoNfcService::handleType2EmulationLoop()
+{
+    const LilyGoNfcType2RfStatus current = _type2Listener.status();
+#if LILYGO_DEBUG_ENABLED
+    // Drain bounded metadata from the owner task; serial output never runs
+    // between reception of a Type 2 command and preparation of its response.
+    LilyGoNfcType2RfTrace event = {};
+    for (unsigned i = 0; i < 8U && _type2Listener.takeTrace(event); ++i) {
+        if (event.kind == 1) {
+            LILYGO_LOG_I("[ST25][T2][TRACE] us=%lu listen_state=%u",
+                         (unsigned long)event.atUs, event.state);
+        } else if (event.kind == 2) {
+            LILYGO_LOG_I("[ST25][T2][TRACE] us=%lu cmd=0x%02X rx_bits=%u tx_bits=%u reply=0x%02X auth=%u prepare_us=%lu",
+                         (unsigned long)event.atUs, event.command, event.rxBits, event.txBits,
+                         event.reply, event.authenticated ? 1U : 0U, (unsigned long)event.prepareUs);
+        } else if (event.kind == 4) {
+            LILYGO_LOG_I("[ST25][T2][SELECT] us=%lu listen_state=%u hw_state=0x%02X op=0x%02X mode=0x%02X uid_cfg=0x%02X iso_a=0x%02X reg_error=%u",
+                         (unsigned long)event.atUs, event.state, event.hardwareState, event.operation,
+                         event.mode, event.auxiliary & ST25R3916_REG_AUX_nfc_id_mask, event.iso14443a, event.error);
+        } else {
+            LILYGO_LOG_W("[ST25][T2][TRACE] us=%lu transport=%u listen_state=%u",
+                         (unsigned long)event.atUs, event.error, event.state);
+        }
+    }
+    const auto &d = current.diagnostics;
+    if (d.samples != _type2LastStatus.diagnostics.samples || d.dropped != _type2LastStatus.diagnostics.dropped) {
+        LILYGO_LOG_I("[ST25][T2][DIAG] field=%u state=%u seen=0x%08lX changes=%lu exchanges=%lu polls=%lu max_gap_us=%lu field_max_gap_us=%lu max_prepare_us=%lu dropped=%lu hw_seen=0x%08lX op=0x%02X mode=0x%02X pt=0x%02X hw_state=0x%02X aux_mod=0x%02X modulation=0x%02X reg_error=%u",
+                     d.fieldOn ? 1U : 0U, current.listenState, (unsigned long)d.statesSeen,
+                     (unsigned long)d.stateChanges, (unsigned long)current.exchanges, (unsigned long)d.polls,
+                     (unsigned long)d.maxPollGapUs, (unsigned long)d.maxFieldPollGapUs,
+                     (unsigned long)d.maxPrepareUs, (unsigned long)d.dropped, (unsigned long)d.hardwareStatesSeen,
+                     d.operation, d.mode, d.passiveControl, d.passiveState, d.auxMod, d.modulation, d.registerError);
+    }
+#endif
+    if (current.failed) {
+        _type2Listener.stop();
+        (void)NFCReader.rfalNfcDeactivate(false);
+        setEmulationError(current.lastError, "Type 2 listener recovery failed");
+        _emulationStatus.state = LILYGO_NFC_STATE_ERROR;
+        _running = false;
+        if (activeService == this) activeService = nullptr;
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_ERROR);
+        return;
+    }
+    _emulationStatus.readerActive = current.readerActive;
+    _emulationStatus.readCount = current.reads;
+    _emulationStatus.exchangeCount = current.exchanges;
+    safeCopy(_emulationStatus.activeTechnology, sizeof(_emulationStatus.activeTechnology), "NFC-A Type 2");
+    safeCopy(_emulationStatus.activeInterface, sizeof(_emulationStatus.activeInterface), "Raw RF");
+    if (current.exchanges != _type2LastStatus.exchanges) {
+        LILYGO_NFC_LOG_I("[ST25][T2][EMUL] cmd=0x%02X rx_bits=%u tx_bits=%u reads=%lu ram_writes=%lu errors=%lu",
+                         current.command, current.rxBits, current.txBits,
+                         static_cast<unsigned long>(current.reads), static_cast<unsigned long>(current.writes),
+                         static_cast<unsigned long>(current.errors));
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_EXCHANGE);
+    }
+    if (current.errors != _type2LastStatus.errors) {
+        LILYGO_NFC_LOG_W("[ST25][T2][EMUL] transport code=%u state=%u errors=%lu",
+                         current.lastError, current.listenState, static_cast<unsigned long>(current.errors));
+    }
+    if (current.readerActive != _type2LastStatus.readerActive) {
+        emitEmulation(current.readerActive ? LILYGO_NFC_EVENT_EMULATION_ACTIVATED : LILYGO_NFC_EVENT_EMULATION_RELEASED);
+    }
+    _type2LastStatus = current;
+}
+
+void LilyGoNfcService::handleClassicEmulationLoop()
+{
+    const auto current = _classicListener.status();
+    if (current.failed) {
+        LILYGO_NFC_LOG_E("[ST25][MFC][EMUL] listener failed code=%u exchanges=%lu errors=%lu",
+                        current.lastError, static_cast<unsigned long>(current.exchanges),
+                        static_cast<unsigned long>(current.errors));
+        _classicListener.stop();
+        setEmulationError(current.lastError, "Classic listener failed");
+        _emulationStatus.state = LILYGO_NFC_STATE_ERROR;
+        _running = false; _mode = LILYGO_NFC_MODE_IDLE;
+        if (activeService == this) activeService = nullptr;
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_ERROR);
+        return;
+    }
+    _emulationStatus.readerActive = current.readerActive;
+    _emulationStatus.readCount = current.reads;
+    _emulationStatus.exchangeCount = current.exchanges;
+    safeCopy(_emulationStatus.activeTechnology, sizeof(_emulationStatus.activeTechnology), "Classic");
+    safeCopy(_emulationStatus.activeInterface, sizeof(_emulationStatus.activeInterface), "Raw RF");
+#if LILYGO_NFC_DEBUG_ENABLED
+    const auto &d = current.diagnostics;
+    if (d.samples != _classicLastStatus.diagnostics.samples ||
+            d.stateChanges != _classicLastStatus.diagnostics.stateChanges) {
+        LILYGO_NFC_LOG_I("[ST25][MFC][EMUL][RF] state=%u changes=%lu states=0x%08lX field=%u irq=%u "
+                        "polls=%lu irq_polls=%lu sample_ms=%lu op=0x%02X mode=0x%02X pt=0x%02X pta=0x%02X "
+                        "aux_mod=0x%02X memory_ok=%u reg_error=%u",
+                        d.listenState, static_cast<unsigned long>(d.stateChanges),
+                        static_cast<unsigned long>(d.statesSeen), d.fieldOn, d.irqHigh,
+                        static_cast<unsigned long>(d.polls), static_cast<unsigned long>(d.irqHighPolls),
+                        static_cast<unsigned long>(d.sampledAtMs), d.operation, d.mode,
+                        d.passiveControl, d.passiveState, d.auxMod, d.memoryOk, d.registerError);
+    }
+#endif
+    if (current.exchanges != _classicLastStatus.exchanges || current.errors != _classicLastStatus.errors) {
+        LILYGO_NFC_LOG_I("[ST25][MFC][EMUL] cmd=0x%02X rx_bits=%u tx_bits=%u auth=%lu reads=%lu rejected=%lu reason=%u errors=%lu transport=%u",
+                         current.command, current.rxBits, current.txBits,
+                         static_cast<unsigned long>(current.authSuccesses), static_cast<unsigned long>(current.reads),
+                         static_cast<unsigned long>(current.rejected), current.reason,
+                         static_cast<unsigned long>(current.errors), current.lastError);
+        LILYGO_NFC_LOG_ONLY(LILYGO_NFC_LOG_I("[ST25][MFC][EMUL][TIMING] prepare_us=%lu max_prepare_us=%lu tx_us=%lu",
+                static_cast<unsigned long>(current.diagnostics.prepareUs),
+                static_cast<unsigned long>(current.diagnostics.maxPrepareUs),
+                static_cast<unsigned long>(current.diagnostics.transmitUs)));
+        emitEmulation(LILYGO_NFC_EVENT_EMULATION_EXCHANGE);
+    }
+    if (current.readerActive != _classicLastStatus.readerActive)
+        emitEmulation(current.readerActive ? LILYGO_NFC_EVENT_EMULATION_ACTIVATED : LILYGO_NFC_EVENT_EMULATION_RELEASED);
+    _classicLastStatus = current;
 }
 
 bool LilyGoNfcService::primeEmulationExchange()
@@ -1292,16 +1571,23 @@ void LilyGoNfcService::handleActivated()
 
     rfalNfcDevice ndefDevice = *dev;
     const bool ndefCandidate = describeCard(dev, &ndefDevice);
+    if (_pendingOperation == 3U) {
+        emit(LILYGO_NFC_EVENT_CARD_DETECTED);
+        writeType2();
+        return;
+    }
     LILYGO_NFC_LOG_I("[ST25][NFC] card described type=%s tag=%s ndef_candidate=%u mifare_classic=%u info=%s",
                  _result.cardType, _result.tagType, ndefCandidate ? 1U : 0U,
                  _result.mifareClassic ? 1U : 0U, _result.cardInfo);
     if (_result.mifareClassic) {
-#if LILYGO_NFC_DEBUG_ENABLED
         readMifareClassic();
-#else
-        safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), "UID only");
-#endif
         emit(LILYGO_NFC_EVENT_CARD_DETECTED);
+        if (_pendingOperation != 0U) {
+            _pendingOperation = 0U;
+            _pendingNdefLength = 0U;
+            setError(ST_ERR_NOTSUPP, "MIFARE Classic NDEF operation unsupported");
+            emit(LILYGO_NFC_EVENT_NDEF_ERROR);
+        }
         enterWaitRelease();
         return;
     }
@@ -1314,19 +1600,33 @@ void LilyGoNfcService::handleActivated()
         LILYGO_NFC_LOG_W("[ST25][NFC] card has no supported NDEF reader path; uid=%s type=%s",
                      _result.uidText, _result.cardType);
         emit(LILYGO_NFC_EVENT_CARD_DETECTED);
+        if (_pendingOperation != 0U) {
+            _pendingOperation = 0U;
+            _pendingNdefLength = 0U;
+            setError(ST_ERR_NOTSUPP, "NDEF operation unsupported");
+            emit(LILYGO_NFC_EVENT_NDEF_ERROR);
+        }
         enterWaitRelease();
         return;
     }
 
     emit(LILYGO_NFC_EVENT_CARD_DETECTED);
-    readNdef(&ndefDevice);
+    if (_pendingOperation != 0U) {
+        writeNdef(&ndefDevice);
+    } else {
+        if (_activeNfcaValid && _activeNfca.type == RFAL_NFCA_T2T) {
+            _result.type2ReadAttempted = true;
+            (void)lilygoReadNfcType2(NFCReader, _activeNfca, _type2Dump);
+            _result.type2TotalPages = _type2Dump.pageCount;
+            _result.type2PagesRead = _type2Dump.pagesRead;
+            _result.type2ReadComplete = lilygoNfcType2DumpComplete(_type2Dump);
+        }
+        readNdef(&ndefDevice);
+    }
 }
 
 bool LilyGoNfcService::readMifareClassic()
 {
-#if !LILYGO_NFC_DEBUG_ENABLED
-    return false;
-#else
     _result.mifareReadAttempted = true;
     _result.mifareReadComplete = false;
     _result.mifareSectorCount = 0U;
@@ -1341,8 +1641,9 @@ bool LilyGoNfcService::readMifareClassic()
         return false;
     }
 
+    const uint8_t atqa[2] = {_activeNfca.sensRes.anticollisionInfo, _activeNfca.sensRes.platformInfo};
     const bool readOk = lilygoReadMifareClassic(
-        NFCReader, _activeUid, _activeUidLen, _activeNfca.selRes.sak, _mifareClassicDump);
+        NFCReader, _activeUid, _activeUidLen, _activeNfca.selRes.sak, atqa, _mifareClassicDump);
     _result.mifareSectorCount = _mifareClassicDump.sectors;
     _result.mifareAuthenticatedSectors = _mifareClassicDump.authenticatedSectors;
     _result.mifareTotalBlocks = _mifareClassicDump.totalBlocks;
@@ -1357,7 +1658,79 @@ bool LilyGoNfcService::readMifareClassic()
                      static_cast<unsigned>(_result.mifareAuthenticatedSectors),
                      _result.mifareReadComplete ? 1U : 0U);
     return readOk;
-#endif
+}
+
+void LilyGoNfcService::writeType2()
+{
+    _result.type2WriteAttempted = true;
+    _result.type2Write = {};
+    _result.type2Write.failedPage = UINT16_MAX;
+    if (!_activeNfcaValid || _activeNfca.type != RFAL_NFCA_T2T || _result.mifareClassic) {
+        _result.type2Write.status = LILYGO_NFC_TYPE2_WRITE_INVALID_TARGET;
+    } else {
+        _result.type2Write = lilygoWriteNfcType2(NFCReader, _activeNfca, _pendingType2Dump, _type2Dump);
+    }
+    _pendingOperation = 0;
+    _pendingType2Dump = {};
+    const bool success = _result.type2Write.status == LILYGO_NFC_TYPE2_WRITE_COMPLETE;
+    _result.lastError = success ? ST_ERR_NONE :
+                        (_result.type2Write.transportError ? _result.type2Write.transportError : ST_ERR_NOTSUPP);
+    safeCopy(_result.errorText, sizeof(_result.errorText), success ? "" :
+             lilygoNfcType2WriteStatusText(_result.type2Write.status));
+    safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText), success ? "Type 2 write complete" : "Type 2 write failed");
+    emit(success ? LILYGO_NFC_EVENT_TYPE2_WRITE_COMPLETE : LILYGO_NFC_EVENT_TYPE2_WRITE_ERROR);
+    enterWaitRelease();
+}
+
+void LilyGoNfcService::writeNdef(rfalNfcDevice *dev)
+{
+    if (!dev || _pendingOperation == 0U) return;
+
+    _result.ndefAttempted = true;
+    ReturnCode err = _ndef.ndefPollerContextInitialization(dev);
+    if (err == ST_ERR_NONE) {
+        _hasNdefContext = true;
+    }
+    if (err == ST_ERR_NONE) {
+        ndefInfo info = {};
+        err = _ndef.ndefPollerNdefDetect(&info);
+        if (err == ST_ERR_NONE && info.state != NDEF_STATE_INITIALIZED &&
+                info.state != NDEF_STATE_READWRITE) {
+            err = ST_ERR_WRONG_STATE;
+            safeCopy(_result.errorText, sizeof(_result.errorText), "NDEF is read-only");
+        }
+        if (err == ST_ERR_NONE) {
+            if (_pendingOperation == 2U) {
+                err = _ndef.ndefPollerWriteRawMessageLen(0U);
+            } else {
+                err = _ndef.ndefPollerWriteRawMessage(_pendingNdefBuffer, _pendingNdefLength);
+            }
+        }
+    }
+
+    const uint8_t operation = _pendingOperation;
+    const uint32_t operationLength = _pendingNdefLength;
+    _pendingOperation = 0U;
+    _pendingNdefLength = 0U;
+    if (err != ST_ERR_NONE) {
+        setError(err, operation == 2U ? "NDEF erase failed" : "NDEF write failed");
+        safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText),
+                 operation == 2U ? "Erase error" : "Write error");
+        LILYGO_NFC_LOG_E("[ST25][NFC] NDEF operation failed op=%u code=%u",
+                         static_cast<unsigned>(operation), static_cast<unsigned>(err));
+        emit(LILYGO_NFC_EVENT_NDEF_ERROR);
+    } else {
+        _result.hasNdef = true;
+        _result.ndefSupported = true;
+        _result.ndefMessageLen = operation == 2U ? 0U : operationLength;
+        safeCopy(_result.ndefStateText, sizeof(_result.ndefStateText),
+                 operation == 2U ? "Erase complete" : "Write complete");
+        LILYGO_NFC_LOG_I("[ST25][NFC] NDEF operation complete op=%u length=%lu",
+                         static_cast<unsigned>(operation),
+                         static_cast<unsigned long>(_result.ndefMessageLen));
+        emit(LILYGO_NFC_EVENT_NDEF_READ);
+    }
+    enterWaitRelease();
 }
 
 void LilyGoNfcService::handleWaitRelease()
@@ -1880,6 +2253,20 @@ bool LilyGoNfcService::configureEmulationNdef(const LilyGoNfcEmulationConfig &co
     memset(_emulationNdefFile, 0, sizeof(_emulationNdefFile));
     _emulationNdefFileLen = 0;
 
+    if (config.rawNdef && config.rawNdefLen > 0U) {
+        if (config.rawNdefLen > LILYGO_NFC_MAX_EMULATION_NDEF_LEN) return false;
+        // The listener consumes an NDEF file, including its big-endian NLEN.
+        // Raw reader messages and saved .ndef files contain only the message.
+        _emulationNdefFile[0] = static_cast<uint8_t>(config.rawNdefLen >> 8U);
+        _emulationNdefFile[1] = static_cast<uint8_t>(config.rawNdefLen & 0xFFU);
+        memcpy(&_emulationNdefFile[2], config.rawNdef, config.rawNdefLen);
+        _emulationNdefFileLen = config.rawNdefLen + 2U;
+        safeCopy(_emulationStatus.payloadPreview, sizeof(_emulationStatus.payloadPreview),
+                 config.templateName ? config.templateName : "Raw NDEF");
+        _emulationStatus.ndefFileLen = _emulationNdefFileLen;
+        return true;
+    }
+
     switch (config.kind) {
     case LILYGO_NFC_EMULATION_URL:
         if (!buildUriNdefFile(_emulationNdefFile, sizeof(_emulationNdefFile),
@@ -1940,6 +2327,7 @@ void LilyGoNfcService::emitEmulation(LilyGoNfcEvent event)
 
 void LilyGoNfcService::resetResult()
 {
+    memset(&_type2Dump, 0, sizeof(_type2Dump));
     memset(&_result, 0, sizeof(_result));
     memset(&_mifareClassicDump, 0, sizeof(_mifareClassicDump));
     _result.state = LILYGO_NFC_STATE_IDLE;
@@ -2040,6 +2428,10 @@ const char *lilygoNfcEventName(LilyGoNfcEvent event)
         return "Reader released";
     case LILYGO_NFC_EVENT_EMULATION_ERROR:
         return "Emulation error";
+    case LILYGO_NFC_EVENT_TYPE2_WRITE_COMPLETE:
+        return "Type 2 write complete";
+    case LILYGO_NFC_EVENT_TYPE2_WRITE_ERROR:
+        return "Type 2 write error";
     default:
         return "Unknown";
     }
@@ -2093,6 +2485,10 @@ const char *lilygoNfcEmulationTechName(LilyGoNfcEmulationTech tech)
         return "NFC-A Type 4";
     case LILYGO_NFC_EMULATION_TECH_MIXED:
         return "Mixed A/F";
+    case LILYGO_NFC_EMULATION_TECH_NFCA_T2T:
+        return "NFC-A Type 2";
+    case LILYGO_NFC_EMULATION_TECH_MIFARE_CLASSIC:
+        return "MIFARE Classic";
     default:
         return "Unknown";
     }

@@ -70,4 +70,6 @@
     (defined(USING_ST25R3916) || defined(ARDUINO_T_EMBED_PLUS_V2) || \
      defined(ARDUINO_T_LORA_PAGER) || defined(ARDUINO_T_WATCH_S3_ULTRA))
 #include "nfc/LilyGoNfcService.h"
+#include "nfc/LilyGoMifareClassicDumpFile.h"
+#include "nfc/LilyGoNfcType2DumpFile.h"
 #endif

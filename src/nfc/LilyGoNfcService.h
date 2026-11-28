@@ -22,9 +22,14 @@
 #include <Arduino.h>
 #include "nfc_include.h"
 #include "nfc/LilyGoMifareClassic.h"
+#include "nfc/LilyGoNfcType2.h"
+#include "nfc/LilyGoNfcType2Rf.h"
+#include "nfc/LilyGoMifareClassicRf.h"
 
 /** Maximum NFC UID length stored by the service. */
+#ifndef LILYGO_NFC_MAX_UID_LEN
 #define LILYGO_NFC_MAX_UID_LEN        16
+#endif
 /** Maximum parsed NDEF records stored in one reader result. */
 #define LILYGO_NFC_MAX_RECORDS        8
 /** Maximum parsed record text length. */
@@ -81,6 +86,8 @@ enum LilyGoNfcEvent : uint8_t {
     LILYGO_NFC_EVENT_EMULATION_EXCHANGE,   /**< Data exchange occurred during emulation. */
     LILYGO_NFC_EVENT_EMULATION_RELEASED,   /**< Reader released the emulated tag. */
     LILYGO_NFC_EVENT_EMULATION_ERROR,      /**< Tag emulation error. */
+    LILYGO_NFC_EVENT_TYPE2_WRITE_COMPLETE, /**< Type 2 user memory was written and verified. */
+    LILYGO_NFC_EVENT_TYPE2_WRITE_ERROR,    /**< Type 2 preflight, write or readback failed. */
 };
 
 /**
@@ -99,6 +106,8 @@ enum LilyGoNfcEmulationTech : uint8_t {
     LILYGO_NFC_EMULATION_TECH_NFCF_T3T = 0, /**< NFC-F Type 3 Tag emulation. */
     LILYGO_NFC_EMULATION_TECH_NFCA_T4T,     /**< NFC-A Type 4 Tag emulation. */
     LILYGO_NFC_EMULATION_TECH_MIXED,        /**< Mixed technology discovery. */
+    LILYGO_NFC_EMULATION_TECH_NFCA_T2T,     /**< Raw NFC-A Type 2 image emulation. */
+    LILYGO_NFC_EMULATION_TECH_MIFARE_CLASSIC, /**< Experimental read-only Classic image emulation. */
 };
 
 /**
@@ -155,6 +164,12 @@ struct LilyGoNfcReaderResult {
     uint8_t mifareAuthenticatedSectors;                         /**< Number of sectors authenticated with built-in keys. */
     uint16_t mifareTotalBlocks;                                 /**< Expected number of MIFARE blocks. */
     uint16_t mifareBlocksRead;                                  /**< Number of MIFARE blocks read successfully. */
+    bool type2ReadAttempted;                                   /**< Raw Type 2 acquisition was attempted. */
+    bool type2ReadComplete;                                    /**< All pages of an identified geometry were captured. */
+    uint16_t type2TotalPages;                                  /**< Type 2 page address-space bound. */
+    uint16_t type2PagesRead;                                   /**< Number of Type 2 pages actually captured. */
+    bool type2WriteAttempted;                                 /**< Physical Type 2 restoration was requested. */
+    LilyGoNfcType2WriteResult type2Write;                      /**< User-page counts and physical-write outcome. */
 
     bool hasNdef;                                              /**< true when an NDEF context was found. */
     bool ndefAttempted;                                        /**< true when NDEF detection/read was attempted. */
@@ -235,6 +250,11 @@ struct LilyGoNfcEmulationConfig {
     const char *wifiPassword;              /**< Wi-Fi password for Wi-Fi emulation. */
     uint16_t wifiAuthenticationType;       /**< NDEF Wi-Fi authentication type. */
     uint16_t wifiEncryptionType;           /**< NDEF Wi-Fi encryption type. */
+    const uint8_t *rawNdef;                /**< Optional raw NDEF message, without TLV or NLEN. */
+    uint32_t rawNdefLen;                   /**< Length of rawNdef in bytes. */
+    const LilyGoNfcType2Dump *type2Dump;    /**< Image for NFC-A Type 2 emulation; copied on start. */
+    bool type2AllowUserWrites;             /**< Permit unlocked user-page writes to RAM only. */
+    const LilyGoMifareClassicDump *classicDump; /**< Classic image, copied on start; known keys only. */
     uint16_t discoveryDurationMs;          /**< Discovery duration in milliseconds. */
     LilyGoNfcEmulationCallback callback;   /**< Optional emulation event callback. */
     void *userData;                        /**< User pointer passed to callback. */
@@ -266,11 +286,57 @@ public:
     bool beginReader(LilyGoNfcEventCallback callback, void *userData = nullptr);
 
     /**
+     * @brief Start a reader operation that writes a raw NDEF message.
+     * @param data Raw NDEF message bytes, without a technology-specific TLV or NLEN.
+     * @param length Raw message length in bytes.
+     * @param callback Optional reader event callback.
+     * @param userData User pointer passed to the callback.
+     * @return true when discovery was started.
+     */
+    bool beginNdefWrite(const uint8_t *data, uint32_t length,
+                        LilyGoNfcEventCallback callback = nullptr,
+                        void *userData = nullptr);
+
+    /**
+     * @brief Discover a compatible Type 2 target and restore its writable user pages.
+     * @param source Image copied internally before discovery starts.
+     * @param callback Optional reader event callback.
+     * @param userData User pointer passed to the callback.
+     * @return true when the source is supported and discovery was started.
+     * @note UID, CC, lock, password and configuration pages are never written.
+     */
+    bool beginType2Write(const LilyGoNfcType2Dump &source,
+                        LilyGoNfcEventCallback callback = nullptr, void *userData = nullptr);
+
+    /**
+     * @brief Start a reader operation that clears the active NDEF message.
+     * @param callback Optional reader event callback.
+     * @param userData User pointer passed to the callback.
+     * @return true when discovery was started.
+     */
+    bool beginNdefErase(LilyGoNfcEventCallback callback = nullptr,
+                        void *userData = nullptr);
+
+    /**
      * @brief Start tag emulation with an explicit configuration.
      * @param config Emulation configuration.
      * @return true if emulation discovery was started.
      */
     bool beginEmulation(const LilyGoNfcEmulationConfig &config);
+
+    /**
+     * @brief Start emulation from a raw NDEF message.
+     * @param data Raw NDEF message bytes, without a technology-specific TLV or NLEN.
+     * @param length Raw message length in bytes.
+     * @param tech NFC technology used for emulation.
+     * @param callback Optional emulation event callback.
+     * @param userData User pointer passed to the callback.
+     * @return true if emulation discovery was started.
+     */
+    bool beginEmulationRawNdef(const uint8_t *data, uint32_t length,
+                               LilyGoNfcEmulationTech tech = LILYGO_NFC_EMULATION_TECH_NFCF_T3T,
+                               LilyGoNfcEmulationCallback callback = nullptr,
+                               void *userData = nullptr);
 
     /**
      * @brief Start URL tag emulation.
@@ -342,6 +408,13 @@ public:
     const LilyGoNfcReaderResult &lastResult() const;
 
     /**
+     * @brief Get the latest raw NDEF message read from a tag.
+     * @param length Optional destination for the message length.
+     * @return Pointer to the internal raw message buffer, or nullptr when empty.
+     */
+    const uint8_t *ndefRawMessage(uint32_t *length = nullptr) const;
+
+    /**
      * @brief Get the current tag-emulation status.
      * @return Reference to the internal emulation status snapshot.
      */
@@ -352,6 +425,12 @@ public:
      * @return Reference to the internal MIFARE Classic dump.
      */
     const LilyGoMifareClassicDump &mifareClassicDump() const;
+
+    /**
+     * @brief Get the latest Type 2 image, including its page-availability flags.
+     * @return Reference to the image retained until the next reader operation.
+     */
+    const LilyGoNfcType2Dump &type2Dump() const;
 
 private:
     /**
@@ -387,6 +466,11 @@ private:
      * @brief Poll active tag-emulation data exchange.
      */
     void handleEmulationLoop();
+
+    /** @brief Publish Type 2 worker status on the service caller's thread. */
+    void handleType2EmulationLoop();
+    /** Publish Classic listener status and callbacks on the caller thread. */
+    void handleClassicEmulationLoop();
 
     /**
      * @brief Prime the first tag-emulation data exchange.
@@ -434,6 +518,14 @@ private:
      * @return true when at least one block was read.
      */
     bool readMifareClassic();
+
+    /**
+     * @brief Detect and write/erase the NDEF area of an activated card.
+     * @param dev Activated NFC device.
+     */
+    void writeNdef(rfalNfcDevice *dev);
+    /** @brief Preflight, write and verify a staged Type 2 image on the active target. */
+    void writeType2();
 
     /**
      * @brief Read and parse NDEF records from a detected card.
@@ -511,12 +603,22 @@ private:
     LilyGoNfcEmulationStatus _emulationStatus;
     /** Latest authenticated MIFARE Classic memory dump. */
     LilyGoMifareClassicDump _mifareClassicDump;
+    /** Latest captured Type 2 image. */
+    LilyGoNfcType2Dump _type2Dump;
+    /** Timing-sensitive Type 2 listener and its private volatile image. */
+    LilyGoNfcType2Listener _type2Listener;
+    /** Last Type 2 worker snapshot published to the caller. */
+    LilyGoNfcType2RfStatus _type2LastStatus;
+    /** Read-only Classic listener, owning its private image and transmitter. */
+    LilyGoMifareClassicListener _classicListener;
+    /** Last Classic worker snapshot published to the caller. */
+    LilyGoMifareClassicRfStatus _classicLastStatus;
     /** RFAL discovery parameters used for emulation. */
     rfalNfcDiscoverParam _emulationDiscover;
     /** Scratch buffer for raw NFC and NDEF data. */
     uint8_t _rawBuffer[LILYGO_NFC_RAW_BUFFER_LEN];
-    /** Generated emulated NDEF file buffer. */
-    uint8_t _emulationNdefFile[LILYGO_NFC_MAX_EMULATION_NDEF_LEN];
+    /** Generated emulated NDEF file buffer, including its two-byte NLEN. */
+    uint8_t _emulationNdefFile[LILYGO_NFC_MAX_EMULATION_NDEF_LEN + 2U];
     /** NFC-F ID used during emulation. */
     uint8_t _emulationNfcfNfcid2[RFAL_NFCF_NFCID2_LEN];
     /** Emulation transmit buffer. */
@@ -527,6 +629,8 @@ private:
     uint16_t *_emulationRxLen;
     /** Generated emulated NDEF file length. */
     uint32_t _emulationNdefFileLen;
+    /** Raw NDEF message staged for emulation when configured from a file. */
+    uint8_t _emulationRawNdef[LILYGO_NFC_MAX_EMULATION_NDEF_LEN];
     /** true while reader or emulation mode is running. */
     bool _running;
     /** true after the current activation has been handled. */
@@ -537,6 +641,16 @@ private:
     bool _activeCardValid;
     /** true when cached NFC-A activation data is valid. */
     bool _activeNfcaValid;
+    /** Pending operation: 0 none, 1 NDEF write, 2 NDEF erase, 3 Type 2 user-page write. */
+    uint8_t _pendingOperation;
+    /** Source image staged independently of the target reader snapshot. */
+    LilyGoNfcType2Dump _pendingType2Dump;
+    /** Raw NDEF message staged for the next write operation. */
+    uint8_t _pendingNdefBuffer[LILYGO_NFC_RAW_BUFFER_LEN];
+    /** Number of bytes staged in _pendingNdefBuffer. */
+    uint32_t _pendingNdefLength;
+    /** Preserve a staged operation while beginReader resets an old session. */
+    bool _preservePendingOperation;
     /** true when a deactivate request is pending. */
     bool _deactivateRequested;
     /** true when the emulation exchange has been primed. */
