@@ -141,13 +141,55 @@ select { width: 100%; padding: 12px 35px 12px 13px; color: var(--ink); border: 1
 .safety-note { display: flex; gap: 8px; margin-top: 17px; color: var(--subtle); font-size: 10px; line-height: 1.5; }
 .safety-note > [aria-hidden] { color: var(--orange); }
 
-.progress-card { margin-top: 16px; padding: 24px 28px 21px; }
+.progress-card { padding: 24px 28px 21px; }
 .progress-topline { display: flex; align-items: flex-start; justify-content: space-between; }
 .progress-topline h2 { font-size: 18px; }
 .progress-percent { color: var(--mint); font-family: var(--mono); font-size: 24px; font-weight: 500; }
 .progress-track { height: 5px; margin-top: 22px; overflow: hidden; border-radius: 5px; background: rgba(157, 183, 169, .12); }
 .progress-bar { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--aqua), var(--mint)); transition: width .25s ease; }
 .progress-details { display: flex; justify-content: space-between; gap: 20px; margin-top: 10px; color: var(--subtle); font-family: var(--mono); font-size: 9px; }
+
+html.is-flashing { scroll-padding-top: var(--floating-progress-clearance); }
+html.is-flashing body { padding-top: var(--floating-progress-clearance); }
+html.is-flashing .flash-panel { top: calc(var(--floating-progress-clearance) + 20px); }
+.progress-card.is-floating {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 10;
+  width: min(780px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  padding: 18px 22px;
+  border-color: var(--mint);
+  background: var(--surface-strong);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+  transform: translateX(-50%);
+}
+.progress-card.is-floating .progress-topline { flex-wrap: nowrap; gap: 12px; }
+.progress-card.is-floating .progress-topline > div { min-width: 0; overflow-wrap: anywhere; }
+.progress-card.is-floating .progress-percent { flex: 0 0 auto; font-size: 28px; }
+.progress-card.is-floating .progress-track { margin-top: 14px; }
+
+body.has-completion-dialog { overflow: hidden; }
+.completion-dialog {
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow: hidden;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
+}
+.completion-dialog[open] { display: flex; flex-direction: column; gap: 24px; }
+.completion-dialog::backdrop { background: rgba(0, 0, 0, .75); }
+.completion-copy { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.completion-copy:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.completion-copy h2 { margin-top: 0; color: var(--mint); font-size: 22px; }
+.completion-copy p { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.completion-dialog .button { flex: 0 0 auto; justify-content: center; }
 
 .log-card { margin-top: 48px; }
 .log-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
@@ -249,4 +291,17 @@ select { width: 100%; padding: 12px 35px 12px 13px; color: var(--ink); border: 1
   .topbar-meta { width: 100%; justify-content: space-between; gap: 12px; }
   .panel-heading.compact { flex-wrap: wrap; align-items: flex-start; }
   .step-line { margin-top: 11px; }
+}
+
+@media (max-height: 360px) {
+  .progress-card.is-floating { padding: 12px 16px; }
+  .progress-card.is-floating .section-kicker, .progress-card.is-floating .progress-details { display: none; }
+  .progress-card.is-floating .progress-topline { align-items: center; }
+  .progress-card.is-floating h2 { margin-top: 0; font-size: 14px; }
+  .progress-card.is-floating .progress-percent { font-size: 22px; }
+  .progress-card.is-floating .progress-track { margin-top: 8px; }
+  .completion-dialog { max-height: calc(100dvh - 16px); padding: 12px; }
+  .completion-dialog[open] { gap: 8px; }
+  .completion-copy h2 { font-size: 16px; }
+  .completion-copy p { margin-top: 8px; line-height: 1.5; }
 }

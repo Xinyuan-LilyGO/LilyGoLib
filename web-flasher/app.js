@@ -120,6 +120,7 @@ const state = {
   chip: null,
   connected: false,
   busy: false,
+  flashing: false,
   logs: [],
   progress: { percent: 0, title: 'progress.ready', detail: 'progress.chooseDevice', params: {}, size: '—' },
   toast: null,
@@ -133,6 +134,7 @@ const elements = Object.fromEntries([
   'progress-title', 'progress-percent', 'progress-bar', 'progress-detail',
   'progress-size', 'log-output', 'clear-log', 'toast', 'environment-note',
   'device-guide', 'transfer-progress', 'clear-custom', 'language-select',
+  'progress-card', 'completion-dialog', 'completion-confirm', 'completion-watch-s3',
 ].map((id) => [id, document.getElementById(id)]));
 
 const hasWebSerial = window.isSecureContext && typeof navigator.serial?.requestPort === 'function';
@@ -217,6 +219,30 @@ function renderProgress() {
 function setProgress(percent, title, detail, params = {}, size = '—') {
   state.progress = { percent: Math.max(0, Math.min(100, Math.round(percent))), title, detail, params, size };
   renderProgress();
+}
+
+function updateProgressClearance() {
+  if (!state.flashing) return;
+  const clearance = Math.ceil(elements['progress-card'].getBoundingClientRect().height) + 24;
+  document.documentElement.style.setProperty('--floating-progress-clearance', `${clearance}px`);
+}
+
+function setFloatingProgress(active) {
+  state.flashing = active;
+  elements['progress-card'].hidden = !active;
+  elements['progress-card'].classList.toggle('is-floating', active);
+  document.documentElement.classList.toggle('is-flashing', active);
+  if (active) updateProgressClearance();
+  else document.documentElement.style.removeProperty('--floating-progress-clearance');
+}
+
+function showCompletionDialog() {
+  const watchS3 = state.device.id === 'watch-s3';
+  elements['completion-watch-s3'].hidden = !watchS3;
+  elements['completion-dialog'].setAttribute('aria-describedby',
+    watchS3 ? 'completion-message completion-watch-s3' : 'completion-message');
+  document.body.classList.add('has-completion-dialog');
+  elements['completion-dialog'].showModal();
 }
 
 function setStep(current) {
@@ -416,6 +442,22 @@ async function closeConnection() {
   updateControls();
 }
 
+function createHardReset(transport, usingUsbOtg = false) {
+  return {
+    async reset() {
+      // Release BOOT and provide the RTS pulse missing from esptool-js 0.7.1.
+      await transport.setDTR(false);
+      try {
+        await transport.setRTS(true);
+        await new Promise((resolve) => window.setTimeout(resolve, usingUsbOtg ? 200 : 100));
+      } finally {
+        await transport.setRTS(false);
+      }
+      if (usingUsbOtg) await new Promise((resolve) => window.setTimeout(resolve, 200));
+    },
+  };
+}
+
 async function connectDevice() {
   if (state.busy || !hasWebSerial) return;
   if (state.connected) {
@@ -441,6 +483,7 @@ async function connectDevice() {
       baudrate: 115200,
       terminal: { clean: () => undefined, writeLine: addRawLog, write: addRawLog },
       debugLogging: false,
+      resetConstructors: { hardReset: createHardReset },
     });
     setProgress(0, 'progress.detecting', 'progress.downloadMode');
     await state.loader.main();
@@ -489,7 +532,9 @@ async function flashFirmware() {
   setStep(3);
   const filename = state.customFile?.name || state.firmware.file;
   setProgress(0, 'progress.preparing', 'progress.reading');
+  setFloatingProgress(true);
   addLog('log.preparing', { device: state.device.name, filename });
+  let succeeded = false;
   try {
     const data = await readFirmware();
     validateFirmware(data);
@@ -510,9 +555,11 @@ async function flashFirmware() {
     });
     setProgress(100, 'progress.complete', 'progress.restart', {}, displaySize);
     addLog('log.complete', { size: displaySize }, 'success');
-    try { await state.loader.after('hard_reset'); }
-    catch { addLog('log.resetWarning', {}, 'warning'); }
-    showToast('toast.complete');
+    try {
+      await state.loader.after('hard_reset');
+      addLog('log.resetSent', {}, 'success');
+    } catch { addLog('log.resetWarning', {}, 'warning'); }
+    succeeded = true;
   } catch (error) {
     setProgress(0, 'progress.failed', 'progress.retry');
     addLog('log.flashFailed', { error: errorMessage(error) }, 'error');
@@ -520,7 +567,9 @@ async function flashFirmware() {
   } finally {
     await closeConnection();
     setBusy(false);
+    setFloatingProgress(false);
   }
+  if (succeeded) showCompletionDialog();
 }
 
 function chooseCustomFile(file) {
@@ -556,6 +605,16 @@ for (const eventName of ['dragover', 'dragleave', 'drop']) {
 }
 elements['connect-button'].addEventListener('click', connectDevice);
 elements['flash-button'].addEventListener('click', flashFirmware);
+new ResizeObserver(updateProgressClearance).observe(elements['progress-card']);
+elements['completion-dialog'].addEventListener('cancel', (event) => event.preventDefault());
+elements['completion-dialog'].addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') event.preventDefault();
+});
+elements['completion-confirm'].addEventListener('click', () => elements['completion-dialog'].close());
+elements['completion-dialog'].addEventListener('close', () => {
+  document.body.classList.remove('has-completion-dialog');
+  elements['connect-button'].focus();
+});
 elements['clear-log'].addEventListener('click', () => {
   state.logs.length = 0;
   elements['log-output'].replaceChildren();

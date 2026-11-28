@@ -111,7 +111,7 @@
         </aside>
       </section>
 
-      <section class="progress-card panel-card" id="progress-card" aria-live="polite">
+      <section class="progress-card panel-card" id="progress-card" aria-live="polite" hidden>
         <div class="progress-topline">
           <div>
             <span class="section-kicker" data-i18n="progress.label">传输状态</span>
@@ -138,8 +138,17 @@
       </section>
     </main>
 
-    <footer class="shell footer"><span>LilyGo Flash Lab</span><span data-i18n="footer.privacy">本地处理 · 无需上传固件</span></footer>
+    <footer class="shell footer"><span>LilyGo Flash Lab</span></footer>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog class="completion-dialog" id="completion-dialog" aria-labelledby="completion-title" aria-describedby="completion-message" closedby="none">
+      <div class="completion-copy" tabindex="0">
+        <h2 id="completion-title" data-i18n="completion.title">固件写入完成</h2>
+        <p id="completion-message" data-i18n="completion.message">请按设备的 RST/RESET 复位按键, 让设备重新启动.</p>
+        <p id="completion-watch-s3" data-i18n="completion.watchS3" hidden>T-Watch S3 请关机后重新开机.</p>
+      </div>
+      <button class="button button-primary" id="completion-confirm" type="button" data-i18n="completion.confirm" autofocus>确认</button>
+    </dialog>
 
     <script type="module" src="app.js"></script>
   </body>
