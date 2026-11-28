@@ -1,8 +1,10 @@
 /**
  * @file      ui_pn532_copy.cpp
- * @brief     Copy NDEF user data between NFC Forum Type 2 tags.
  * @license   MIT
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-26
+ *
+ * Copy NDEF user data between NFC Forum Type 2 tags.
  */
 #include "ui_define.h"
 
@@ -232,8 +234,7 @@ static void cancel_copy_cb(lv_event_t *event)
 
 static void show_wait_msgbox(const char *title, const char *message)
 {
-    static const char *buttons[] = {"Cancel", ""};
-    wait_msgbox = create_msgbox(lv_scr_act(), title, message, buttons,
+    wait_msgbox = create_msgbox(lv_scr_act(), title, message, nullptr,
                                 cancel_copy_cb, nullptr);
 }
 

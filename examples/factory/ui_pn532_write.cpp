@@ -1,8 +1,10 @@
 /**
  * @file      ui_pn532_write.cpp
- * @brief     Write a UTF-8 text NDEF record to an NFC Forum Type 2 tag.
  * @license   MIT
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-26
+ *
+ * Write a UTF-8 text NDEF record to an NFC Forum Type 2 tag.
  */
 #include "ui_define.h"
 
@@ -211,11 +213,10 @@ static void cancel_wait_cb(lv_event_t *event)
 
 static void show_wait_msgbox()
 {
-    static const char *buttons[] = {"Cancel", ""};
     wait_msgbox = create_msgbox(lv_scr_act(), "NFC Write",
                                 "Place card near the NFC area.\n"
                                 "Waiting for an NTAG or Ultralight card.",
-                                buttons, cancel_wait_cb, nullptr);
+                                nullptr, cancel_wait_cb, nullptr);
 }
 
 static void write_detected_card(Adafruit_PN532 &nfc, const uint8_t *uid,

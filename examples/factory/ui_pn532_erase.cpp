@@ -1,8 +1,10 @@
 /**
  * @file      ui_pn532_erase.cpp
- * @brief     Clear NDEF user data from an NFC Forum Type 2 tag.
  * @license   MIT
  * @copyright Copyright (c) 2026  ShenZhen XinYuan Electronic Technology Co., Ltd
+ * @date      2026-11-26
+ *
+ * Clear NDEF user data from an NFC Forum Type 2 tag.
  */
 #include "ui_define.h"
 
@@ -130,11 +132,10 @@ static void cancel_wait_cb(lv_event_t *event)
 
 static void show_wait_msgbox()
 {
-    static const char *buttons[] = {"Cancel", ""};
     wait_msgbox = create_msgbox(lv_scr_act(), "NFC Erase",
                                 "Place card near the NFC area.\n"
                                 "NDEF data will be erased.",
-                                buttons, cancel_wait_cb, nullptr);
+                                nullptr, cancel_wait_cb, nullptr);
 }
 
 static void erase_detected_card(Adafruit_PN532 &nfc)

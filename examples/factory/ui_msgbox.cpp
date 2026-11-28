@@ -332,10 +332,21 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt, const char *msg
         ui_add_accent_focus_style(button);
         if (callback) lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
         if (callback) dialog->cancel = button;
+        // Keep the cancellation callback and label for legacy action handlers,
+        // but expose cancellation only through the header close button.
+        if (!strcmp(buttons[i], "Cancel") || !strcmp(buttons[i], "Close")) {
+            lv_obj_add_flag(button, LV_OBJ_FLAG_HIDDEN);
+        }
     }
     if (dialog->cancel == dialog->close && callback) {
         lv_obj_remove_event_cb(dialog->close, close_clicked);
         lv_obj_add_event_cb(dialog->close, callback, LV_EVENT_CLICKED, user_data);
+    }
+    if (auto *footer = lv_msgbox_get_footer(dialog->box)) {
+        bool visible = false;
+        for (uint32_t i = 0; i < lv_obj_get_child_count(footer); ++i)
+            visible |= !lv_obj_has_flag(lv_obj_get_child(footer, i), LV_OBJ_FLAG_HIDDEN);
+        if (!visible) lv_obj_add_flag(footer, LV_OBJ_FLAG_HIDDEN);
     }
     style_box(dialog);
     lv_obj_update_layout(dialog->box);
