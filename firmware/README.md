@@ -13,7 +13,7 @@
 > 1. You need to shoot a video to prove that the board is broken. Please follow the steps below to shoot a video to prove that the board is broken.
 > 2. Follow the steps at the bottom of this page to put the board into download mode.
 > 3. Select the burning tool, download the corresponding firmware, and upload the firmware to the board through the burning tool.
-> 4. After the burning is complete, press the RST key, or disconnect the USB connection and reinsert it. If the board has a battery, you must power it off and restart to exit download mode.
+> 4. After flashing, check that the board restarts. If it does not restart automatically, press RST or power it off and on again. T-Watch-S3 has no reset button and needs a power cycle if it stays in download mode.
 > 5. Plug in the USB, open the serial port, and record the contents of the serial monitor.
 > 6. Any of the above steps must be included in the video content to facilitate explanation.
 >
@@ -28,7 +28,7 @@
 
 > [!TIP]
 >
-> The T-Vibe-Pager comes with the T-LoRa-Pager firmware installed by default; therefore, to restore it to its factory state, you must flash the T-LoRa-Pager firmware.
+> Select T-Vibe-Pager in the online flasher to use its dedicated firmware listed below.
 >
 > To restore T-Vibe-Dev to its factory state, flash the dedicated T-Vibe-Dev firmware.
 >
@@ -50,6 +50,7 @@
 | [T-Watch-2020-V3][7]               | q307-twatch2020v3-factory-xxxx-0x0.bin   |
 | [T-Watch-2019][8]                  | twatch-2019-factory-xxxx-0x0.bin         |
 | [T-Embed-Plus][9]                  | tembed-plus-factory-xxxx-0x0.bin         |
+| [T-Embed-Plus V2](../docs/lilygo-t-embed-plus-v2.md) | tembed-plus-v2-factory-xxxx-0x0.bin |
 | [T-Embed][10]                      | tembed-factory-xxxx-0x0.bin              |
 
 [1]: https://lilygo.cc/products/t-lora-pager
@@ -77,14 +78,31 @@
 > * [How to put T-Watch-Ultra into download mode](../docs/lilygo-t-watch-ultra.md#entering-download-mode-on-the-t-watch-ultra)
 > * [How to put T-LoRa-Pager or T-Vibe-Pager into download mode](../docs/lilygo-t-lora-pager.md#entering-download-mode-on-the-t-lora-pager)
 > * [How to put T-Embed-Plus into download mode](../docs/lilygo-t-embed-plus.md#3-entering-download-mode-on-the-t-embed-plus)
+> * [How to put T-Embed-Plus V2 into download mode](../docs/lilygo-t-embed-plus-v2.md#3-entering-download-mode-on-the-t-embed-plus-v2)
 > * [How to put T-Embed into download mode](../docs/lilygo-t-embed.md#3-entering-download-mode-on-the-t-embed)
 >
-> ⚠️ After the download is complete, you must press the reset button once; otherwise, the device will remain in download mode.
+> After flashing, check that the device restarts. If it stays in download mode, press RST; power T-Watch-S3 off and on again.
 >
 > ⚠️ The write address must be 0, not the default 0x1000.
 >
 > ⚠️Choose one of the following methods that suits you.
 >
+
+## LilyGo Flash Lab
+
+**[Open the online flasher](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/)**
+
+Use desktop Chrome or Edge and keep an Internet connection. The HTTPS page supports English, Chinese, and Japanese. It offers the published factory firmware for each device and radio variant without a separate flashing application or Python installation. Phone and tablet browsers are not supported for USB flashing by this page.
+
+1. Connect the board to the computer running the browser with a USB data cable.
+2. Select the matching device and radio variant. T-Embed-Plus and T-Embed-Plus V2 require different firmware.
+3. Follow the device-specific download-mode link on the page, then click **Connect device** and select its serial port in the browser prompt.
+4. Check the selected firmware and click **Flash firmware**. The page uses address `0x0` automatically; progress stays visible at the top while writing. Keep the USB cable connected until writing finishes.
+5. The page attempts an automatic reset, closes the serial connection, and opens a completion dialog. If the device has not restarted, press RST/RESET; power T-Watch-S3 off and on again. Click **OK** to close the dialog.
+
+Flashing overwrites the image's flash regions, which may include settings and filesystem data. Back up anything you need before writing. To use your own `.bin`, select a merged image for the chosen board that includes its bootloader and partition table; a standalone application `.bin` cannot be written with this page.
+
+If no port appears, check the USB data cable, enter download mode again, and check whether your board's USB-to-serial driver is installed. Connection or write failures are recorded in the page's activity log.
 
 ## LILYGO Spark
 

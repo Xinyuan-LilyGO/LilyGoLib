@@ -58,3 +58,7 @@
 * Confirm that the selected serial port belongs to the watch and that the USB cable supports data.
 * If uploading at 921600 fails, retry with an upload speed of 115200.
 * On systems where no serial port appears, install the driver required by the onboard USB-to-serial bridge or try another USB port.
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.

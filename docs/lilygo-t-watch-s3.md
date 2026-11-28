@@ -89,3 +89,7 @@
 #### Boot Button
 
 ![twatchs3-bootbutton](./images/twatchs3-bootbutton.jpg)
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.

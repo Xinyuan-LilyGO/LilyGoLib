@@ -17,6 +17,12 @@
   <a href="https://github.com/Xinyuan-LilyGO/LilyGoLib/actions/workflows/radio_examples_ci.yml"><img alt="Radio examples build" src="https://github.com/Xinyuan-LilyGO/LilyGoLib/actions/workflows/radio_examples_ci.yml/badge.svg"/></a>
 </p>
 
+### Flash Factory Firmware Online
+
+Open **[LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/)** to write the available factory firmware directly from desktop Chrome or Edge. Connect your device with a USB data cable, select the matching board and radio variant, and follow its download-mode guide. No separate flashing application or Python installation is required. The page supports English, Chinese, and Japanese.
+
+For connection, flashing, and restart instructions, see the [firmware guide](./firmware/README.md#lilygo-flash-lab) or [中文说明](./firmware/README_CN.MD#lilygo-flash-lab).
+
 ### Factory UI Preview
 
 <table>

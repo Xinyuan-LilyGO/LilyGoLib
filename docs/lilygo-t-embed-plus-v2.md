@@ -172,3 +172,7 @@ References:
 * [ESP32-C5 ESP-AT BLE scan commands](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/AT_Command_Set/BLE_AT_Commands.html#at-blescan-enable-bluetooth-le-scanning)
 * [ESP32-C5 AT port pins](https://docs.espressif.com/projects/esp-at/en/latest/esp32c5/Compile_and_Develop/How_to_set_AT_port_pin.html)
 * [ESP32-C5 AT firmware archive](../firmware/esp-at/esp32c5-4MB-at-github-actions.zip)
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.

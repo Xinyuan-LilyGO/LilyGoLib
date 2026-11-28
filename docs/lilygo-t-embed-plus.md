@@ -114,3 +114,7 @@ Use these steps if the board cannot be uploaded normally:
 >
 > If the device doesn't work after pressing the reset button following a firmware upload, it's necessary to disconnect the battery and just power the device through USB-C to test if it can start normally. If it still won't start at this step, it means there's a problem with the device.
 >
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.

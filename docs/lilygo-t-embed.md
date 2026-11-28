@@ -112,3 +112,7 @@ Use these steps if the board cannot be uploaded normally:
 > The rotary encoder center switch is also the normal application input on
 > GPIO0. Keep it released during a normal reset.
 >
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.

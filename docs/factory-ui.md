@@ -6,6 +6,8 @@
 
 Selected screens from the factory firmware show the interfaces available on each supported device. Click any image to view it at its original resolution.
 
+To install the available factory firmware, open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select your device and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for connection, download-mode, and restart instructions.
+
 ## T-Deck
 
 [T-Deck Quick Start](./lilygo-t-deck.md)

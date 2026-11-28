@@ -90,3 +90,7 @@
 > 6. 上传完成后，按 **RST** 退出下载模式。
 >
 > 如果烧录成功后设备仍无法启动，或某个外设无法工作，请烧录[出厂测试固件](../firmware/README.md)以检查硬件。
+
+## 在线恢复出厂固件
+
+使用桌面版 Chrome 或 Edge 打开 [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/)，选择与设备和射频版本匹配的出厂固件. 下载模式、写入及重启步骤见[固件烧录说明](../firmware/README_CN.MD#lilygo-flash-lab).

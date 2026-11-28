@@ -84,3 +84,7 @@ After T-Deck support is included in a stable Arduino-ESP32 release:
 >  7. Upload the firmware.
 >
 > If flashing succeeds but the device does not start or a peripheral does not work, flash the [factory test firmware](../firmware/README.md) to verify the hardware.
+
+## Restore Factory Firmware Online
+
+Open [LilyGo Flash Lab](https://xinyuan-lilygo.github.io/LilyGoLib/web-flasher/) in desktop Chrome or Edge and select the factory firmware matching your board and radio variant. See the [firmware guide](../firmware/README.md#lilygo-flash-lab) for download-mode, flashing, and restart instructions.
