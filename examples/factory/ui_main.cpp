@@ -2052,6 +2052,10 @@ void setupGui()
 #if !defined(EXCLUDE_NFC_MFC)
     extern app_t ui_nfc_mfc_main;
     register_app("NFC", &img_nfc, &ui_nfc_mfc_main);
+#if !defined(EXCLUDE_AMIIBO)
+    extern app_t ui_amiibo_main;
+    register_app("Amiibo", &img_nfc_card, &ui_amiibo_main);
+#endif
 #else
     extern app_t ui_nfc_main;
     register_app("NFC", &img_nfc, &ui_nfc_main);

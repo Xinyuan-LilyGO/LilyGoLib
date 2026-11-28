@@ -245,6 +245,11 @@ lv_obj_t *create_msgbox(lv_obj_t *parent, const char *title_txt,
 /** @brief Close a helper modal; nullptr and already closed helper boxes are ignored. */
 void destroy_msgbox(lv_obj_t *msgbox);
 void ui_msgbox_refresh();
+#if defined(ARDUINO) && defined(USING_ST25R3916) && !defined(EXCLUDE_NFC_MFC) && \
+    !defined(EXCLUDE_AMIIBO)
+void ui_amiibo_open(lv_obj_t *parent, lv_event_cb_t back);
+void ui_amiibo_close();
+#endif
 /**
  * @brief Open an opaque full-screen settings page with its own input group.
  * @param owner App object whose deletion also closes this settings page.

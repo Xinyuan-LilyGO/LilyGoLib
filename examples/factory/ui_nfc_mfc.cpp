@@ -32,6 +32,9 @@ enum nfc_mode_t : uint8_t {
     NFC_MODE_EMULATE,
     NFC_MODE_ERASE,
     NFC_MODE_INFO,
+#if !defined(EXCLUDE_AMIIBO)
+    NFC_MODE_AMIIBO,
+#endif
 };
 
 struct file_item_t {
@@ -54,6 +57,9 @@ static constexpr nfc_menu_item_t kMenuItems[] = {
     {"Emulate", &nfc_action_emulate, NFC_MODE_EMULATE},
     {"Erase", &nfc_action_erase, NFC_MODE_ERASE},
     {"Info", &nfc_action_info, NFC_MODE_INFO},
+#if !defined(EXCLUDE_AMIIBO)
+    {"Amiibo", &nfc_action_emulate, NFC_MODE_AMIIBO},
+#endif
 };
 
 static lv_obj_t *page = nullptr;
@@ -1199,6 +1205,9 @@ static void poll(lv_timer_t *)
 
 static void back_cb(lv_event_t *)
 {
+#if !defined(EXCLUDE_AMIIBO)
+    if (mode == NFC_MODE_AMIIBO) ui_amiibo_close();
+#endif
     close_prompt();
     stop_discovery();
     if (timer) {
@@ -1227,6 +1236,9 @@ static void build_mode()
         show_menu();
         return;
     }
+#if !defined(EXCLUDE_AMIIBO)
+    if (mode == NFC_MODE_AMIIBO) { ui_amiibo_open(root_parent, back_cb); return; }
+#endif
     clear_content_refs();
     page = ui_create_app_page(root_parent, mode == NFC_MODE_READ ? "NFC Read" :
                               mode == NFC_MODE_WRITE ? "NFC Write" :
