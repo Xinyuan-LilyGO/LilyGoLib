@@ -2049,8 +2049,13 @@ void setupGui()
 
 #if defined(ARDUINO)
 #if !defined(EXCLUDE_NFC) && defined(USING_ST25R3916)
+#if !defined(EXCLUDE_NFC_MFC)
+    extern app_t ui_nfc_mfc_main;
+    register_app("NFC", &img_nfc, &ui_nfc_mfc_main);
+#else
     extern app_t ui_nfc_main;
     register_app("NFC", &img_nfc, &ui_nfc_main);
+#endif
 #if !defined(EXCLUDE_NFC_EMULATION)
     extern app_t ui_nfc_emulation_main;
     register_app("NFC Card", &img_nfc_card, &ui_nfc_emulation_main);

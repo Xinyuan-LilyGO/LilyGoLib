@@ -27,6 +27,17 @@ static inline uint32_t millis(void) { return lv_tick_get(); }
 #include <vector>
 #include <time.h>
 #include <string.h>
+
+/*
+ * T-Embed-Plus V2 exposes the ST25R3916 reader, but the unified MFC/Amiibo
+ * feature is still under hardware validation. Keep this default in the shared
+ * Factory header so every Arduino build, including Arduino IDE builds, receives
+ * the same source gate.
+ */
+#if defined(ARDUINO_T_EMBED_PLUS_V2) && !defined(EXCLUDE_NFC_MFC)
+#define EXCLUDE_NFC_MFC
+#endif
+
 #include "hal_interface.h"
 
 /*
@@ -257,6 +268,8 @@ void set_default_group(lv_group_t *group);
 typedef void (*ui_nfc_child_back_cb_t)(void);
 void ui_nfc_set_child_back(ui_nfc_child_back_cb_t cb);
 void ui_nfc_child_back(void);
+/** Build the ST25R3916 radio/payload support comparison inside an NFC info page. */
+void ui_nfc_info_create(lv_obj_t *parent);
 
 lv_obj_t *ui_create_process_bar(lv_obj_t *parent, const char *title);
 
